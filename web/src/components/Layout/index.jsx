@@ -130,12 +130,18 @@ const AppLayout = () => {
     navigate(key)
   }
 
-  const handleLogout = () => {
-    clearSession()
-    setUserInfo(null)
-    setTabs([DEFAULT_TAB])
-    setActiveTab('/dashboard')
-    navigate('/login')
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout()
+    } catch (error) {
+      console.error('退出登录失败:', error)
+    } finally {
+      clearSession()
+      setUserInfo(null)
+      setTabs([DEFAULT_TAB])
+      setActiveTab('/dashboard')
+      navigate('/login')
+    }
   }
 
   useEffect(() => {
@@ -228,7 +234,9 @@ const AppLayout = () => {
           <span className="text-xs text-gray-500">安全退出系统</span>
         </div>
       ),
-      onClick: handleLogout,
+      onClick: () => {
+        void handleLogout()
+      },
     },
   ]
 

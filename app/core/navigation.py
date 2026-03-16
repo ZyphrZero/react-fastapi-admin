@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-SYSTEM_MENU_TREE = [
+BASE_MENU_TREE = [
     {
         "id": 1,
         "name": "工作台",
@@ -16,6 +16,9 @@ SYSTEM_MENU_TREE = [
         "redirect": None,
         "children": [],
     },
+]
+
+ADMIN_MENU_TREE = [
     {
         "id": 10,
         "name": "系统管理",
@@ -93,5 +96,8 @@ SYSTEM_MENU_TREE = [
 ]
 
 
-def get_system_menu_tree() -> list[dict]:
-    return deepcopy(SYSTEM_MENU_TREE)
+def get_system_menu_tree(*, is_superuser: bool) -> list[dict]:
+    menu_tree = list(BASE_MENU_TREE)
+    if is_superuser:
+        menu_tree.extend(ADMIN_MENU_TREE)
+    return deepcopy(menu_tree)

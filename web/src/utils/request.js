@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { isBusinessError, isBusinessSuccess, handleAuthError } from '@/utils/errorHandler'
-import { getAccessToken } from '@/utils/session'
+import { clearSession, getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from '@/utils/session'
 
 // 创建axios实例
 const request = axios.create({
@@ -11,12 +11,73 @@ const request = axios.create({
     },
 })
 
+const refreshClient = axios.create({
+    baseURL: '/api',
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+})
+
+let refreshPromise = null
+
+const createBusinessError = (response, message) => {
+    const error = new Error(message)
+    error.response = response
+    return error
+}
+
+const refreshAccessToken = async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) {
+        throw new Error('Missing refresh token')
+    }
+
+    const response = await refreshClient.post('/base/refresh_token', { refresh_token: refreshToken })
+    if (!isBusinessSuccess(response)) {
+        throw createBusinessError(response, 'Refresh token rejected')
+    }
+
+    const payload = response.data?.data
+    if (!payload?.access_token || !payload?.refresh_token) {
+        throw new Error('Invalid refresh token response')
+    }
+
+    setAccessToken(payload.access_token)
+    setRefreshToken(payload.refresh_token)
+    return payload.access_token
+}
+
+const getRefreshPromise = () => {
+    if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null
+        })
+    }
+
+    return refreshPromise
+}
+
 // 请求拦截器
 request.interceptors.request.use(
-    (config) => {
-        const token = getAccessToken()
-        if (token && !config.noNeedToken) {
-            config.headers.token = token
+    async (config) => {
+        if (config.noNeedToken) {
+            return config
+        }
+
+        let token = getAccessToken()
+        if (!token && getRefreshToken()) {
+            try {
+                token = await getRefreshPromise()
+            } catch (error) {
+                clearSession()
+                handleAuthError(401)
+                return Promise.reject(error)
+            }
+        }
+
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`
         }
         return config
     },
@@ -54,10 +115,30 @@ request.interceptors.response.use(
         // 其他情况直接返回数据
         return response.data
     },
-    (error) => {
+    async (error) => {
         // 处理网络错误和HTTP错误状态码
+        const originalRequest = error.config || {}
 
-        // 处理认证错误
+        if (
+            error.response?.status === 401 &&
+            !originalRequest.noNeedToken &&
+            !originalRequest.noAuthRefresh &&
+            !originalRequest._retry &&
+            getRefreshToken()
+        ) {
+            originalRequest._retry = true
+            try {
+                const token = await getRefreshPromise()
+                originalRequest.headers = originalRequest.headers || {}
+                originalRequest.headers.Authorization = `Bearer ${token}`
+                return request(originalRequest)
+            } catch (refreshError) {
+                clearSession()
+                handleAuthError(401)
+                return Promise.reject(refreshError)
+            }
+        }
+
         if (error.response?.status === 401) {
             handleAuthError(error.response.status)
         }

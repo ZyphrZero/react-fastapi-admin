@@ -34,6 +34,11 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         user.last_login = datetime.now()
         await user.save()
 
+    async def bump_session_version(self, user: User) -> int:
+        user.session_version += 1
+        await user.save(update_fields=["session_version", "updated_at"])
+        return user.session_version
+
     async def count_superusers(self) -> int:
         return await self.model.filter(is_superuser=True).count()
 

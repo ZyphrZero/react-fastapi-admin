@@ -2,16 +2,17 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.core.exceptions import ValidationError
-from app.schemas.users import UserUpdate
+from app.schemas.users import ResetPasswordRequest, UserUpdate
 from app.services.user_admin_service import user_admin_service
-from app.utils.password import verify_password
+from app.utils.password import get_password_hash, verify_password
 
 
 class DummyUser:
-    def __init__(self, *, id: int = 1, is_superuser: bool, password: str = "old-password-hash") -> None:
+    def __init__(self, *, id: int = 1, is_superuser: bool, password: str | None = None) -> None:
         self.id = id
         self.is_superuser = is_superuser
-        self.password = password
+        self.password = password or get_password_hash("OldPass1!")
+        self.session_version = 0
         self.saved = False
 
     async def save(self) -> None:
@@ -23,17 +24,24 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
         user = DummyUser(is_superuser=True)
 
         with patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)):
-            await user_admin_service.reset_user_password(user_id=1, current_user_id=1)
+            await user_admin_service.reset_user_password(
+                ResetPasswordRequest(user_id=1, new_password="NewPass1!"),
+                current_user_id=1,
+            )
 
         self.assertTrue(user.saved)
-        self.assertTrue(verify_password("123456", user.password))
+        self.assertEqual(user.session_version, 1)
+        self.assertTrue(verify_password("NewPass1!", user.password))
 
     async def test_superuser_cannot_reset_other_superuser_password(self) -> None:
         user = DummyUser(is_superuser=True)
 
         with patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)):
             with self.assertRaisesRegex(ValidationError, "不允许重置其他超级管理员密码"):
-                await user_admin_service.reset_user_password(user_id=1, current_user_id=2)
+                await user_admin_service.reset_user_password(
+                    ResetPasswordRequest(user_id=1, new_password="NewPass1!"),
+                    current_user_id=2,
+                )
 
         self.assertFalse(user.saved)
 
@@ -41,10 +49,24 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
         user = DummyUser(is_superuser=False)
 
         with patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)):
-            await user_admin_service.reset_user_password(user_id=2, current_user_id=1)
+            await user_admin_service.reset_user_password(
+                ResetPasswordRequest(user_id=2, new_password="Another1!"),
+                current_user_id=1,
+            )
 
         self.assertTrue(user.saved)
-        self.assertTrue(verify_password("123456", user.password))
+        self.assertEqual(user.session_version, 1)
+        self.assertTrue(verify_password("Another1!", user.password))
+
+    async def test_reset_password_rejects_same_password(self) -> None:
+        user = DummyUser(is_superuser=False)
+
+        with patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)):
+            with self.assertRaisesRegex(ValidationError, "新密码不能与当前密码相同"):
+                await user_admin_service.reset_user_password(
+                    ResetPasswordRequest(user_id=2, new_password="OldPass1!"),
+                    current_user_id=1,
+                )
 
 
 class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):

@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import LoginRedirect from '@/components/LoginRedirect'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import SuperuserRoute from '@/components/SuperuserRoute'
 
 const Layout = lazy(() => import('@/components/Layout'))
 const Login = lazy(() => import('@/pages/Login'))
@@ -11,6 +12,7 @@ const Profile = lazy(() => import('@/pages/Profile'))
 const UserManagement = lazy(() => import('@/pages/UserManagement'))
 const RoleManagement = lazy(() => import('@/pages/RoleManagement'))
 const ApiManagement = lazy(() => import('@/pages/ApiManagement'))
+const ForbiddenPage = lazy(() => import('@/pages/ErrorPages').then((module) => ({ default: module.ForbiddenPage })))
 const NotFoundPage = lazy(() => import('@/pages/ErrorPages').then((module) => ({ default: module.NotFoundPage })))
 
 const routeFallback = (
@@ -51,27 +53,55 @@ const router = createBrowserRouter([
       },
       {
         path: 'system/users',
-        element: withSuspense(<UserManagement />),
+        element: (
+          <SuperuserRoute>
+            {withSuspense(<UserManagement />)}
+          </SuperuserRoute>
+        ),
       },
       {
         path: 'system/roles',
-        element: withSuspense(<RoleManagement />),
+        element: (
+          <SuperuserRoute>
+            {withSuspense(<RoleManagement />)}
+          </SuperuserRoute>
+        ),
       },
       {
         path: 'system/apis',
-        element: withSuspense(<ApiManagement />),
+        element: (
+          <SuperuserRoute>
+            {withSuspense(<ApiManagement />)}
+          </SuperuserRoute>
+        ),
       },
       {
         path: 'system/departments',
-        element: <div>部门管理页面</div>,
+        element: (
+          <SuperuserRoute>
+            <div>部门管理页面</div>
+          </SuperuserRoute>
+        ),
       },
       {
         path: 'system/audit',
-        element: <div>审计日志页面</div>,
+        element: (
+          <SuperuserRoute>
+            <div>审计日志页面</div>
+          </SuperuserRoute>
+        ),
       },
       {
         path: 'system/upload',
-        element: <div>文件管理页面</div>,
+        element: (
+          <SuperuserRoute>
+            <div>文件管理页面</div>
+          </SuperuserRoute>
+        ),
+      },
+      {
+        path: 'forbidden',
+        element: withSuspense(<ForbiddenPage />),
       },
       {
         path: '*',

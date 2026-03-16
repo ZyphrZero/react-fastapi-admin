@@ -6,8 +6,8 @@ from tortoise.expressions import Q
 
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.repositories import dept_repository, user_repository
-from app.schemas.users import UserCreate, UserUpdate
-from app.utils.password import get_password_hash, validate_password_strength
+from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
+from app.utils.password import get_password_hash, validate_password_strength, verify_password
 
 
 class UserAdminService:
@@ -79,10 +79,9 @@ class UserAdminService:
         if existing_username_user:
             raise ValidationError("该用户名已被使用")
 
-        if user_in.password != "123456":
-            is_valid, message = validate_password_strength(user_in.password)
-            if not is_valid:
-                raise ValidationError(f"密码强度不足: {message}")
+        is_valid, message = validate_password_strength(user_in.password)
+        if not is_valid:
+            raise ValidationError(f"密码强度不足: {message}")
 
         payload = user_in.create_dict()
         payload["password"] = get_password_hash(user_in.password)
@@ -114,6 +113,7 @@ class UserAdminService:
             if not is_valid:
                 raise ValidationError(f"密码强度不足: {message}")
             update_data["password"] = get_password_hash(update_data["password"])
+            update_data["session_version"] = existing_user.session_version + 1
 
         user = existing_user
         if update_data:
@@ -139,14 +139,21 @@ class UserAdminService:
 
         await user_repository.remove(user_id)
 
-    async def reset_user_password(self, *, user_id: int, current_user_id: int) -> None:
-        user_obj = await user_repository.get(user_id)
+    async def reset_user_password(self, payload: ResetPasswordRequest, *, current_user_id: int) -> None:
+        user_obj = await user_repository.get(payload.user_id)
         if not user_obj:
             raise AuthenticationError("用户不存在")
-        if user_obj.is_superuser and current_user_id != user_id:
+        if user_obj.is_superuser and current_user_id != payload.user_id:
             raise ValidationError("不允许重置其他超级管理员密码")
+        if verify_password(payload.new_password, user_obj.password):
+            raise ValidationError("新密码不能与当前密码相同")
 
-        user_obj.password = get_password_hash("123456")
+        is_valid, message = validate_password_strength(payload.new_password)
+        if not is_valid:
+            raise ValidationError(f"密码强度不足: {message}")
+
+        user_obj.password = get_password_hash(payload.new_password)
+        user_obj.session_version += 1
         await user_obj.save()
 
 

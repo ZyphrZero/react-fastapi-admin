@@ -98,6 +98,11 @@ class UpdatePassword(BaseModel):
     new_password: str = Field(description="新密码")
 
 
+class ResetPasswordRequest(BaseModel):
+    user_id: int = Field(description="用户ID")
+    new_password: str = Field(description="新密码")
+
+
 class ProfileUpdate(BaseModel):
     """用户个人信息更新模型"""
 

@@ -43,6 +43,7 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
         settings = self.load_settings(
             """
             APP_ENV=production
+            SECRET_KEY=production_secret_key_that_is_long_enough_1234567890
             SERVER_RELOAD=true
             RUN_MIGRATIONS_ON_STARTUP=false
             SEED_BASE_DATA_ON_STARTUP=false
@@ -58,6 +59,25 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
         self.assertFalse(settings.should_run_migrations_on_startup)
         self.assertFalse(settings.should_seed_base_data_on_startup)
         self.assertTrue(settings.should_refresh_api_metadata_on_startup)
+
+    def test_development_generates_secret_key_when_missing(self) -> None:
+        settings = self.load_settings(
+            """
+            APP_ENV=development
+            """
+        )
+
+        self.assertGreaterEqual(len(settings.SECRET_KEY), 32)
+
+    def test_ip_whitelist_reads_direct_env_name(self) -> None:
+        settings = self.load_settings(
+            """
+            APP_ENV=development
+            IP_WHITELIST=192.168.1.100,10.0.0.1
+            """
+        )
+
+        self.assertEqual(settings.ip_whitelist, ["192.168.1.100", "10.0.0.1"])
 
 
 if __name__ == "__main__":

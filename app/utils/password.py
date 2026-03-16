@@ -9,6 +9,9 @@ from app.settings.config import settings
 
 
 BCRYPT_MAX_PASSWORD_BYTES = 72
+BOOTSTRAP_ADMIN_PASSWORD_LENGTH = 12
+BOOTSTRAP_ADMIN_PASSWORD_SYMBOLS = "!@#$%^&*()-_=+[]{};:,.?/"
+BOOTSTRAP_ADMIN_PASSWORD_CHARACTERS = string.digits + BOOTSTRAP_ADMIN_PASSWORD_SYMBOLS
 
 
 def validate_bcrypt_password_length(password: str) -> Tuple[bool, str]:
@@ -97,6 +100,27 @@ def generate_password(length: Optional[int] = None) -> str:
     # 打乱字符顺序
     secrets.SystemRandom().shuffle(password_chars)
 
+    return "".join(password_chars)
+
+
+def generate_bootstrap_admin_password(length: int = BOOTSTRAP_ADMIN_PASSWORD_LENGTH) -> str:
+    """
+    生成首次引导专用管理员密码。
+
+    该密码仅使用数字和符号，避免依赖常规密码策略配置。
+    """
+    if length < 2:
+        raise ValueError("首次引导密码长度不能少于2个字符")
+
+    password_chars = [
+        secrets.choice(string.digits),
+        secrets.choice(BOOTSTRAP_ADMIN_PASSWORD_SYMBOLS),
+    ]
+
+    for _ in range(length - len(password_chars)):
+        password_chars.append(secrets.choice(BOOTSTRAP_ADMIN_PASSWORD_CHARACTERS))
+
+    secrets.SystemRandom().shuffle(password_chars)
     return "".join(password_chars)
 
 

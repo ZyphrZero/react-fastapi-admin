@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Query
 
 from app.core.ctx import CTX_USER_ID
 from app.schemas.base import Success, SuccessExtra
-from app.schemas.users import UserCreate, UserUpdate
+from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.services import user_admin_service
 
 router = APIRouter()
@@ -52,6 +52,6 @@ async def delete_user(user_id: int = Query(..., description="用户ID")):
 
 
 @router.post("/reset_password", summary="重置密码")
-async def reset_password(user_id: int = Body(..., description="用户ID", embed=True)):
-    await user_admin_service.reset_user_password(user_id=user_id, current_user_id=CTX_USER_ID.get())
-    return Success(msg="密码已重置为123456")
+async def reset_password(payload: ResetPasswordRequest):
+    await user_admin_service.reset_user_password(payload, current_user_id=CTX_USER_ID.get())
+    return Success(msg="密码更新成功")

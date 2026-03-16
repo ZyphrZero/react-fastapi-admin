@@ -4,7 +4,7 @@ import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { setAccessToken, setStoredUserInfo } from '@/utils/session'
+import { clearSession, setAccessToken, setRefreshToken, setStoredUserInfo } from '@/utils/session'
 
 const Login = () => {
   const [loading, setLoading] = useState(false)
@@ -21,6 +21,7 @@ const Login = () => {
 
       // 保存token和用户信息
       setAccessToken(response.data.access_token)
+      setRefreshToken(response.data.refresh_token)
       
       // 获取用户信息
       const userInfo = await api.auth.getUserInfo()
@@ -29,6 +30,7 @@ const Login = () => {
       showSuccess('登录成功！')
       navigate('/dashboard')
     } catch (error) {
+      clearSession()
       handleBusinessError(error, '登录失败，请检查用户名和密码')
     } finally {
       setLoading(false)
@@ -67,10 +69,6 @@ const Login = () => {
             onFinish={onFinish}
             size="large"
             className="space-y-4"
-            initialValues={{
-              username: 'admin',
-              password: '123456'
-            }}
           >
             <Form.Item
               name="username"
@@ -113,10 +111,6 @@ const Login = () => {
             </Form.Item>
           </Form>
 
-          {/* 底部信息 */}
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Demo账户: admin / 123456</p>
-          </div>
         </Card>
 
         {/* 版权信息 */}

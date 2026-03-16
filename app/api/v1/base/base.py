@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Request
 
 from app.core.ctx import CTX_USER_ID
-from app.core.dependency import DependAuth
+from app.core.dependency import AuthControl, DependAuth
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema
 from app.schemas.users import ProfileUpdate, UpdatePassword
@@ -17,12 +17,16 @@ class RefreshTokenRequest(BaseModel):
 
 
 @router.post("/access_token", summary="获取token")
-async def login_access_token(credentials: CredentialsSchema):
+async def login_access_token(credentials: CredentialsSchema, request: Request):
+    client_ip = AuthControl.get_client_ip(request)
+    AuthControl.enforce_rate_limit(f"login:{client_ip}:{credentials.username}")
     return Success(data=await auth_service.login(credentials))
 
 
 @router.post("/refresh_token", summary="刷新访问令牌")
-async def refresh_token(request: RefreshTokenRequest):
+async def refresh_token(request: RefreshTokenRequest, raw_request: Request):
+    client_ip = AuthControl.get_client_ip(raw_request)
+    AuthControl.enforce_rate_limit(f"refresh:{client_ip}")
     return Success(data=await auth_service.refresh_access_token(request.refresh_token))
 
 
@@ -59,6 +63,6 @@ async def update_user_profile(req_in: ProfileUpdate):
 
 
 @router.post("/logout", summary="用户注销", dependencies=[DependAuth])
-async def logout(token: str = Header(..., description="token验证")):
-    await auth_service.logout(token, CTX_USER_ID.get())
+async def logout():
+    await auth_service.logout(CTX_USER_ID.get())
     return Success(msg="注销成功")

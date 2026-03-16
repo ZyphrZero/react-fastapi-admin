@@ -30,7 +30,9 @@ React code uses ES modules, functional components, 2-space indentation, and no s
 Automated coverage is currently light: there is no configured frontend test runner or coverage threshold. Add backend tests under `app/tests/test_*.py`, keep them deterministic, and write them in `pytest`-compatible style so they run under `uv run pytest app/tests`. For UI work, run at minimum `pnpm lint` and `pnpm build` before opening a PR.
 
 ## Commit & Pull Request Guidelines
-Recent history follows Conventional Commit style, sometimes with emoji prefixes, for example `feat: ...`, `refactor(auth, menu): ...`, and `build(deps): ...`. Use a lowercase type, optional scope, and an imperative summary.
+Use English Conventional Commit messages with an emoji prefix. Preferred format is `<emoji> <type>(<scope>): <imperative summary>`, for example `🍒 feat(core): add bootstrap runtime`, `♻️ refactor(auth): simplify session flow`, and `📦 build(deps): update vite vendor split`.
+
+Keep the `type` lowercase, make the `scope` short and lowercase when used, and write the summary in English imperative mood.
 
 PRs should explain the change, note any migration or `.env` impact, link related issues, and include screenshots for UI updates. Review generated migrations before committing them.
 

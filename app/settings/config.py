@@ -1,7 +1,8 @@
+import secrets
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
     APP_TITLE: str = Field(default="React FastAPI Admin", description="应用标题")
     PROJECT_NAME: str = Field(default="React FastAPI Admin", description="项目名称")
     APP_DESCRIPTION: str = Field(default="React FastAPI Admin Description", description="应用描述")
-    DEBUG: bool = Field(default=True, description="调试模式")
+    DEBUG: bool = Field(default=False, description="调试模式")
     HOST: str = Field(default="0.0.0.0", description="服务监听地址")
     PORT: int = Field(default=9999, description="服务监听端口")
     SERVER_RELOAD: Optional[bool] = Field(default=None, description="是否启用服务热重载")
@@ -58,17 +59,15 @@ class Settings(BaseSettings):
     LOG_ENABLE_ACCESS_LOG: bool = Field(default=True, description="是否启用访问日志")
 
     # 安全配置
-    SECRET_KEY: str = Field(
-        default="3488a63e1765035d386f05409663f55c83bfae3b3c61a932744b20ad14244dcf", description="应用密钥"
-    )
+    SECRET_KEY: str = Field(default="", description="应用密钥")
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT 算法")
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24 * 7, description="JWT 访问令牌过期时间（分钟）")
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="JWT 刷新令牌过期时间（天）")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, description="JWT 访问令牌过期时间（分钟）")
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="JWT 刷新令牌过期时间（天）")
     JWT_AUDIENCE: str = Field(default="react-fastapi-admin", description="JWT 受众")
     JWT_ISSUER: str = Field(default="react-fastapi-admin", description="JWT 签发者")
 
     # IP 白名单配置
-    IP_WHITELIST_STR: str = Field(default="", description="IP 白名单字符串")
+    IP_WHITELIST: str = Field(default="", description="IP 白名单字符串")
 
     # 请求频率限制
     RATE_LIMIT_ENABLED: bool = Field(default=True, description="是否启用请求频率限制")
@@ -104,7 +103,7 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_USERNAME: str = Field(default="admin", description="初始管理员用户名")
     INITIAL_ADMIN_EMAIL: str = Field(default="admin@example.com", description="初始管理员邮箱")
     INITIAL_ADMIN_NICKNAME: str = Field(default="admin", description="初始管理员昵称")
-    INITIAL_ADMIN_PASSWORD: str = Field(default="123456", description="初始管理员密码")
+    INITIAL_ADMIN_PASSWORD: str = Field(default="", description="初始管理员密码，留空时首次引导自动生成")
 
     # 数据库配置
     DB_CONNECTION: str = Field(default="sqlite", description="数据库连接类型")
@@ -136,6 +135,31 @@ class Settings(BaseSettings):
                 return None
         return value
 
+    @model_validator(mode="after")
+    def validate_security_settings(self) -> "Settings":
+        insecure_secret_keys = {
+            "",
+            "3488a63e1765035d386f05409663f55c83bfae3b3c61a932744b20ad14244dcf",
+            "your_production_secret_key",
+        }
+
+        if self.SECRET_KEY in insecure_secret_keys:
+            if self.is_development:
+                self.SECRET_KEY = secrets.token_hex(32)
+            else:
+                raise ValueError("生产环境必须显式配置安全的 SECRET_KEY")
+
+        if len(self.SECRET_KEY) < 32:
+            raise ValueError("SECRET_KEY 长度不能少于 32 个字符")
+
+        if self.is_production and self.DEBUG:
+            raise ValueError("生产环境必须关闭 DEBUG")
+
+        if self.JWT_ALGORITHM.lower() == "none":
+            raise ValueError("JWT_ALGORITHM 不能为 none")
+
+        return self
+
     @computed_field
     @property
     def logs_path(self) -> Path:
@@ -152,9 +176,9 @@ class Settings(BaseSettings):
     @property
     def ip_whitelist(self) -> List[str]:
         """获取 IP 白名单列表"""
-        if not self.IP_WHITELIST_STR:
+        if not self.IP_WHITELIST:
             return []
-        return [ip.strip() for ip in self.IP_WHITELIST_STR.split(",") if ip.strip()]
+        return [ip.strip() for ip in self.IP_WHITELIST.split(",") if ip.strip()]
 
     @computed_field
     @property

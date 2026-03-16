@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 from aerich import Command
+from tortoise import Tortoise
 from tortoise.context import require_context
 
 from app.controllers.api import api_controller
-from app.controllers.user import UserCreate, user_controller
+from app.controllers.user import user_controller
 from app.models.admin import Role, User
 from app.settings import settings
 from app.utils.log_control import logger
+from app.utils.password import generate_bootstrap_admin_password, get_password_hash
 
 
 async def ensure_database_connection() -> None:
@@ -72,22 +75,87 @@ async def init_superuser() -> User | None:
     if await user_controller.model.exists():
         return None
 
-    if settings.is_production and settings.INITIAL_ADMIN_PASSWORD == "123456":
-        logger.warning("生产环境仍在使用默认管理员密码，请尽快通过环境变量覆盖 INITIAL_ADMIN_PASSWORD")
+    initial_password = settings.INITIAL_ADMIN_PASSWORD
+    generated_password: str | None = None
 
-    admin_user = await user_controller.create_user(
-        UserCreate(
-            username=settings.INITIAL_ADMIN_USERNAME,
-            email=settings.INITIAL_ADMIN_EMAIL,
-            nickname=settings.INITIAL_ADMIN_NICKNAME,
-            phone=None,
-            password=settings.INITIAL_ADMIN_PASSWORD,
-            is_active=True,
-            is_superuser=True,
-        )
+    if initial_password.strip():
+        is_valid, message = await user_controller.validate_password(initial_password)
+        if not is_valid:
+            raise RuntimeError(f"INITIAL_ADMIN_PASSWORD 不符合密码策略: {message}")
+    else:
+        initial_password = generate_bootstrap_admin_password()
+        generated_password = initial_password
+
+    admin_user = await User.create(
+        username=settings.INITIAL_ADMIN_USERNAME,
+        email=settings.INITIAL_ADMIN_EMAIL,
+        nickname=settings.INITIAL_ADMIN_NICKNAME,
+        phone=None,
+        password=get_password_hash(initial_password),
+        is_active=True,
+        is_superuser=True,
     )
     logger.info(f"已初始化管理员账户: {admin_user.username}")
+    if generated_password is not None:
+        emit_bootstrap_admin_password(admin_user.username, generated_password)
     return admin_user
+
+
+def emit_bootstrap_admin_password(username: str, password: str) -> None:
+    logger.warning("首次引导已自动生成超级管理员密码，请从当前启动控制台复制该一次性密码并立即修改。")
+    print(
+        "\n".join(
+            [
+                "",
+                "================ INITIAL ADMIN PASSWORD ================",
+                f"username: {username}",
+                f"password: {password}",
+                "This password is shown only during first bootstrap.",
+                "Rotate it immediately after the first login.",
+                "========================================================",
+                "",
+            ]
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+async def ensure_security_schema() -> None:
+    connection = Tortoise.get_connection(settings.DB_CONNECTION)
+
+    if settings.DB_CONNECTION == "sqlite":
+        columns = await connection.execute_query_dict('PRAGMA table_info("user")')
+        if any(column.get("name") == "session_version" for column in columns):
+            return
+        await connection.execute_script('ALTER TABLE "user" ADD "session_version" INT NOT NULL DEFAULT 0;')
+        await connection.execute_script(
+            'CREATE INDEX IF NOT EXISTS "idx_user_session_c59d2d" ON "user" ("session_version");'
+        )
+        logger.info("已补齐用户会话版本字段")
+        return
+
+    if settings.DB_CONNECTION == "mysql":
+        columns = await connection.execute_query_dict("SHOW COLUMNS FROM `user` LIKE 'session_version'")
+        if columns:
+            return
+        await connection.execute_script("ALTER TABLE `user` ADD COLUMN `session_version` INT NOT NULL DEFAULT 0;")
+        await connection.execute_script("CREATE INDEX `idx_user_session_c59d2d` ON `user` (`session_version`);")
+        logger.info("已补齐用户会话版本字段")
+        return
+
+    if settings.DB_CONNECTION == "postgres":
+        columns = await connection.execute_query_dict(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'user' AND column_name = 'session_version'"
+        )
+        if columns:
+            return
+        await connection.execute_script('ALTER TABLE "user" ADD COLUMN "session_version" INT NOT NULL DEFAULT 0;')
+        await connection.execute_script(
+            'CREATE INDEX IF NOT EXISTS "idx_user_session_c59d2d" ON "user" ("session_version");'
+        )
+        logger.info("已补齐用户会话版本字段")
+        return
 
 
 async def init_roles() -> tuple[Role | None, Role | None]:
@@ -143,5 +211,6 @@ async def seed_base_data() -> None:
 
 async def bootstrap_application() -> None:
     await bootstrap_database()
+    await ensure_security_schema()
     await seed_base_data()
     await refresh_api_metadata()

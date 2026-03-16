@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"应用引导出现问题: {str(e)}")
+        raise
 
     try:
         yield

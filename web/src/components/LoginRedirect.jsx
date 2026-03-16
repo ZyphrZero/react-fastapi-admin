@@ -1,10 +1,10 @@
 import { Navigate } from 'react-router-dom'
-import { getAccessToken } from '@/utils/session'
+import { hasSession } from '@/utils/session'
 
 const LoginRedirect = () => {
-  const token = getAccessToken()
+  const authenticated = hasSession()
   
-  if (token) {
+  if (authenticated) {
     return <Navigate to="/dashboard" replace />
   }
   

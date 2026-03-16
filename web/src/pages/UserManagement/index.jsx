@@ -13,7 +13,6 @@ import {
   Tag,
   Popconfirm,
   Pagination,
-  Divider,
   Tooltip
 } from 'antd'
 import {
@@ -24,13 +23,13 @@ import {
   ReloadOutlined,
   UserOutlined,
   LockOutlined,
-  ClearOutlined,
-  ExclamationCircleOutlined
+  ClearOutlined
 } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import PasswordStrengthIndicator from '@/components/PasswordStrengthIndicator'
-import { getStoredUserInfo } from '@/utils/session'
+import { clearSession, getStoredUserInfo } from '@/utils/session'
 
 const flattenDepartmentOptions = (departments = [], depth = 0) => {
   return departments.flatMap((department) => [
@@ -42,8 +41,33 @@ const flattenDepartmentOptions = (departments = [], depth = 0) => {
   ])
 }
 
+const validateStrongPassword = (_, value) => {
+  if (!value) {
+    return Promise.resolve()
+  }
+
+  if (value.length < 8) {
+    return Promise.reject(new Error('密码长度不能少于8个字符'))
+  }
+  if (!/[A-Z]/.test(value)) {
+    return Promise.reject(new Error('密码必须包含至少一个大写字母'))
+  }
+  if (!/[a-z]/.test(value)) {
+    return Promise.reject(new Error('密码必须包含至少一个小写字母'))
+  }
+  if (!/\d/.test(value)) {
+    return Promise.reject(new Error('密码必须包含至少一个数字'))
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
+    return Promise.reject(new Error('密码必须包含至少一个特殊字符'))
+  }
+
+  return Promise.resolve()
+}
+
 const UserManagement = () => {
   const currentUser = getStoredUserInfo()
+  const navigate = useNavigate()
 
   // 基础状态
   const [loading, setLoading] = useState(false)
@@ -63,6 +87,10 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState(null)
   const [modalLoading, setModalLoading] = useState(false)
   const isEditingCurrentUser = currentUser?.id === editingUser?.id
+  const [resetPasswordVisible, setResetPasswordVisible] = useState(false)
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null)
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false)
+  const [resetPasswordForm] = Form.useForm()
   
   // 角色和部门数据
   const [roles, setRoles] = useState([])
@@ -183,6 +211,7 @@ const UserManagement = () => {
     setModalVisible(false)
     setEditingUser(null)
     modalForm.resetFields()
+    setPasswordStrength(null)
   }
 
   // 保存用户
@@ -233,12 +262,46 @@ const UserManagement = () => {
   }
 
   // 重置密码
-  const handleResetPassword = async (userId) => {
+  const handleOpenResetPassword = (user) => {
+    setResetPasswordTarget(user)
+    setResetPasswordVisible(true)
+    resetPasswordForm.resetFields()
+    setPasswordStrength(null)
+  }
+
+  const handleCloseResetPassword = () => {
+    setResetPasswordVisible(false)
+    setResetPasswordTarget(null)
+    resetPasswordForm.resetFields()
+    setPasswordStrength(null)
+  }
+
+  const handleResetPassword = async (values) => {
+    if (!resetPasswordTarget) {
+      return
+    }
+
+    setResetPasswordLoading(true)
     try {
-      await api.users.resetPassword({ user_id: userId })
-      showSuccess('密码重置成功，新密码为: 123456')
+      await api.users.resetPassword({
+        user_id: resetPasswordTarget.id,
+        new_password: values.newPassword
+      })
+
+      const isCurrentUser = currentUser?.id === resetPasswordTarget.id
+      showSuccess(isCurrentUser ? '密码更新成功，请使用新密码重新登录' : '用户密码更新成功')
+      handleCloseResetPassword()
+
+      if (isCurrentUser) {
+        setTimeout(() => {
+          clearSession()
+          navigate('/login')
+        }, 1200)
+      }
     } catch (error) {
-      handleBusinessError(error, '密码重置失败')
+      handleBusinessError(error, '密码更新失败')
+    } finally {
+      setResetPasswordLoading(false)
     }
   }
 
@@ -347,23 +410,16 @@ const UserManagement = () => {
               />
             </Tooltip>
             {canResetPassword ? (
-              <Tooltip title={record.is_superuser ? '重置自己的密码' : '重置密码'}>
-                <Popconfirm
-                  title="确认重置密码？"
-                  description="密码将重置为：123456"
-                  onConfirm={() => handleResetPassword(record.id)}
-                  okText="确认"
-                  cancelText="取消"
-                >
-                  <Button
-                    size="small"
-                    icon={<LockOutlined />}
-                    className="text-orange-500 border-orange-500 hover:bg-orange-50"
-                  />
-                </Popconfirm>
+              <Tooltip title={record.is_superuser ? '为自己设置新密码' : '设置新密码'}>
+                <Button
+                  size="small"
+                  icon={<LockOutlined />}
+                  className="text-orange-500 border-orange-500 hover:bg-orange-50"
+                  onClick={() => handleOpenResetPassword(record)}
+                />
               </Tooltip>
             ) : (
-              <Tooltip title="不能重置其他超级管理员的密码">
+              <Tooltip title="不能修改其他超级管理员的密码">
                 <span>
                   <Button
                     disabled
@@ -641,38 +697,7 @@ const UserManagement = () => {
                   name="password"
                   rules={[
                     { required: true, message: '请输入密码' },
-                    () => ({
-                      validator(_, value) {
-                        if (!value) return Promise.resolve()
-                        
-                        // 检查密码长度
-                        if (value.length < 8) {
-                          return Promise.reject(new Error('密码长度不能少于8个字符'))
-                        }
-                        
-                        // 检查大写字母
-                        if (!/[A-Z]/.test(value)) {
-                          return Promise.reject(new Error('密码必须包含至少一个大写字母'))
-                        }
-                        
-                        // 检查小写字母
-                        if (!/[a-z]/.test(value)) {
-                          return Promise.reject(new Error('密码必须包含至少一个小写字母'))
-                        }
-                        
-                        // 检查数字
-                        if (!/\d/.test(value)) {
-                          return Promise.reject(new Error('密码必须包含至少一个数字'))
-                        }
-                        
-                        // 检查特殊字符
-                        if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
-                          return Promise.reject(new Error('密码必须包含至少一个特殊字符'))
-                        }
-                        
-                        return Promise.resolve()
-                      }
-                    })
+                    { validator: validateStrongPassword }
                   ]}
                 >
                   <Input.Password 
@@ -781,6 +806,83 @@ const UserManagement = () => {
               </Form.Item>
             </Col>
           </Row>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <div className="flex items-center">
+            <LockOutlined className="mr-2 text-orange-500" />
+            {resetPasswordTarget?.username ? `为 ${resetPasswordTarget.username} 设置新密码` : '设置新密码'}
+          </div>
+        }
+        open={resetPasswordVisible}
+        onCancel={handleCloseResetPassword}
+        footer={[
+          <Button key="cancel" onClick={handleCloseResetPassword}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={resetPasswordLoading}
+            onClick={() => resetPasswordForm.submit()}
+          >
+            更新密码
+          </Button>
+        ]}
+        width={520}
+        destroyOnHidden
+      >
+        <Form
+          form={resetPasswordForm}
+          layout="vertical"
+          onFinish={handleResetPassword}
+          className="mt-4"
+        >
+          <Form.Item
+            label="新密码"
+            name="newPassword"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { validator: validateStrongPassword }
+            ]}
+          >
+            <Input.Password
+              placeholder="请输入符合安全策略的新密码"
+              autoComplete="new-password"
+            />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.newPassword !== currentValues.newPassword}>
+            {({ getFieldValue }) => (
+              <PasswordStrengthIndicator
+                password={getFieldValue('newPassword')}
+                onStrengthChange={setPasswordStrength}
+                showSuggestions={true}
+              />
+            )}
+          </Form.Item>
+          <Form.Item
+            label="确认新密码"
+            name="confirmNewPassword"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '请再次输入新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve()
+                  }
+                  return Promise.reject(new Error('两次输入的密码不一致'))
+                }
+              })
+            ]}
+          >
+            <Input.Password
+              placeholder="请再次输入新密码"
+              autoComplete="new-password"
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

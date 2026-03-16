@@ -1,6 +1,5 @@
 import json
 import re
-import logging
 from datetime import datetime
 from typing import Any, AsyncGenerator
 
@@ -11,8 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.core.dependency import AuthControl
-from app.models.admin import AuditLog, User
+from app.models.admin import AuditLog
 
 from .bgtask import BgTasks
 
@@ -60,6 +58,18 @@ class DatabaseContextMiddleware(BaseHTTPMiddleware):
 
 
 class HttpAuditLogMiddleware(BaseHTTPMiddleware):
+    sensitive_keys = {
+        "password",
+        "old_password",
+        "new_password",
+        "confirm_password",
+        "access_token",
+        "refresh_token",
+        "token",
+        "authorization",
+        "secret_key",
+    }
+
     def __init__(self, app, methods: list[str], exclude_paths: list[str]):
         super().__init__(app)
         self.methods = methods
@@ -67,6 +77,21 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         self.max_body_size = 1024 * 1024  # 1MB 响应体大小限制
         # 编译正则表达式提高性能
         self.exclude_paths_regex = [re.compile(path, re.I) for path in exclude_paths]
+
+    def redact_sensitive_data(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted = {}
+            for key, item in value.items():
+                if isinstance(key, str) and key.lower() in self.sensitive_keys:
+                    redacted[key] = "***REDACTED***"
+                else:
+                    redacted[key] = self.redact_sensitive_data(item)
+            return redacted
+
+        if isinstance(value, list):
+            return [self.redact_sensitive_data(item) for item in value]
+
+        return value
 
     async def get_request_args(self, request: Request) -> dict:
         """获取请求参数，优化处理逻辑"""
@@ -235,15 +260,10 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
                 break
 
         # 获取用户信息
-        try:
-            token = request.headers.get("token")
-            if token:
-                user_obj = await AuthControl.is_authed(request, token)
-                if user_obj:
-                    data["user_id"] = user_obj.id
-                    data["username"] = user_obj.username
-        except Exception:
-            pass
+        user_obj = getattr(request.state, "current_user", None)
+        if user_obj:
+            data["user_id"] = user_obj.id
+            data["username"] = user_obj.username
 
         return data
 
@@ -320,12 +340,12 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         # 添加请求参数
         request_args = getattr(request.state, "request_args", {}) or {}
         # 确保请求参数可以序列化为JSON
-        data["request_args"] = self.safe_serialize(request_args)
+        data["request_args"] = self.redact_sensitive_data(self.safe_serialize(request_args))
 
         # 添加响应体
         response_body = await self.get_response_body(request, response)
         # 确保响应体可以序列化为JSON
-        data["response_body"] = self.safe_serialize(response_body)
+        data["response_body"] = self.redact_sensitive_data(self.safe_serialize(response_body))
 
         # 将数据库操作添加到后台任务
         await BgTasks.add_task(AuditLog.create, **data)

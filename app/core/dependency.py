@@ -1,22 +1,19 @@
-from typing import Optional, Dict, Set
+from typing import Dict, Optional, Set
 import time
-from datetime import datetime
 
 import jwt
-from fastapi import Depends, Header, HTTPException, Request, Query
+from fastapi import Depends, Header, Request, Query
 
 from app.core.ctx import CTX_USER_ID
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
 from app.models import User
 from app.repositories import user_repository
 from app.settings import settings
+from app.utils.jwt_utils import decode_token
 
 
 class AuthControl:
     """身份验证控制器"""
-
-    # 用于存储已吊销的token（简单实现，生产环境建议使用Redis）
-    _token_blacklist: Set[str] = set()
 
     # 用于存储用户请求频率限制
     _rate_limit_data: Dict[str, Dict[str, int]] = {}
@@ -46,71 +43,30 @@ class AuthControl:
             cls._rate_limit_data.pop(key, None)
 
     @classmethod
-    def add_to_blacklist(cls, token: str) -> None:
-        """将token添加到黑名单"""
-        cls._token_blacklist.add(token)
-
-    @classmethod
-    def is_in_blacklist(cls, token: str) -> bool:
-        """检查token是否在黑名单中"""
-        return token in cls._token_blacklist
-
-    @classmethod
-    async def logout(cls, token: str, user_id: Optional[int] = None) -> None:
-        """
-        用户注销
-        :param token: 要吊销的token
-        :param user_id: 用户ID（可选）
-        """
-        # 将token加入黑名单
-        cls.add_to_blacklist(token)
-
-        # 清理该用户的请求频率限制数据
-        if user_id:
-            expired_keys = []
-            for key in cls._rate_limit_data:
-                if key.endswith(f":{user_id}"):
-                    expired_keys.append(key)
-
-            for key in expired_keys:
-                cls._rate_limit_data.pop(key, None)
-
-    @classmethod
-    def check_rate_limit(cls, client_ip: str, user_id: int = 0) -> bool:
+    def enforce_rate_limit(cls, key: str) -> None:
         """
         检查请求频率限制
-        :param client_ip: 客户端IP
-        :param user_id: 用户ID，为0表示未认证用户
-        :return: True表示通过检查，False表示超过限制
+        :param key: 限流键
         """
-        # 如果限流功能被禁用，直接返回True
         if not settings.RATE_LIMIT_ENABLED:
-            return True
+            return
 
         current_time = int(time.time())
-        key = f"{client_ip}:{user_id}" if user_id else client_ip
         max_requests = settings.RATE_LIMIT_MAX_REQUESTS
         time_window = settings.RATE_LIMIT_WINDOW_SECONDS
 
-        # 初始化或更新计数器
         if key not in cls._rate_limit_data:
             cls._rate_limit_data[key] = {"count": 1, "timestamp": current_time}
-            return True
+            return
 
-        # 检查是否在同一时间窗口内
         data = cls._rate_limit_data[key]
         if current_time - data["timestamp"] > time_window:
-            # 重置计数器
             cls._rate_limit_data[key] = {"count": 1, "timestamp": current_time}
-            return True
+            return
 
-        # 增加计数并检查是否超过限制
         data["count"] += 1
-
         if data["count"] > max_requests:
-            return False
-
-        return True
+            raise RateLimitError("请求过于频繁，请稍后再试")
 
     @classmethod
     def check_ip_whitelist(cls, client_ip: str) -> bool:
@@ -127,36 +83,35 @@ class AuthControl:
         return request.client.host
 
     @classmethod
-    def _validate_jwt_token(cls, token: str) -> int:
+    def get_client_ip(cls, request: Optional[Request]) -> str:
+        return cls._get_client_ip(request)
+
+    @classmethod
+    def extract_bearer_token(cls, authorization: str) -> str:
+        if not authorization:
+            raise AuthenticationError("缺少 Authorization 请求头")
+
+        scheme, _, credentials = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not credentials:
+            raise AuthenticationError("Authorization 请求头格式必须为 Bearer <token>")
+
+        return credentials.strip()
+
+    @classmethod
+    def _validate_access_token(cls, token: str) -> dict:
         """
         验证JWT token并返回用户ID
         :param token: JWT token
-        :return: 用户ID
+        :return: 解码后的载荷
         :raises AuthenticationError: 当token无效时抛出异常
         """
         try:
-            decode_options = {
-                "verify_signature": True,
-                "verify_exp": True,
-                "verify_aud": bool(settings.JWT_AUDIENCE),
-                "verify_iss": bool(settings.JWT_ISSUER),
-            }
-
-            decode_data = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM],
-                audience=settings.JWT_AUDIENCE if settings.JWT_AUDIENCE else None,
-                issuer=settings.JWT_ISSUER if settings.JWT_ISSUER else None,
-                options=decode_options,
-            )
-
-            # 获取用户ID
-            user_id = decode_data.get("user_id")
-            if not user_id:
+            decode_data = decode_token(token, expected_type="access")
+            if not decode_data.get("user_id"):
                 raise AuthenticationError("Token中缺少用户标识")
-
-            return user_id
+            if decode_data.get("session_version") is None:
+                raise AuthenticationError("Token中缺少会话版本")
+            return decode_data
 
         # 按照异常的具体程度排序，先处理具体异常，再处理通用异常
         except jwt.ExpiredSignatureError:
@@ -171,54 +126,36 @@ class AuthControl:
             raise AuthenticationError("无效的Token")
 
     @classmethod
-    async def is_authed(cls, request: Request, token: str = Header(..., description="token验证")) -> Optional["User"]:
+    async def is_authed(
+        cls, request: Request, authorization: str = Header(..., description="Bearer access token")
+    ) -> Optional["User"]:
         """
         身份验证主方法
-        :param token: JWT token
+        :param authorization: Bearer token
         :param request: 请求对象
         :return: 用户对象
         """
         try:
-            # 获取客户端IP
             client_ip = cls._get_client_ip(request)
-
-            # 检查IP白名单
             if not cls.check_ip_whitelist(client_ip):
                 raise AuthorizationError("IP地址未授权访问")
 
-            # 检查请求频率
-            if not cls.check_rate_limit(client_ip):
-                raise RateLimitError("请求过于频繁，请稍后再试")
+            token = cls.extract_bearer_token(authorization)
+            payload = cls._validate_access_token(token)
+            user_id = int(payload["user_id"])
+            session_version = int(payload["session_version"])
 
-            # 检查token是否在黑名单中
-            if cls.is_in_blacklist(token):
-                raise AuthenticationError("Token已被吊销")
-
-            # 处理开发者模式
-            if settings.DEBUG and token == "dev":
-                user = await User.filter().first()
-                if not user:
-                    raise AuthenticationError("无法找到开发用户")
-                user_id = user.id
-            else:
-                # 验证JWT token
-                user_id = cls._validate_jwt_token(token)
-
-            # 验证用户是否存在
             user = await user_repository.get(user_id)
             if not user:
                 raise AuthenticationError("用户不存在或已被删除")
-
-            # 检查用户状态
             if not user.is_active:
                 raise AuthorizationError("用户已被禁用")
+            if user.session_version != session_version:
+                raise AuthenticationError("登录状态已失效，请重新登录")
 
-            # 记录用户ID到上下文
+            cls.enforce_rate_limit(f"{client_ip}:{user_id}")
             CTX_USER_ID.set(int(user_id))
-
-            # 更新用户请求频率限制数据
-            cls.check_rate_limit(client_ip, user_id)
-
+            request.state.current_user = user
             return user
 
         except (AuthenticationError, AuthorizationError, RateLimitError):
