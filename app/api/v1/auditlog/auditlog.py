@@ -1,19 +1,59 @@
-from fastapi import APIRouter, Query, Body, Path as FastAPIPath, HTTPException, Depends, BackgroundTasks
-from tortoise.expressions import Q
-from typing import List, Optional, Dict, Any, Union
+import base64
 import csv
+import json
 import os
-import datetime
-from pathlib import Path
-from fastapi.responses import FileResponse
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path as FastAPIPath, Query
+from fastapi.responses import FileResponse
+from tortoise.expressions import Q
 
 from app.models.admin import AuditLog
-from app.schemas import SuccessExtra, Success
+from app.schemas import Success
 from app.schemas.apis import *
 from app.core.dependency import AuthControl
 
 router = APIRouter()
+
+AUDIT_LOG_LIST_FIELDS = (
+    "id",
+    "user_id",
+    "username",
+    "module",
+    "summary",
+    "method",
+    "path",
+    "status",
+    "response_time",
+    "ip_address",
+    "operation_type",
+    "log_level",
+    "created_at",
+)
+
+AUDIT_LOG_DETAIL_FIELDS = AUDIT_LOG_LIST_FIELDS + (
+    "request_args",
+    "response_body",
+    "user_agent",
+    "updated_at",
+)
+
+
+def encode_cursor(created_at: Any, log_id: int) -> str:
+    created_at_value = created_at if isinstance(created_at, str) else created_at.isoformat()
+    payload = json.dumps({"created_at": created_at_value, "id": log_id}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
+
+
+def decode_cursor(cursor: str) -> tuple[datetime, int]:
+    try:
+        payload = base64.urlsafe_b64decode(cursor.encode("utf-8")).decode("utf-8")
+        parsed = json.loads(payload)
+        return datetime.fromisoformat(parsed["created_at"]), int(parsed["id"])
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="无效的分页游标") from None
 
 
 def build_query_filter(
@@ -41,7 +81,7 @@ def build_query_filter(
     if module:
         q &= Q(module__icontains=module)
     if method:
-        q &= Q(method__icontains=method)
+        q &= Q(method=method.upper())
     if summary:
         q &= Q(summary__icontains=summary)
     if ip_address:
@@ -49,7 +89,7 @@ def build_query_filter(
     if operation_type:
         q &= Q(operation_type__icontains=operation_type)
     if log_level:
-        q &= Q(log_level__icontains=log_level)
+        q &= Q(log_level=log_level.lower())
 
     # 添加数值匹配条件
     if status is not None:
@@ -68,8 +108,8 @@ def build_query_filter(
 
 @router.get("/list", summary="查看操作日志")
 async def get_audit_log_list(
-    page: int = Query(1, description="页码"),
-    page_size: int = Query(10, description="每页数量"),
+    page_size: int = Query(100, description="每页数量", ge=1, le=200),
+    cursor: Optional[str] = Query(None, description="游标，取上一页最后一条记录生成"),
     username: str = Query("", description="操作人名称"),
     module: str = Query("", description="功能模块"),
     method: str = Query("", description="请求方法"),
@@ -82,23 +122,36 @@ async def get_audit_log_list(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
 ):
     """
-    获取审计日志列表，支持多种过滤条件
+    获取审计日志轻量列表，使用游标分页降低大表查询成本
     """
-    # 构建查询条件
     q = build_query_filter(
         username, module, method, summary, status, ip_address, operation_type, log_level, start_time, end_time
     )
 
-    # 获取总记录数（提前使用count优化查询）
-    total = await AuditLog.filter(q).count()
+    if cursor:
+        cursor_created_at, cursor_id = decode_cursor(cursor)
+        q &= Q(created_at__lt=cursor_created_at) | (Q(created_at=cursor_created_at) & Q(id__lt=cursor_id))
 
-    # 分页查询数据并按创建时间倒序排序
-    audit_log_objs = await AuditLog.filter(q).order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    rows = await AuditLog.filter(q).order_by("-created_at", "-id").limit(page_size + 1).values(*AUDIT_LOG_LIST_FIELDS)
 
-    # 转换为字典格式
-    data = [await audit_log.to_dict() for audit_log in audit_log_objs]
+    has_more = len(rows) > page_size
+    data = rows[:page_size]
+    next_cursor = encode_cursor(data[-1]["created_at"], data[-1]["id"]) if has_more and data else None
 
-    return SuccessExtra(data=data, total=total, page=page, page_size=page_size)
+    return Success(data=data, page_size=page_size, has_more=has_more, next_cursor=next_cursor)
+
+
+@router.get("/detail/{log_id}", summary="查看操作日志详情")
+async def get_audit_log_detail(log_id: int = FastAPIPath(..., description="日志ID")):
+    """
+    获取单条审计日志详情，按需返回大字段
+    """
+    detail_rows = await AuditLog.filter(id=log_id, is_deleted=False).limit(1).values(*AUDIT_LOG_DETAIL_FIELDS)
+
+    if not detail_rows:
+        raise HTTPException(status_code=404, detail="日志不存在")
+
+    return Success(data=detail_rows[0])
 
 
 @router.delete("/delete/{log_id}", summary="删除操作日志")

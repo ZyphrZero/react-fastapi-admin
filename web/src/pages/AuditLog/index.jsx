@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ClearOutlined,
   DeleteOutlined,
@@ -22,15 +22,16 @@ import {
   Input,
   InputNumber,
   Modal,
-  Pagination,
   Popconfirm,
   Select,
   Space,
+  Spin,
   Table,
   Tabs,
   Tag,
   Tooltip,
 } from 'antd'
+import dayjs from 'dayjs'
 
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -41,6 +42,11 @@ const { TextArea } = Input
 
 const DEFAULT_PAGE_SIZE = 100
 const TABLE_SCROLL_X = 1560
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+const RANGE_PICKER_DEFAULT_TIME = [
+  dayjs().hour(0).minute(0).second(0).millisecond(0),
+  dayjs().hour(23).minute(59).second(59).millisecond(0),
+]
 
 const methodOptions = [
   { label: 'GET', value: 'GET' },
@@ -180,11 +186,14 @@ const AuditLog = () => {
   const [exportLoading, setExportLoading] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const [auditLogs, setAuditLogs] = useState([])
-  const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState(null)
+  const [cursorHistory, setCursorHistory] = useState([null])
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [searchParams, setSearchParams] = useState({})
   const [latestExportFile, setLatestExportFile] = useState('')
@@ -195,26 +204,30 @@ const AuditLog = () => {
 
   const [searchForm] = Form.useForm()
   const [clearForm] = Form.useForm()
+  const detailRequestRef = useRef(0)
 
   const { handleError, handleBusinessError, handleSilentError, showInfo, showSuccess, showWarning } = useErrorHandler()
 
   const fetchAuditLogs = useCallback(
-    async (page = 1, size = 10, nextSearchParams = {}) => {
+    async (cursor = null, size = DEFAULT_PAGE_SIZE, nextSearchParams = {}, page = 1) => {
       setLoading(true)
 
       try {
         const response = await api.auditLogs.getList({
-          page,
           page_size: size,
+          ...(cursor ? { cursor } : {}),
           ...nextSearchParams,
         })
 
         setAuditLogs(response.data || [])
-        setTotal(response.total || 0)
-        setCurrentPage(response.page || page)
+        setHasMore(Boolean(response.has_more))
+        setNextCursor(response.next_cursor || null)
+        setCurrentPage(page)
         setPageSize(response.page_size || size)
+        return response
       } catch (error) {
         handleError(error, '获取审计日志失败')
+        return null
       } finally {
         setLoading(false)
       }
@@ -223,7 +236,7 @@ const AuditLog = () => {
   )
 
   useEffect(() => {
-    void fetchAuditLogs(1, DEFAULT_PAGE_SIZE, {})
+    void fetchAuditLogs(null, DEFAULT_PAGE_SIZE, {}, 1)
   }, [fetchAuditLogs])
 
   const handleSearch = async (values) => {
@@ -231,49 +244,124 @@ const AuditLog = () => {
 
     setSearchParams(nextParams)
     setSelectedRowKeys([])
+    setCursorHistory([null])
+    setNextCursor(null)
+    setHasMore(false)
     setCurrentPage(1)
-    await fetchAuditLogs(1, pageSize, nextParams)
+    await fetchAuditLogs(null, pageSize, nextParams, 1)
   }
 
   const handleClearSearch = async () => {
     searchForm.resetFields()
     setSearchParams({})
     setSelectedRowKeys([])
+    setCursorHistory([null])
+    setNextCursor(null)
+    setHasMore(false)
     setCurrentPage(1)
-    await fetchAuditLogs(1, pageSize, {})
+    await fetchAuditLogs(null, pageSize, {}, 1)
   }
 
-  const handlePageChange = async (page, size) => {
+  const handlePreviousPage = async () => {
+    if (currentPage <= 1) {
+      return
+    }
+
+    const targetPage = currentPage - 1
+    const previousCursor = cursorHistory[targetPage - 1] || null
+
     setSelectedRowKeys([])
-    setCurrentPage(page)
+    await fetchAuditLogs(previousCursor, pageSize, searchParams, targetPage)
+  }
+
+  const handleNextPage = async () => {
+    if (!nextCursor) {
+      return
+    }
+
+    const targetPage = currentPage + 1
+
+    setSelectedRowKeys([])
+    setCursorHistory((previous) => {
+      const nextHistory = previous.slice(0, currentPage)
+      nextHistory.push(nextCursor)
+      return nextHistory
+    })
+    await fetchAuditLogs(nextCursor, pageSize, searchParams, targetPage)
+  }
+
+  const handlePageSizeChange = async (size) => {
+    setSelectedRowKeys([])
     setPageSize(size)
-    await fetchAuditLogs(page, size, searchParams)
+    setCursorHistory([null])
+    setNextCursor(null)
+    setHasMore(false)
+    await fetchAuditLogs(null, size, searchParams, 1)
   }
 
   const handleRefresh = async () => {
-    await fetchAuditLogs(currentPage, pageSize, searchParams)
+    const currentCursor = cursorHistory[currentPage - 1] || null
+    await fetchAuditLogs(currentCursor, pageSize, searchParams, currentPage)
   }
 
-  const openDetail = useCallback((record) => {
+  const openDetail = useCallback(async (record) => {
+    const currentRequestId = detailRequestRef.current + 1
+    detailRequestRef.current = currentRequestId
+
     setActiveLog(record)
     setDetailOpen(true)
-  }, [])
+    setDetailLoading(true)
+
+    try {
+      const response = await api.auditLogs.getDetail(record.id)
+
+      if (detailRequestRef.current !== currentRequestId) {
+        return
+      }
+
+      setActiveLog(response.data || record)
+    } catch (error) {
+      if (detailRequestRef.current === currentRequestId) {
+        handleBusinessError(error, '获取审计日志详情失败')
+      }
+    } finally {
+      if (detailRequestRef.current === currentRequestId) {
+        setDetailLoading(false)
+      }
+    }
+  }, [handleBusinessError])
 
   const closeDetail = useCallback(() => {
+    detailRequestRef.current += 1
+    setDetailLoading(false)
     setDetailOpen(false)
     setActiveLog(null)
   }, [])
+
+  const refreshCurrentPage = useCallback(async () => {
+    const currentCursor = cursorHistory[currentPage - 1] || null
+    const response = await fetchAuditLogs(currentCursor, pageSize, searchParams, currentPage)
+    const currentData = response?.data || []
+
+    if (currentData.length === 0 && currentPage > 1) {
+      const previousPage = currentPage - 1
+      const previousCursor = cursorHistory[previousPage - 1] || null
+
+      setCursorHistory((previous) => previous.slice(0, previousPage))
+      await fetchAuditLogs(previousCursor, pageSize, searchParams, previousPage)
+    }
+  }, [cursorHistory, currentPage, fetchAuditLogs, pageSize, searchParams])
 
   const handleDelete = useCallback(async (id) => {
     try {
       await api.auditLogs.delete(id)
       showSuccess('日志删除成功')
       setSelectedRowKeys((previous) => previous.filter((key) => key !== id))
-      await fetchAuditLogs(currentPage, pageSize, searchParams)
+      await refreshCurrentPage()
     } catch (error) {
       handleBusinessError(error, '日志删除失败')
     }
-  }, [currentPage, fetchAuditLogs, handleBusinessError, pageSize, searchParams, showSuccess])
+  }, [handleBusinessError, refreshCurrentPage, showSuccess])
 
   const handleBatchDelete = async () => {
     if (!selectedRowKeys.length) {
@@ -284,7 +372,7 @@ const AuditLog = () => {
       await api.auditLogs.batchDelete(selectedRowKeys)
       showSuccess(`已删除 ${selectedRowKeys.length} 条日志`)
       setSelectedRowKeys([])
-      await fetchAuditLogs(currentPage, pageSize, searchParams)
+      await refreshCurrentPage()
     } catch (error) {
       handleBusinessError(error, '批量删除失败')
     }
@@ -369,7 +457,10 @@ const AuditLog = () => {
       setClearModalVisible(false)
       clearForm.resetFields()
       setSelectedRowKeys([])
-      await fetchAuditLogs(1, pageSize, searchParams)
+      setCursorHistory([null])
+      setNextCursor(null)
+      setHasMore(false)
+      await fetchAuditLogs(null, pageSize, searchParams, 1)
     } catch (error) {
       handleBusinessError(error, '清理审计日志失败')
     } finally {
@@ -480,7 +571,7 @@ const AuditLog = () => {
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="查看详情">
-            <Button type="primary" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)} />
+            <Button type="primary" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(record)} />
           </Tooltip>
           {isSuperuser ? (
             <Popconfirm
@@ -623,7 +714,7 @@ const AuditLog = () => {
               <Input placeholder="操作类型" allowClear style={{ width: 160 }} />
             </Form.Item>
             <Form.Item name="time_range" className="mb-3">
-              <RangePicker showTime />
+              <RangePicker showTime={{ defaultOpenValue: RANGE_PICKER_DEFAULT_TIME }} />
             </Form.Item>
             <Form.Item className="mb-3">
               <Space>
@@ -651,7 +742,7 @@ const AuditLog = () => {
             <div className="flex items-center">
               <FileSearchOutlined className="mr-2 text-blue-500" />
               <span className="font-medium text-slate-700">审计记录</span>
-              <span className="ml-3 text-sm text-slate-500">共 {total} 条记录</span>
+              <span className="ml-3 text-sm text-slate-500">第 {currentPage} 页，本页 {auditLogs.length} 条</span>
             </div>
 
             <Space wrap>
@@ -702,22 +793,31 @@ const AuditLog = () => {
               className="mb-4"
               locale={{ emptyText: <Empty description="暂无审计日志" /> }}
               onRow={(record) => ({
-                onDoubleClick: () => openDetail(record),
+                onDoubleClick: () => void openDetail(record),
               })}
             />
           </ConfigProvider>
 
-          <div className="flex justify-center border-t border-slate-200 pt-4">
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={total}
-              showSizeChanger
-              showQuickJumper
-              pageSizeOptions={['20', '50', '100', '200']}
-              showTotal={(count, range) => `第 ${range[0]}-${range[1]} 条，共 ${count} 条`}
-              onChange={handlePageChange}
-            />
+          <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-500">
+              当前第 {currentPage} 页，{hasMore ? '还有更多记录' : '已到最后一页'}
+            </div>
+
+            <Space wrap>
+              <span className="text-sm text-slate-500">每页</span>
+              <Select
+                value={pageSize}
+                options={PAGE_SIZE_OPTIONS.map((value) => ({ label: `${value} 条`, value }))}
+                style={{ width: 110 }}
+                onChange={(value) => void handlePageSizeChange(value)}
+              />
+              <Button disabled={loading || currentPage <= 1} onClick={() => void handlePreviousPage()}>
+                上一页
+              </Button>
+              <Button type="primary" disabled={loading || !hasMore} onClick={() => void handleNextPage()}>
+                下一页
+              </Button>
+            </Space>
           </div>
         </div>
       </Card>
@@ -733,43 +833,45 @@ const AuditLog = () => {
         size="large"
         onClose={closeDetail}
       >
-        {activeLog ? (
-          <div className="space-y-6">
-            <Card size="small" className="overflow-hidden border-none bg-slate-50 shadow-none">
-              <Descriptions column={2} size="small" bordered>
-                <Descriptions.Item label="日志 ID">{activeLog.id}</Descriptions.Item>
-                <Descriptions.Item label="创建时间">{formatDateTime(activeLog.created_at)}</Descriptions.Item>
-                <Descriptions.Item label="操作人">{activeLog.username || 'system'}</Descriptions.Item>
-                <Descriptions.Item label="用户 ID">{activeLog.user_id || '-'}</Descriptions.Item>
-                <Descriptions.Item label="模块">{activeLog.module || '基础模块'}</Descriptions.Item>
-                <Descriptions.Item label="操作类型">{activeLog.operation_type || '-'}</Descriptions.Item>
-                <Descriptions.Item label="请求方法">
-                  <Tag color={getMethodColor(activeLog.method)}>{activeLog.method || '-'}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="日志级别">
-                  <Tag color={getLogLevelColor(activeLog.log_level)}>{activeLog.log_level || '-'}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="状态码">
-                  <Tag color={getStatusColor(activeLog.status)}>{activeLog.status ?? '-'}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="响应耗时">{activeLog.response_time || 0} ms</Descriptions.Item>
-                <Descriptions.Item label="IP 地址" span={2}>
-                  {activeLog.ip_address || '-'}
-                </Descriptions.Item>
-                <Descriptions.Item label="请求路径" span={2}>
-                  <div className="font-mono break-all text-xs text-slate-700">{activeLog.path || '-'}</div>
-                </Descriptions.Item>
-                <Descriptions.Item label="摘要" span={2}>
-                  {activeLog.summary || '-'}
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
+        <Spin spinning={detailLoading}>
+          {activeLog ? (
+            <div className="space-y-6">
+              <Card size="small" className="overflow-hidden border-none bg-slate-50 shadow-none">
+                <Descriptions column={2} size="small" bordered>
+                  <Descriptions.Item label="日志 ID">{activeLog.id}</Descriptions.Item>
+                  <Descriptions.Item label="创建时间">{formatDateTime(activeLog.created_at)}</Descriptions.Item>
+                  <Descriptions.Item label="操作人">{activeLog.username || 'system'}</Descriptions.Item>
+                  <Descriptions.Item label="用户 ID">{activeLog.user_id || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="模块">{activeLog.module || '基础模块'}</Descriptions.Item>
+                  <Descriptions.Item label="操作类型">{activeLog.operation_type || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="请求方法">
+                    <Tag color={getMethodColor(activeLog.method)}>{activeLog.method || '-'}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="日志级别">
+                    <Tag color={getLogLevelColor(activeLog.log_level)}>{activeLog.log_level || '-'}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="状态码">
+                    <Tag color={getStatusColor(activeLog.status)}>{activeLog.status ?? '-'}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="响应耗时">{activeLog.response_time || 0} ms</Descriptions.Item>
+                  <Descriptions.Item label="IP 地址" span={2}>
+                    {activeLog.ip_address || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="请求路径" span={2}>
+                    <div className="font-mono break-all text-xs text-slate-700">{activeLog.path || '-'}</div>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="摘要" span={2}>
+                    {activeLog.summary || '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
 
-            <Tabs items={detailTabItems} />
-          </div>
-        ) : (
-          <Empty description="未选择日志记录" />
-        )}
+              <Tabs items={detailTabItems} />
+            </div>
+          ) : (
+            <Empty description="未选择日志记录" />
+          )}
+        </Spin>
       </Drawer>
 
       <Modal

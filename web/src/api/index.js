@@ -56,6 +56,7 @@ export default {
     // 审计日志
     auditLogs: {
         getList: (params = {}) => request.get('/auditlog/list', { params }),
+        getDetail: (id) => request.get(`/auditlog/detail/${id}`),
         delete: (id) => request.delete(`/auditlog/delete/${id}`),
         batchDelete: (data) => request.delete('/auditlog/batch_delete', { data }),
         clear: (params = {}) => request.delete('/auditlog/clear', { params }),

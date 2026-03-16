@@ -39,6 +39,7 @@ def make_middlewares() -> list[Middleware]:
                 "/docs",
                 "/openapi.json",
                 "/api/v1/auditlog/list",
+                "/api/v1/auditlog/detail",
                 "/api/v1/auditlog/delete",
                 "/api/v1/auditlog/batch_delete",
                 "/api/v1/auditlog/clear",
