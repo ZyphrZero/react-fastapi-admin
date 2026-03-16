@@ -10,6 +10,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 const Layout = lazy(() => import('@/components/Layout'))
 const Login = lazy(() => import('@/pages/Login'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const AuditLog = lazy(() => import('@/pages/AuditLog'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const UserManagement = lazy(() => import('@/pages/UserManagement'))
 const RoleManagement = lazy(() => import('@/pages/RoleManagement'))
@@ -93,7 +94,7 @@ const router = createBrowserRouter([
         path: 'system/audit',
         element: (
           <PermissionRoute requiredPath="/system/audit">
-            <div>审计日志页面</div>
+            {withSuspense(<AuditLog />)}
           </PermissionRoute>
         ),
       },

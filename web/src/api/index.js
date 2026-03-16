@@ -60,6 +60,7 @@ export default {
         batchDelete: (data) => request.delete('/auditlog/batch_delete', { data }),
         clear: (params = {}) => request.delete('/auditlog/clear', { params }),
         export: (data = {}) => request.post('/auditlog/export', data),
+        download: (filename) => request.get(`/auditlog/download/${filename}`, { responseType: 'blob' }),
         getStatistics: (params = {}) => request.get('/auditlog/statistics', { params }),
     },
 
