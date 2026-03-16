@@ -323,6 +323,10 @@ async def update_user_password(req_in: UpdatePassword):
     if not verified:
         raise ValidationError("旧密码验证错误")
 
+    is_valid, message = await user_controller.validate_password(req_in.new_password)
+    if not is_valid:
+        raise ValidationError(f"密码强度不足: {message}")
+
     # 更新密码
     user.password = get_password_hash(req_in.new_password)
     await user.save()

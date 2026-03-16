@@ -162,6 +162,9 @@ async def update_user(
     
     # 如果有密码更新，需要加密
     if "password" in update_data and update_data["password"]:
+        is_valid, message = await user_controller.validate_password(update_data["password"])
+        if not is_valid:
+            raise ValidationError(f"密码强度不足: {message}")
         from app.utils.password import get_password_hash
         update_data["password"] = get_password_hash(update_data["password"])
     

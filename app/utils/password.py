@@ -8,6 +8,22 @@ import bcrypt
 from app.settings.config import settings
 
 
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def validate_bcrypt_password_length(password: str) -> Tuple[bool, str]:
+    """
+    验证 bcrypt 支持的密码字节长度上限
+
+    bcrypt 5.0.0 开始，超过 72 字节的密码会直接抛出 ValueError。
+    这里统一做前置校验，避免请求在哈希阶段变成 500。
+    """
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
+        return False, f"密码长度不能超过{BCRYPT_MAX_PASSWORD_BYTES}个字节"
+    return True, ""
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     验证密码
@@ -30,6 +46,10 @@ def get_password_hash(password: str) -> str:
     :param password: 明文密码
     :return: 哈希后的密码
     """
+    is_valid, message = validate_bcrypt_password_length(password)
+    if not is_valid:
+        raise ValueError(message)
+
     # 生成盐值并哈希密码
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
@@ -89,6 +109,11 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     # 检查长度
     if len(password) < settings.PASSWORD_MIN_LENGTH:
         return False, f"密码长度不能少于{settings.PASSWORD_MIN_LENGTH}个字符"
+
+    # 检查 bcrypt 字节长度上限
+    is_valid, message = validate_bcrypt_password_length(password)
+    if not is_valid:
+        return False, message
 
     # 检查大写字母
     if settings.PASSWORD_REQUIRE_UPPERCASE and not re.search(r"[A-Z]", password):

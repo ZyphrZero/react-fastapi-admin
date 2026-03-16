@@ -22,6 +22,7 @@ RELOAD_IGNORE_DIRS = [
     ".coverage",  # 忽略测试覆盖率文件
     "htmlcov",  # 忽略覆盖率报告目录
     "tests",  # 忽略测试目录
+    "logs",  # 忽略日志目录
 ]
 
 # 忽略的文件模式（正则表达式）
