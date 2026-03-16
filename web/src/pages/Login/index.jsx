@@ -4,7 +4,15 @@ import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { clearSession, setAccessToken, setRefreshToken, setStoredUserInfo } from '@/utils/session'
+import { findFirstAccessiblePath } from '@/utils/permission'
+import {
+  clearSession,
+  setAccessToken,
+  setRefreshToken,
+  setStoredApiPermissions,
+  setStoredMenus,
+  setStoredUserInfo,
+} from '@/utils/session'
 
 const Login = () => {
   const [loading, setLoading] = useState(false)
@@ -23,12 +31,18 @@ const Login = () => {
       setAccessToken(response.data.access_token)
       setRefreshToken(response.data.refresh_token)
       
-      // 获取用户信息
-      const userInfo = await api.auth.getUserInfo()
+      const [userInfo, userMenu, userApi] = await Promise.all([
+        api.auth.getUserInfo(),
+        api.auth.getUserMenu(),
+        api.auth.getUserApi(),
+      ])
+
       setStoredUserInfo(userInfo.data)
+      setStoredMenus(userMenu.data || [])
+      setStoredApiPermissions(userApi.data || [])
 
       showSuccess('登录成功！')
-      navigate('/dashboard')
+      navigate(findFirstAccessiblePath(userMenu.data || []))
     } catch (error) {
       clearSession()
       handleBusinessError(error, '登录失败，请检查用户名和密码')

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Input, Popover, Button, Space, Empty, Card } from 'antd'
 import { Icon } from '@iconify/react'
 import { SearchOutlined, ClearOutlined } from '@ant-design/icons'
@@ -75,18 +75,14 @@ const PRESET_ICONS = [
 const IconSelector = ({ value, onChange, placeholder = "选择图标" }) => {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const [filteredIcons, setFilteredIcons] = useState(PRESET_ICONS)
   const inputRef = useRef()
 
-  useEffect(() => {
-    if (searchValue.trim()) {
-      const filtered = PRESET_ICONS.filter(icon => 
-        icon.toLowerCase().includes(searchValue.toLowerCase())
-      )
-      setFilteredIcons(filtered)
-    } else {
-      setFilteredIcons(PRESET_ICONS)
+  const filteredIcons = useMemo(() => {
+    if (!searchValue.trim()) {
+      return PRESET_ICONS
     }
+
+    return PRESET_ICONS.filter((icon) => icon.toLowerCase().includes(searchValue.toLowerCase()))
   }, [searchValue])
 
   const handleIconSelect = (iconName) => {

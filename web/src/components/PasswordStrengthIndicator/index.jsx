@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Progress, Space, Typography } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { checkPasswordStrength } from '@/utils/passwordStrength'
@@ -12,16 +12,13 @@ const { Text } = Typography
  * @param {boolean} showSuggestions - 是否显示建议
  */
 const PasswordStrengthIndicator = ({ password, onStrengthChange, showSuggestions = true }) => {
-  const [strength, setStrength] = useState(checkPasswordStrength(''))
+  const strength = useMemo(() => checkPasswordStrength(password || ''), [password])
 
   useEffect(() => {
-    const newStrength = checkPasswordStrength(password || '')
-    setStrength(newStrength)
-    
     if (onStrengthChange) {
-      onStrengthChange(newStrength)
+      onStrengthChange(strength)
     }
-  }, [password, onStrengthChange])
+  }, [onStrengthChange, strength])
 
   const getProgressStatus = () => {
     switch (strength.level) {

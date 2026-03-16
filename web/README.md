@@ -1,13 +1,13 @@
 # React FastAPI Admin - React 前端
 
-一个基于 **React 18 + Ant Design 5 + Tailwind CSS 4 + Vite 7** 构建的现代化管理系统前端。
+一个基于 **React 18 + Ant Design 5 + Tailwind CSS 4 + Vite 8** 构建的现代化管理系统前端。
 
 ## 🚀 技术栈
 
 - **React 18.3.1** - 最新的 React 框架
 - **Ant Design 5.26.5** - 企业级 UI 组件库
 - **Tailwind CSS 4.1.11** - 原子化 CSS 框架
-- **Vite 7.0.4** - 新一代前端构建工具
+- **Vite 8** - 新一代前端构建工具
 - **React Router Dom** - 路由管理
 - **Axios** - HTTP 请求库
 
@@ -107,19 +107,6 @@ npm run preview
 - **代理配置**: `/api/v1` 代理到 `http://localhost:9999`
 - **插件**: React + Tailwind CSS
 
-### API 接口配置
-
-所有 API 接口已根据 FastAPI 后端进行配置，包括：
-
-- 认证相关接口
-- 用户管理接口
-- 角色管理接口
-- 菜单管理接口
-- API 管理接口
-- 部门管理接口
-- 审计日志接口
-- 文件上传接口
-
 ### 样式配置
 
 - **全局样式**: 使用 Tailwind CSS 进行样式管理
@@ -174,7 +161,3 @@ npm run preview
 - 使用 Tailwind CSS 进行样式开发
 - 遵循 Ant Design 设计规范
 - 保持代码简洁和可维护性
-
-## 📄 许可证
-
-基于 FastAPI + Vue3 + Naive UI 管理平台的 React 版本实现

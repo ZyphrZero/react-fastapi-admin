@@ -5,7 +5,7 @@ import asyncio
 from tortoise.expressions import Q
 
 from app.core.exceptions import AuthenticationError, ValidationError
-from app.repositories import dept_repository, user_repository
+from app.repositories import dept_repository, role_repository, user_repository
 from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.utils.password import get_password_hash, validate_password_strength, verify_password
 
@@ -84,10 +84,17 @@ class UserAdminService:
             raise ValidationError(f"密码强度不足: {message}")
 
         payload = user_in.create_dict()
+        role_ids = list(user_in.role_ids or [])
+        if not user_in.is_superuser and not role_ids:
+            default_role = await role_repository.get_by_name("普通用户")
+            if not default_role:
+                raise ValidationError("默认角色不存在，请先初始化基础角色")
+            role_ids = [default_role.id]
+
         payload["password"] = get_password_hash(user_in.password)
         new_user = await user_repository.create(payload)
-        if user_in.role_ids:
-            await user_repository.assign_roles(new_user, user_in.role_ids)
+        if role_ids:
+            await user_repository.assign_roles(new_user, role_ids)
 
     async def update_user(self, user_in: UserUpdate, *, current_user_id: int) -> None:
         existing_user = await user_repository.get(user_in.id)

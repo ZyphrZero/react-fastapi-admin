@@ -109,6 +109,20 @@ const ApiManagement = () => {
     void fetchAllTags()
   }, [fetchAllTags, fetchApis])
 
+  useEffect(() => {
+    if (!modalVisible || !editingApi) {
+      return
+    }
+
+    modalForm.setFieldsValue({
+      id: editingApi.id,
+      path: editingApi.path || '',
+      method: editingApi.method || 'GET',
+      summary: editingApi.summary || '',
+      tags: editingApi.tags || '',
+    })
+  }, [editingApi, modalForm, modalVisible])
+
   // 搜索处理
   const handleSearch = async (values) => {
     const params = {}
@@ -145,15 +159,6 @@ const ApiManagement = () => {
 
     setEditingApi(apiItem)
     setModalVisible(true)
-
-    // 编辑模式 - 只允许编辑描述和标签
-    modalForm.setFieldsValue({
-      id: apiItem.id,
-      path: apiItem.path || '',
-      method: apiItem.method || 'GET',
-      summary: apiItem.summary || '',
-      tags: apiItem.tags || ''
-    })
   }
 
   // 关闭模态框

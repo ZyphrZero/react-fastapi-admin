@@ -21,6 +21,11 @@ async def get_role(role_id: int = Query(..., description="角色ID")):
     return Success(data=await role_admin_service.get_role_detail(role_id))
 
 
+@router.get("/permission_options", summary="获取角色权限选项")
+async def get_permission_options():
+    return Success(data=await role_admin_service.get_permission_options())
+
+
 @router.post("/create", summary="创建角色")
 async def create_role(role_in: RoleCreate):
     await role_admin_service.create_role(role_in)

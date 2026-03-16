@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 from starlette.requests import Request
 
-from app.core.dependency import AuthControl
-from app.core.exceptions import AuthenticationError
+from app.core.dependency import AuthControl, PermissionControl
+from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.core.middlewares import HttpAuditLogMiddleware
 from app.services.auth_service import auth_service
 from app.utils.jwt_utils import create_access_token, create_refresh_token
@@ -32,16 +32,21 @@ class DummyUser:
 
 
 def make_request() -> Request:
+    return make_route_request()
+
+
+def make_route_request(*, method: str = "GET", path: str = "/api/v1/base/userinfo", path_format: str | None = None) -> Request:
     async def receive():
         return {"type": "http.request", "body": b"", "more_body": False}
 
     scope = {
         "type": "http",
-        "method": "GET",
-        "path": "/api/v1/base/userinfo",
+        "method": method,
+        "path": path,
         "query_string": b"",
         "headers": [],
         "client": ("127.0.0.1", 12345),
+        "route": SimpleNamespace(path_format=path_format or path),
     }
     return Request(scope, receive)
 
@@ -68,7 +73,13 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_get_current_user_menu_for_normal_user_excludes_admin_pages(self) -> None:
         user = DummyUser(is_superuser=False)
 
-        with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
+        with (
+            patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)),
+            patch(
+                "app.services.auth_service.role_repository.list_permissions_for_user",
+                new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": []}),
+            ),
+        ):
             menu = await auth_service.get_current_user_menu(user.id)
 
         self.assertEqual([item["path"] for item in menu], ["/dashboard"])
@@ -81,6 +92,24 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("/dashboard", [item["path"] for item in menu])
         self.assertIn("/system", [item["path"] for item in menu])
+
+    async def test_get_current_user_api_permissions_for_role_user_uses_role_bindings(self) -> None:
+        user = DummyUser(is_superuser=False)
+
+        with (
+            patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)),
+            patch(
+                "app.services.auth_service.role_repository.list_permissions_for_user",
+                new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": [1, 2]}),
+            ),
+            patch(
+                "app.services.auth_service.api_repository.list_permission_keys_by_ids",
+                new=AsyncMock(return_value=["get/api/v1/user/list", "post/api/v1/role/create"]),
+            ),
+        ):
+            permissions = await auth_service.get_current_user_api_permissions(user.id)
+
+        self.assertEqual(permissions, ["get/api/v1/user/list", "post/api/v1/role/create"])
 
 
 class AuthControlSecurityTestCase(unittest.IsolatedAsyncioTestCase):
@@ -103,6 +132,39 @@ class AuthControlSecurityTestCase(unittest.IsolatedAsyncioTestCase):
         with patch("app.core.dependency.user_repository.get", new=AsyncMock(return_value=user)):
             with self.assertRaisesRegex(AuthenticationError, "登录状态已失效"):
                 await AuthControl.is_authed(request, f"Bearer {access_token}")
+
+    async def test_permission_control_allows_api_granted_by_role(self) -> None:
+        request = make_route_request(path="/api/v1/user/list")
+        user = DummyUser(is_superuser=False)
+
+        with (
+            patch(
+                "app.core.dependency.role_repository.list_permissions_for_user",
+                new=AsyncMock(return_value={"menu_paths": ["/system/users"], "api_ids": [1]}),
+            ),
+            patch(
+                "app.core.dependency.api_repository.list_permission_keys_by_ids",
+                new=AsyncMock(return_value=["get/api/v1/user/list"]),
+            ),
+        ):
+            await PermissionControl.has_permission(request, current_user=user)
+
+    async def test_permission_control_rejects_missing_api_grant(self) -> None:
+        request = make_route_request(path="/api/v1/user/list")
+        user = DummyUser(is_superuser=False)
+
+        with (
+            patch(
+                "app.core.dependency.role_repository.list_permissions_for_user",
+                new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": []}),
+            ),
+            patch(
+                "app.core.dependency.api_repository.list_permission_keys_by_ids",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            with self.assertRaisesRegex(AuthorizationError, "权限不足"):
+                await PermissionControl.has_permission(request, current_user=user)
 
 
 class AuditLogMiddlewareSecurityTestCase(unittest.TestCase):

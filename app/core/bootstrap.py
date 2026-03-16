@@ -8,9 +8,10 @@ from aerich import Command
 from tortoise import Tortoise
 from tortoise.context import require_context
 
+from app.core.navigation import get_default_role_menu_paths
 from app.controllers.api import api_controller
 from app.controllers.user import user_controller
-from app.models.admin import Role, User
+from app.models.admin import Api, Role, User
 from app.settings import settings
 from app.utils.log_control import logger
 from app.utils.password import generate_bootstrap_admin_password, get_password_hash
@@ -162,8 +163,18 @@ async def init_roles() -> tuple[Role | None, Role | None]:
     if await Role.exists():
         return None, None
 
-    admin_role = await Role.create(name="管理员", desc="管理员角色")
-    user_role = await Role.create(name="普通用户", desc="普通用户角色")
+    admin_role = await Role.create(
+        name="管理员",
+        desc="管理员角色",
+        menu_paths=get_default_role_menu_paths("管理员"),
+        api_ids=[],
+    )
+    user_role = await Role.create(
+        name="普通用户",
+        desc="普通用户角色",
+        menu_paths=get_default_role_menu_paths("普通用户"),
+        api_ids=[],
+    )
     logger.info("已初始化默认角色")
     return admin_role, user_role
 
@@ -199,6 +210,39 @@ async def refresh_api_metadata() -> None:
         logger.info("已刷新 API 元数据")
 
 
+async def sync_default_role_permissions() -> None:
+    built_in_roles = {
+        "管理员": await Role.filter(name="管理员").first(),
+        "普通用户": await Role.filter(name="普通用户").first(),
+    }
+    all_api_ids = list(await Api.all().values_list("id", flat=True))
+
+    for role_name, role in built_in_roles.items():
+        if not role:
+            continue
+
+        updated_fields: list[str] = []
+        current_menu_paths = list(role.menu_paths or [])
+        current_api_ids = [int(api_id) for api_id in (role.api_ids or [])]
+
+        if not current_menu_paths:
+            role.menu_paths = get_default_role_menu_paths(role_name)
+            updated_fields.append("menu_paths")
+
+        if role_name == "管理员" and not current_api_ids:
+            role.api_ids = all_api_ids
+            updated_fields.append("api_ids")
+
+        if role_name == "普通用户" and role.api_ids is None:
+            role.api_ids = []
+            updated_fields.append("api_ids")
+
+        if updated_fields:
+            updated_fields.append("updated_at")
+            await role.save(update_fields=updated_fields)
+            logger.info(f"已初始化角色默认权限: {role_name}")
+
+
 async def seed_base_data() -> None:
     if not settings.should_seed_base_data_on_startup:
         logger.info("已跳过基础数据初始化")
@@ -214,3 +258,4 @@ async def bootstrap_application() -> None:
     await ensure_security_schema()
     await seed_base_data()
     await refresh_api_metadata()
+    await sync_default_role_permissions()

@@ -27,6 +27,8 @@ export default {
     // 角色管理
     roles: {
         getList: (params = {}) => request.get('/role/list', { params }),
+        getById: (roleId) => request.get('/role/get', { params: { role_id: roleId } }),
+        getPermissionOptions: () => request.get('/role/permission_options'),
         create: (data = {}) => request.post('/role/create', data),
         update: (data = {}) => request.post('/role/update', data),
         delete: (data) => request.delete('/role/delete', { params: data }),

@@ -41,6 +41,10 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
             for tag, count in sorted(tag_counter.items(), key=lambda item: item[0])
         ]
 
+    async def list_all_for_permissions(self) -> list[dict]:
+        api_objects = await self.model.all().order_by("tags", "path", "method")
+        return list(await asyncio.gather(*(api.to_dict() for api in api_objects)))
+
     async def sync_routes(self, routes: Iterable[ApiRouteDefinition]) -> None:
         route_definitions = list(routes)
         existing_apis = await self.model.all()
@@ -74,6 +78,13 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
 
     async def list_permission_keys(self) -> list[str]:
         api_objects = await self.model.all()
+        return [f"{api.method.lower()}{api.path}" for api in api_objects]
+
+    async def list_permission_keys_by_ids(self, api_ids: list[int]) -> list[str]:
+        if not api_ids:
+            return []
+
+        api_objects = await self.model.filter(id__in=api_ids).all()
         return [f"{api.method.lower()}{api.path}" for api in api_objects]
 
     @staticmethod

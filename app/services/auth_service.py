@@ -6,7 +6,7 @@ from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.navigation import get_system_menu_tree
 from app.core.overview import get_platform_overview
 from app.models.admin import User
-from app.repositories import api_repository, user_repository
+from app.repositories import api_repository, role_repository, user_repository
 from app.schemas.login import CredentialsSchema, JWTOut
 from app.schemas.users import ProfileUpdate, UpdatePassword
 from app.utils.jwt_utils import create_access_token, create_refresh_token, decode_token
@@ -77,12 +77,21 @@ class AuthService:
 
     async def get_current_user_menu(self, user_id: int) -> list[dict]:
         user = await self.get_current_user(user_id)
-        return get_system_menu_tree(is_superuser=user.is_superuser)
+        if user.is_superuser:
+            return get_system_menu_tree(is_superuser=True)
+
+        permission_bundle = await role_repository.list_permissions_for_user(user.id)
+        allowed_menu_paths = set(permission_bundle["menu_paths"] or ["/dashboard"])
+        return get_system_menu_tree(
+            is_superuser=False,
+            allowed_menu_paths=allowed_menu_paths,
+        )
 
     async def get_current_user_api_permissions(self, user_id: int) -> list[str]:
         user = await self.get_current_user(user_id)
         if not user.is_superuser:
-            return []
+            permission_bundle = await role_repository.list_permissions_for_user(user.id)
+            return await api_repository.list_permission_keys_by_ids(permission_bundle["api_ids"])
 
         return await api_repository.list_permission_keys()
 

@@ -7,7 +7,7 @@ from fastapi import Depends, Header, Request, Query
 from app.core.ctx import CTX_USER_ID
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
 from app.models import User
-from app.repositories import user_repository
+from app.repositories import api_repository, role_repository, user_repository
 from app.settings import settings
 from app.utils.jwt_utils import decode_token
 
@@ -165,28 +165,40 @@ class AuthControl:
 
 
 class PermissionControl:
-    """简化的权限控制器 - 只检查超级用户权限"""
+    """基于角色聚合 API 权限的权限控制器"""
+
+    @classmethod
+    def build_permission_code(cls, request: Request) -> str:
+        route = request.scope.get("route")
+        route_path = getattr(route, "path_format", None) or request.url.path
+        return f"{request.method.lower()}{route_path}"
 
     @classmethod
     async def has_permission(cls, request: Request, current_user: User = Depends(AuthControl.is_authed)) -> None:
         """
-        简化的权限检查 - 只允许超级用户访问
+        基于角色聚合后的 API 权限检查
         :param request: 请求对象
         :param current_user: 当前用户
         """
-        # 超级用户跳过权限检查
         if current_user.is_superuser:
             return
 
-        # 非超级用户禁止访问需要权限的资源
-        method = request.method
-        path = request.url.path
-        raise AuthorizationError(f"权限不足 - 方法:{method} 路径:{path}")
+        permission_bundle = await role_repository.list_permissions_for_user(current_user.id)
+        permission_keys = set(await api_repository.list_permission_keys_by_ids(permission_bundle["api_ids"]))
+        current_permission = cls.build_permission_code(request)
+        if current_permission in permission_keys:
+            return
+
+        raise AuthorizationError(f"权限不足 - 方法:{request.method} 路径:{getattr(request.scope.get('route'), 'path_format', request.url.path)}")
 
     @classmethod
     async def check_permission_by_code(cls, current_user: User, permission_code: str) -> bool:
-        """简化的权限代码检查 - 只检查超级用户"""
-        return current_user.is_superuser
+        if current_user.is_superuser:
+            return True
+
+        permission_bundle = await role_repository.list_permissions_for_user(current_user.id)
+        permission_keys = set(await api_repository.list_permission_keys_by_ids(permission_bundle["api_ids"]))
+        return permission_code in permission_keys
 
 
 async def get_page_params(

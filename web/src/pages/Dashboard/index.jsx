@@ -137,7 +137,7 @@ const Dashboard = () => {
       <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-cyan-700 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold mb-2">{system.title || '管理平台工作台'}</h1>
+            <h1 className="text-2xl font-bold mb-2">{system.title || 'Dashboard'}</h1>
             <p className="text-white/80">
               当前环境 {system.environment || 'unknown'}，版本 {system.version || '0.0.0'}。工作台已切换为真实后端概览数据。
             </p>
@@ -157,7 +157,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-gray-500 text-sm mb-1">{item.title}</div>
-                  <Statistic value={item.value} valueStyle={{ fontSize: 24, fontWeight: 700 }} />
+                  <Statistic value={item.value} styles={{ content: { fontSize: 24, fontWeight: 700 } }} />
                   <div className="text-xs text-gray-400 mt-2">{item.extra}</div>
                 </div>
                 <div

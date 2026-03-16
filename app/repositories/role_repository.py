@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from typing import TypedDict
 
 from tortoise.expressions import Q
 
 from app.models.admin import Role, User
 from app.repositories.base import BaseRepository
 from app.schemas.roles import RoleCreate, RoleUpdate
+
+
+class PermissionBundle(TypedDict):
+    menu_paths: list[str]
+    api_ids: list[int]
 
 
 class RoleRepository(BaseRepository[Role, RoleCreate, RoleUpdate]):
@@ -32,8 +38,24 @@ class RoleRepository(BaseRepository[Role, RoleCreate, RoleUpdate]):
 
         for item, user_count in zip(role_data, user_counts):
             item["user_count"] = user_count
+            item["menu_count"] = len(item.get("menu_paths") or [])
+            item["api_count"] = len(item.get("api_ids") or [])
 
         return total, role_data
+
+    async def list_permissions_for_user(self, user_id: int) -> PermissionBundle:
+        permission_rows = await self.model.filter(user_roles__id=user_id).all().values("menu_paths", "api_ids")
+        menu_paths: set[str] = set()
+        api_ids: set[int] = set()
+
+        for row in permission_rows:
+            menu_paths.update(row.get("menu_paths") or [])
+            api_ids.update(int(api_id) for api_id in (row.get("api_ids") or []))
+
+        return {
+            "menu_paths": sorted(menu_paths),
+            "api_ids": sorted(api_ids),
+        }
 
 
 role_repository = RoleRepository()

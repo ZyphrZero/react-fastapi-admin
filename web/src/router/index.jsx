@@ -1,9 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Suspense, lazy } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 
+import HomeRedirect from '@/components/HomeRedirect'
 import LoginRedirect from '@/components/LoginRedirect'
+import PermissionRoute from '@/components/PermissionRoute'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import SuperuserRoute from '@/components/SuperuserRoute'
 
 const Layout = lazy(() => import('@/components/Layout'))
 const Login = lazy(() => import('@/pages/Login'))
@@ -41,11 +43,15 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/dashboard" replace />,
+        element: <HomeRedirect />,
       },
       {
         path: 'dashboard',
-        element: withSuspense(<Dashboard />),
+        element: (
+          <PermissionRoute requiredPath="/dashboard">
+            {withSuspense(<Dashboard />)}
+          </PermissionRoute>
+        ),
       },
       {
         path: 'profile',
@@ -54,49 +60,49 @@ const router = createBrowserRouter([
       {
         path: 'system/users',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/users">
             {withSuspense(<UserManagement />)}
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {
         path: 'system/roles',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/roles">
             {withSuspense(<RoleManagement />)}
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {
         path: 'system/apis',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/apis">
             {withSuspense(<ApiManagement />)}
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {
         path: 'system/departments',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/departments">
             <div>部门管理页面</div>
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {
         path: 'system/audit',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/audit">
             <div>审计日志页面</div>
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {
         path: 'system/upload',
         element: (
-          <SuperuserRoute>
+          <PermissionRoute requiredPath="/system/upload">
             <div>文件管理页面</div>
-          </SuperuserRoute>
+          </PermissionRoute>
         ),
       },
       {

@@ -1,8 +1,9 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.core.exceptions import ValidationError
-from app.schemas.users import ResetPasswordRequest, UserUpdate
+from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.services.user_admin_service import user_admin_service
 from app.utils.password import get_password_hash, verify_password
 
@@ -92,6 +93,31 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
             await user_admin_service.update_user(UserUpdate(id=2, is_active=False), current_user_id=1)
 
         update_mock.assert_awaited_once_with(2, {"is_active": False})
+
+
+class UserAdminServiceCreateUserTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_normal_user_without_role_uses_default_role(self) -> None:
+        new_user = DummyUser(id=3, is_superuser=False)
+        default_role = SimpleNamespace(id=9)
+
+        with (
+            patch("app.services.user_admin_service.user_repository.get_by_email", new=AsyncMock(return_value=None)),
+            patch("app.services.user_admin_service.user_repository.get_by_username", new=AsyncMock(return_value=None)),
+            patch("app.services.user_admin_service.role_repository.get_by_name", new=AsyncMock(return_value=default_role)),
+            patch("app.services.user_admin_service.user_repository.create", new=AsyncMock(return_value=new_user)),
+            patch("app.services.user_admin_service.user_repository.assign_roles", new=AsyncMock()) as assign_roles_mock,
+        ):
+            await user_admin_service.create_user(
+                UserCreate(
+                    username="demo-user",
+                    email="demo@example.com",
+                    password="ValidPass1!",
+                    is_superuser=False,
+                    role_ids=[],
+                )
+            )
+
+        assign_roles_mock.assert_awaited_once_with(new_user, [9])
 
 
 if __name__ == "__main__":

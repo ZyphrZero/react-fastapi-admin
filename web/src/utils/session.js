@@ -1,6 +1,8 @@
 const ACCESS_TOKEN_KEY = 'accessToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
 const USER_INFO_KEY = 'userInfo'
+const USER_MENUS_KEY = 'userMenus'
+const USER_API_PERMISSIONS_KEY = 'userApiPermissions'
 const SESSION_UPDATED_EVENT = 'app:session-updated'
 const storage = window.sessionStorage
 
@@ -53,12 +55,60 @@ export const setStoredUserInfo = (userInfo) => {
   emitSessionUpdated()
 }
 
+export const getStoredMenus = () => {
+  const raw = storage.getItem(USER_MENUS_KEY)
+  if (!raw) {
+    return []
+  }
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    storage.removeItem(USER_MENUS_KEY)
+    return []
+  }
+}
+
+export const setStoredMenus = (menus) => {
+  if (Array.isArray(menus) && menus.length > 0) {
+    storage.setItem(USER_MENUS_KEY, JSON.stringify(menus))
+  } else {
+    storage.removeItem(USER_MENUS_KEY)
+  }
+  emitSessionUpdated()
+}
+
+export const getStoredApiPermissions = () => {
+  const raw = storage.getItem(USER_API_PERMISSIONS_KEY)
+  if (!raw) {
+    return []
+  }
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    storage.removeItem(USER_API_PERMISSIONS_KEY)
+    return []
+  }
+}
+
+export const setStoredApiPermissions = (permissions) => {
+  if (Array.isArray(permissions) && permissions.length > 0) {
+    storage.setItem(USER_API_PERMISSIONS_KEY, JSON.stringify(permissions))
+  } else {
+    storage.removeItem(USER_API_PERMISSIONS_KEY)
+  }
+  emitSessionUpdated()
+}
+
 export const hasSession = () => Boolean(getAccessToken() || getRefreshToken())
 
 export const clearSession = () => {
   storage.removeItem(ACCESS_TOKEN_KEY)
   storage.removeItem(REFRESH_TOKEN_KEY)
   storage.removeItem(USER_INFO_KEY)
+  storage.removeItem(USER_MENUS_KEY)
+  storage.removeItem(USER_API_PERMISSIONS_KEY)
   emitSessionUpdated()
 }
 

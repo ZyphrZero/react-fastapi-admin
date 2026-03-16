@@ -5,7 +5,14 @@ import { Icon } from '@iconify/react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import api from '@/api'
-import { clearSession, getStoredUserInfo, subscribeSessionChange } from '@/utils/session'
+import {
+  clearSession,
+  getStoredMenus,
+  getStoredUserInfo,
+  setStoredApiPermissions,
+  setStoredMenus,
+  subscribeSessionChange,
+} from '@/utils/session'
 
 const { Header, Sider, Content } = Layout
 
@@ -79,7 +86,7 @@ const findOpenKeys = (items, targetKey, parentKeys = []) => {
 const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [userInfo, setUserInfo] = useState(() => getStoredUserInfo())
-  const [menuItems, setMenuItems] = useState([])
+  const [menuItems, setMenuItems] = useState(() => mapMenuTreeToItems(getStoredMenus()))
   const [menuLoading, setMenuLoading] = useState(false)
   const [openKeys, setOpenKeys] = useState([])
   const [tabs, setTabs] = useState([DEFAULT_TAB])
@@ -150,14 +157,22 @@ const AppLayout = () => {
     const loadMenus = async () => {
       setMenuLoading(true)
       try {
-        const response = await api.auth.getUserMenu()
+        const [menuResponse, apiPermissionResponse] = await Promise.all([
+          api.auth.getUserMenu(),
+          api.auth.getUserApi(),
+        ])
         if (!cancelled) {
-          setMenuItems(mapMenuTreeToItems(response.data || []))
+          const nextMenus = menuResponse.data || []
+          setMenuItems(mapMenuTreeToItems(nextMenus))
+          setStoredMenus(nextMenus)
+          setStoredApiPermissions(apiPermissionResponse.data || [])
         }
       } catch (error) {
         console.error('获取菜单失败:', error)
         if (!cancelled) {
           setMenuItems([])
+          setStoredMenus([])
+          setStoredApiPermissions([])
         }
       } finally {
         if (!cancelled) {

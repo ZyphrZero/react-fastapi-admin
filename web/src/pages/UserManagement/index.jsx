@@ -173,6 +173,15 @@ const UserManagement = () => {
     }
   }, [modalVisible, editingUser, modalForm])
 
+  useEffect(() => {
+    if (!resetPasswordVisible) {
+      return
+    }
+
+    resetPasswordForm.resetFields()
+    setPasswordStrength(null)
+  }, [resetPasswordForm, resetPasswordVisible])
+
   // 搜索处理
   const handleSearch = async (values) => {
     const params = {}
@@ -206,12 +215,15 @@ const UserManagement = () => {
     setModalVisible(true)
   }
 
-  // 关闭模态框
-  const handleCloseModal = () => {
-    setModalVisible(false)
+  const resetModalState = () => {
     setEditingUser(null)
     modalForm.resetFields()
     setPasswordStrength(null)
+  }
+
+  // 关闭模态框
+  const handleCloseModal = () => {
+    setModalVisible(false)
   }
 
   // 保存用户
@@ -265,14 +277,11 @@ const UserManagement = () => {
   const handleOpenResetPassword = (user) => {
     setResetPasswordTarget(user)
     setResetPasswordVisible(true)
-    resetPasswordForm.resetFields()
-    setPasswordStrength(null)
   }
 
   const handleCloseResetPassword = () => {
     setResetPasswordVisible(false)
     setResetPasswordTarget(null)
-    resetPasswordForm.resetFields()
     setPasswordStrength(null)
   }
 
@@ -591,6 +600,11 @@ const UserManagement = () => {
         }
         open={modalVisible}
         onCancel={handleCloseModal}
+        afterOpenChange={(open) => {
+          if (!open) {
+            resetModalState()
+          }
+        }}
         footer={[
           <Button key="cancel" onClick={handleCloseModal}>
             取消

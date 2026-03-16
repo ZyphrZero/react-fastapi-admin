@@ -25,6 +25,8 @@ class User(BaseModel, TimestampMixin):
 class Role(BaseModel, TimestampMixin):
     name = fields.CharField(max_length=20, unique=True, description="角色名称", index=True)
     desc = fields.CharField(max_length=500, null=True, description="角色描述")
+    menu_paths = fields.JSONField(default=list, description="菜单权限路径")
+    api_ids = fields.JSONField(default=list, description="API权限ID列表")
 
     class Meta:
         table = "role"
