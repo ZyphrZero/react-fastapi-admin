@@ -1,142 +1,282 @@
-<p align="center">
+<div align="center">
 
+# react-fastapi-admin
+
+<p>
+  <strong>一个基于 FastAPI + React + Ant Design 的现代化后台管理系统</strong>
 </p>
 
-<h1 align="center">react-fastapi-admin</h1>
+<p>
+  默认使用 SQLite 启动，内置启动引导、JWT 认证、RBAC 权限控制、审计日志与文件上传能力。
+</p>
 
-<p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue">
+<p>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.135+-009688?logo=fastapi&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-blue">
 </p>
 
-### 快速开始
+<p>
+  <a href="#项目亮点">项目亮点</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#访问入口">访问入口</a> ·
+  <a href="#配置说明">配置说明</a> ·
+  <a href="#开发说明">开发说明</a>
+</p>
 
-#### 方法一：dockerhub 拉取镜像
+</div>
 
-```sh
-docker pull mizhexiaoxiao/react-fastapi-admin:latest
-docker run -d --restart=always --name=react-fastapi-admin -p 9999:80 mizhexiaoxiao/react-fastapi-admin
+## 项目亮点
+
+<table>
+  <tr>
+    <td width="33%">
+      <strong>自动引导启动</strong><br>
+      开发环境默认支持数据库初始化、迁移升级、基础数据种子与 API 元数据刷新。
+    </td>
+    <td width="33%">
+      <strong>权限模型完整</strong><br>
+      基于角色聚合菜单权限与 API 权限，覆盖登录、鉴权、授权与页面访问控制。
+    </td>
+    <td width="33%">
+      <strong>前后端分离</strong><br>
+      后端基于 FastAPI，前端基于 React 19 + Vite 8，接口与页面职责清晰。
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <strong>审计日志可追踪</strong><br>
+      支持筛选、游标分页、详情查看与导出，便于定位后台操作记录。
+    </td>
+    <td width="33%">
+      <strong>上传能力可切换</strong><br>
+      支持本地存储与阿里云 OSS，两种文件存储方案可通过配置切换。
+    </td>
+    <td width="33%">
+      <strong>开箱即看文档</strong><br>
+      启动后根路径自动跳转到 <code>/docs</code>，可直接查看 OpenAPI 文档。
+    </td>
+  </tr>
+</table>
+
+## 功能状态
+
+| 模块 | 状态 | 说明 |
+| --- | --- | --- |
+| 认证与会话 | 已完成 | JWT 登录、刷新令牌、退出登录、密码修改、个人资料更新 |
+| 权限控制 | 已完成 | RBAC 菜单权限、API 权限、前端页面守卫 |
+| 工作台 | 已完成 | 概览统计、系统状态、近期活动 |
+| 用户管理 | 已完成 | 用户查询、创建、编辑、启停等管理能力 |
+| 角色管理 | 已完成 | 角色维护、权限分配 |
+| API 管理 | 已完成 | API 元数据维护与权限关联 |
+| 审计日志 | 已完成 | 条件检索、游标分页、详情、导出 |
+| 文件上传 | 已完成 | 本地存储与 OSS 上传 |
+| 部门数据接口 | 已完成 | 后端接口已提供 |
+| 部门管理页面 | 占位中 | 前端页面仍为占位内容 |
+| 文件管理页面 | 占位中 | 前端页面仍为占位内容 |
+
+## 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| Backend | FastAPI, Granian, Tortoise ORM, Aerich, Pydantic Settings, Loguru, PyJWT |
+| Frontend | React 19, Vite 8, Ant Design 6, Tailwind CSS 4, React Router 7, Axios |
+| Database | SQLite 默认，可切换 MySQL / PostgreSQL |
+
+## 项目结构
+
+```text
+.
+├── app/                  # FastAPI 后端代码
+│   ├── api/v1/           # HTTP 路由
+│   ├── controllers/      # 业务控制层
+│   ├── core/             # 框架能力、依赖与启动流程
+│   ├── models/           # ORM 模型
+│   ├── schemas/          # 请求/响应模型
+│   ├── settings/         # 配置与环境变量
+│   └── tests/            # 后端测试
+├── migrations/           # Aerich 迁移文件
+├── web/                  # React 前端代码
+│   ├── src/api/          # API 客户端
+│   ├── src/components/   # 公共组件
+│   ├── src/pages/        # 页面
+│   ├── src/router/       # 路由
+│   ├── src/hooks/        # Hooks
+│   └── src/utils/        # 工具方法
+├── main.py               # 后端启动入口
+├── pyproject.toml        # Python 依赖与工具配置
+└── .env.example          # 环境变量示例
 ```
 
-#### 方法二：dockerfile 构建镜像
+## 快速开始
 
-##### docker 安装(版本 17.05+)
+### 环境要求
 
-```sh
-yum install -y docker-ce
-systemctl start docker
-```
+- Python 3.11+
+- Node.js 18.8.0+
+- pnpm
 
-##### 构建镜像
+### 1. 克隆项目
 
-```sh
+```bash
 git clone https://github.com/mizhexiaoxiao/react-fastapi-admin.git
 cd react-fastapi-admin
-docker build --no-cache . -t react-fastapi-admin
 ```
 
-##### 启动容器
+### 2. 准备环境变量
 
-```sh
-docker run -d --restart=always --name=react-fastapi-admin -p 9999:80 react-fastapi-admin
+Linux / macOS:
+
+```bash
+cp .env.example .env
 ```
 
-##### 访问
+PowerShell:
 
-http://localhost:9999
-
-username：admin
-
-password：123456
-
-### 本地启动
-
-#### 后端
-
-启动项目需要以下环境：
-
-- Python 3.11
-
-#### 方法一（推荐）：使用 uv 安装依赖
-
-1. 安装 uv
-
-```sh
-pip install uv
+```powershell
+Copy-Item .env.example .env
 ```
 
-2. 创建并激活虚拟环境
+推荐先确认以下配置：
 
-```sh
-uv venv
-source .venv/bin/activate  # Linux/Mac
-# 或
-.\.venv\Scripts\activate  # Windows
+```env
+APP_ENV=development
+PORT=9999
+DB_CONNECTION=sqlite
+DB_FILE=db.sqlite3
+INITIAL_ADMIN_USERNAME=admin
+INITIAL_ADMIN_PASSWORD=
 ```
 
-3. 安装虚拟环境
+> `INITIAL_ADMIN_PASSWORD` 为空时，系统会在首次引导时自动生成管理员密码，并只在启动控制台输出一次。  
+> 生产环境必须显式配置安全的 `SECRET_KEY`。
 
-```sh
-# 按 uv.lock 中的信息创建 .venv 并安装运行时依赖
+### 3. 启动后端
+
+推荐使用 `uv`：
+
+```bash
 uv sync
+uv run python main.py
 ```
 
-4. 数据库迁移（可选）
+如果你已经激活虚拟环境，也可以直接运行：
 
-```sh
-# 生成迁移文件
+```bash
+python main.py
+```
+
+开发环境首次启动默认会自动执行：
+
+- 初始化数据库结构
+- 应用已有迁移
+- 创建默认角色
+- 创建超级管理员
+- 刷新 API 元数据
+
+### 4. 启动前端
+
+```bash
+cd web
+pnpm install
+pnpm dev
+```
+
+前端开发服务器默认运行在 `http://127.0.0.1:5173`，并会将 `/api` 请求代理到 `http://127.0.0.1:9999/api/v1`。
+
+## 访问入口
+
+| 入口 | 地址 |
+| --- | --- |
+| 后端服务 | `http://127.0.0.1:9999` |
+| API 文档 | `http://127.0.0.1:9999/docs` |
+| OpenAPI | `http://127.0.0.1:9999/openapi.json` |
+| 健康检查 | `http://127.0.0.1:9999/health` |
+| 前端开发地址 | `http://127.0.0.1:5173` |
+
+默认管理员说明：
+
+- 用户名默认为 `admin`
+- 密码由 `INITIAL_ADMIN_PASSWORD` 决定
+- 如果未配置初始密码，请从首次启动控制台复制系统生成的一次性密码
+
+## 常用命令
+
+### 后端
+
+```bash
+uv sync
+uv run python main.py
+uv run pytest app/tests
+uv run pytest app/tests/test_log_system.py
+```
+
+### 前端
+
+```bash
+cd web
+pnpm install
+pnpm dev
+pnpm lint
+pnpm build
+```
+
+### 数据库迁移
+
+```bash
 aerich migrate
-
-# 应用迁移
 aerich upgrade
 ```
 
-5. 启动服务
+## 配置说明
 
-```sh
-# 直接启动
-python main.py
-```
+`.env.example` 已提供完整示例，下面是最常用的配置项：
 
+| 配置项 | 说明 | 默认值 |
+| --- | --- | --- |
+| `APP_ENV` | 运行环境 | `development` |
+| `HOST` | 服务监听地址 | `0.0.0.0` |
+| `PORT` | 服务端口 | `9999` |
+| `DB_CONNECTION` | 数据库类型，支持 `sqlite` / `mysql` / `postgres` | `sqlite` |
+| `DB_FILE` | SQLite 文件名 | `db.sqlite3` |
+| `AUTO_BOOTSTRAP` | 是否启用启动引导 | `true` |
+| `RUN_MIGRATIONS_ON_STARTUP` | 启动时是否自动迁移 | 开发环境默认开启 |
+| `SEED_BASE_DATA_ON_STARTUP` | 启动时是否初始化基础数据 | 默认开启 |
+| `REFRESH_API_METADATA_ON_STARTUP` | 启动时是否刷新 API 元数据 | 开发环境默认开启 |
+| `INITIAL_ADMIN_USERNAME` | 初始管理员用户名 | `admin` |
+| `INITIAL_ADMIN_PASSWORD` | 初始管理员密码，留空则自动生成 | 空 |
+| `SECRET_KEY` | 应用密钥，生产环境必须修改 | 开发环境自动生成 |
+| `OSS_ENABLED` | 是否启用阿里云 OSS | `false`（以 `.env.example` 为准） |
+| `LOCAL_STORAGE_URL_PREFIX` | 本地上传访问前缀 | `/static/uploads` |
 
+## 开发说明
 
-服务现在应该正在运行，访问 http://localhost:9999/docs 查看 API 文档
+### 默认数据库
 
-#### 方法二：使用 pip 安装依赖
+- 项目默认使用 SQLite，数据库文件位于项目根目录下的 `db.sqlite3`
+- 如需切换到 MySQL 或 PostgreSQL，请在 `.env` 中修改 `DB_CONNECTION` 及对应连接参数
 
-```sh
-pip install -r requirements.in
-python main.py
-```
+### 权限模型
 
-#### 技术栈说明
+- 接口统一挂载在 `/api/v1`
+- 登录、刷新令牌等基础接口位于 `/api/v1/base`
+- 受保护模块包括用户、角色、API、部门、审计日志、上传等资源
+- 前端菜单权限与接口权限均基于角色聚合结果控制
 
-- **Granian 服务器**：项目使用 Granian 作为 ASGI 服务器，提供高性能的异步处理能力
-- **Tortoise ORM**：异步数据库 ORM，支持 SQLite、MySQL、PostgreSQL
-- **Aerich**：数据库迁移工具，类似 Django 的 migrations
-- **Loguru**：现代化日志库，提供结构化日志和丰富的配置选项
+### 启动行为
 
-#### 前端
+- 根路径 `/` 会重定向到 `/docs`
+- 开发环境会根据配置自动决定是否启用热重载、自动迁移和 API 元数据刷新
+- 本地文件上传默认挂载到 `/static`
 
-启动项目需要以下环境：
+## Docker 说明
 
-- node v18.8.0+
+当前仓库中的 `Dockerfile` 仍引用 `deploy/entrypoint.sh` 与 `deploy/web.conf`，但仓库内未包含 `deploy/` 目录，因此暂不建议直接按旧文档进行容器构建。
 
-1. 进入前端目录
+如果后续补齐 `deploy/` 目录，再补充完整的 Docker 构建与运行说明会更合理。
 
-```sh
-cd web
-```
+## License
 
-2. 安装依赖(建议使用 pnpm: https://pnpm.io/zh/installation)
-
-```sh
-npm i -g pnpm # 已安装可忽略
-pnpm i # 或者 npm i
-```
-
-3. 启动
-
-```sh
-pnpm dev
-```
+本项目基于 [MIT](./LICENSE) 协议开源。
