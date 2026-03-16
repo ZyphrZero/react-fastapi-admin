@@ -1,7 +1,8 @@
 import { Navigate } from 'react-router-dom'
+import { getAccessToken } from '@/utils/session'
 
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('token')
+  const token = getAccessToken()
   
   if (!token) {
     return <Navigate to="/login" replace />

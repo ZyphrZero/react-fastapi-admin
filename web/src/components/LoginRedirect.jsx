@@ -1,14 +1,14 @@
 import { Navigate } from 'react-router-dom'
-import Login from '@/pages/Login'
+import { getAccessToken } from '@/utils/session'
 
 const LoginRedirect = () => {
-  const token = localStorage.getItem('token')
+  const token = getAccessToken()
   
   if (token) {
     return <Navigate to="/dashboard" replace />
   }
   
-  return <Login />
+  return <Navigate to="/login" replace />
 }
 
 export default LoginRedirect 

@@ -1,27 +1,39 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import Layout from '@/components/Layout'
-import ProtectedRoute from '@/components/ProtectedRoute'
-import LoginRedirect from '@/components/LoginRedirect'
 
-// 页面组件
-import Login from '@/pages/Login'
-import Dashboard from '@/pages/Dashboard'
-import Profile from '@/pages/Profile'
-import UserManagement from '@/pages/UserManagement'
-import RoleManagement from '@/pages/RoleManagement'
-import ApiManagement from '@/pages/ApiManagement'
-import { NotFoundPage } from '@/pages/ErrorPages'
+import LoginRedirect from '@/components/LoginRedirect'
+import ProtectedRoute from '@/components/ProtectedRoute'
+
+const Layout = lazy(() => import('@/components/Layout'))
+const Login = lazy(() => import('@/pages/Login'))
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Profile = lazy(() => import('@/pages/Profile'))
+const UserManagement = lazy(() => import('@/pages/UserManagement'))
+const RoleManagement = lazy(() => import('@/pages/RoleManagement'))
+const ApiManagement = lazy(() => import('@/pages/ApiManagement'))
+const NotFoundPage = lazy(() => import('@/pages/ErrorPages').then((module) => ({ default: module.NotFoundPage })))
+
+const routeFallback = (
+  <div className="min-h-[320px] flex items-center justify-center">
+    <div className="text-center">
+      <div className="w-10 h-10 mx-auto rounded-full border-2 border-slate-200 border-t-blue-600 animate-spin"></div>
+      <p className="mt-4 text-sm text-slate-500">页面加载中...</p>
+    </div>
+  </div>
+)
+
+const withSuspense = (node) => <Suspense fallback={routeFallback}>{node}</Suspense>
 
 const router = createBrowserRouter([
   {
     path: '/login',
-    element: <Login />,
+    element: withSuspense(<Login />),
   },
   {
     path: '/',
     element: (
       <ProtectedRoute>
-        <Layout />
+        {withSuspense(<Layout />)}
       </ProtectedRoute>
     ),
     children: [
@@ -31,54 +43,46 @@ const router = createBrowserRouter([
       },
       {
         path: 'dashboard',
-        element: <Dashboard />,
+        element: withSuspense(<Dashboard />),
       },
       {
         path: 'profile',
-        element: <Profile />,
+        element: withSuspense(<Profile />),
       },
-      // 系统管理路由
       {
-        path: 'system',
-        children: [
-          {
-            path: 'users',
-            element: <UserManagement />,
-          },
-          {
-            path: 'roles',
-            element: <RoleManagement />,
-          },
-          {
-            path: 'apis',
-            element: <ApiManagement />,
-          },
-          {
-            path: 'departments',
-            element: <div>部门管理页面</div>,
-          },
-          {
-            path: 'audit',
-            element: <div>审计日志页面</div>,
-          },
-          {
-            path: 'upload',
-            element: <div>文件管理页面</div>,
-          },
-        ],
+        path: 'system/users',
+        element: withSuspense(<UserManagement />),
       },
-      // 404页面 - 在Layout内容区域显示
+      {
+        path: 'system/roles',
+        element: withSuspense(<RoleManagement />),
+      },
+      {
+        path: 'system/apis',
+        element: withSuspense(<ApiManagement />),
+      },
+      {
+        path: 'system/departments',
+        element: <div>部门管理页面</div>,
+      },
+      {
+        path: 'system/audit',
+        element: <div>审计日志页面</div>,
+      },
+      {
+        path: 'system/upload',
+        element: <div>文件管理页面</div>,
+      },
       {
         path: '*',
-        element: <NotFoundPage />,
+        element: withSuspense(<NotFoundPage />),
       },
     ],
   },
-  // 登录重定向处理
   {
     path: '/auth/callback',
     element: <LoginRedirect />,
   },
 ])
 
-export default router 
+export default router

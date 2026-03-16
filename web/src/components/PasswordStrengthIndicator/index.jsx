@@ -70,7 +70,7 @@ const PasswordStrengthIndicator = ({ password, onStrengthChange, showSuggestions
             status={getProgressStatus()}
             size="small"
             style={{ width: 120 }}
-            format={(percent) => (
+            format={() => (
               <span style={{ color: strength.color, fontSize: 12 }}>
                 {strength.levelText}
               </span>

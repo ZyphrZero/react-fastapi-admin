@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+from copy import deepcopy
+
+SYSTEM_MENU_TREE = [
+    {
+        "id": 1,
+        "name": "工作台",
+        "path": "/dashboard",
+        "icon": "material-symbols:dashboard-outline",
+        "order": 0,
+        "parent_id": 0,
+        "is_hidden": False,
+        "component": "/dashboard",
+        "keepalive": False,
+        "redirect": None,
+        "children": [],
+    },
+    {
+        "id": 10,
+        "name": "系统管理",
+        "path": "/system",
+        "icon": "carbon:gui-management",
+        "order": 1,
+        "parent_id": 0,
+        "is_hidden": False,
+        "component": "Layout",
+        "keepalive": False,
+        "redirect": "/system/users",
+        "children": [
+            {
+                "id": 11,
+                "name": "用户管理",
+                "path": "/system/users",
+                "icon": "ph:user-list-bold",
+                "order": 1,
+                "parent_id": 10,
+                "is_hidden": False,
+                "component": "/system/users",
+                "keepalive": False,
+                "redirect": None,
+            },
+            {
+                "id": 12,
+                "name": "角色管理",
+                "path": "/system/roles",
+                "icon": "carbon:user-role",
+                "order": 2,
+                "parent_id": 10,
+                "is_hidden": False,
+                "component": "/system/roles",
+                "keepalive": False,
+                "redirect": None,
+            },
+            {
+                "id": 13,
+                "name": "API管理",
+                "path": "/system/apis",
+                "icon": "ant-design:api-outlined",
+                "order": 3,
+                "parent_id": 10,
+                "is_hidden": False,
+                "component": "/system/apis",
+                "keepalive": False,
+                "redirect": None,
+            },
+            {
+                "id": 14,
+                "name": "部门管理",
+                "path": "/system/departments",
+                "icon": "mingcute:department-line",
+                "order": 4,
+                "parent_id": 10,
+                "is_hidden": False,
+                "component": "/system/departments",
+                "keepalive": False,
+                "redirect": None,
+            },
+            {
+                "id": 15,
+                "name": "审计日志",
+                "path": "/system/audit",
+                "icon": "ph:clipboard-text-bold",
+                "order": 5,
+                "parent_id": 10,
+                "is_hidden": False,
+                "component": "/system/audit",
+                "keepalive": False,
+                "redirect": None,
+            },
+        ],
+    },
+]
+
+
+def get_system_menu_tree() -> list[dict]:
+    return deepcopy(SYSTEM_MENU_TREE)

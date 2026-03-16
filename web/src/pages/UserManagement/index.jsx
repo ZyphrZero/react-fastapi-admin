@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Table,
   Button,
@@ -30,11 +30,24 @@ import {
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import PasswordStrengthIndicator from '@/components/PasswordStrengthIndicator'
+import { getStoredUserInfo } from '@/utils/session'
+
+const flattenDepartmentOptions = (departments = [], depth = 0) => {
+  return departments.flatMap((department) => [
+    {
+      label: `${depth > 0 ? `${'-- '.repeat(depth)}` : ''}${department.name}`,
+      value: department.id,
+    },
+    ...flattenDepartmentOptions(department.children || [], depth + 1),
+  ])
+}
 
 const UserManagement = () => {
+  const currentUser = getStoredUserInfo()
+
   // 基础状态
   const [loading, setLoading] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(null)
+  const [, setPasswordStrength] = useState(null)
   const [users, setUsers] = useState([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
@@ -49,6 +62,7 @@ const UserManagement = () => {
   const [modalForm] = Form.useForm()
   const [editingUser, setEditingUser] = useState(null)
   const [modalLoading, setModalLoading] = useState(false)
+  const isEditingCurrentUser = currentUser?.id === editingUser?.id
   
   // 角色和部门数据
   const [roles, setRoles] = useState([])
@@ -57,7 +71,7 @@ const UserManagement = () => {
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
 
   // 获取用户列表
-  const fetchUsers = async (page = currentPage, size = pageSize, search = searchParams) => {
+  const fetchUsers = useCallback(async (page = 1, size = 10, search = {}) => {
     setLoading(true)
     try {
       const params = {
@@ -75,34 +89,34 @@ const UserManagement = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [handleError])
 
   // 获取角色列表
-  const fetchRoles = async () => {
+  const fetchRoles = useCallback(async () => {
     try {
       const response = await api.roles.getList({ page: 1, page_size: 1000 })
       setRoles(response.data || [])
     } catch (error) {
-      console.error('获取角色列表失败:', error)
+      handleError(error, '获取角色列表失败')
     }
-  }
+  }, [handleError])
 
   // 获取部门列表
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.departments.getList({ page: 1, page_size: 1000 })
-      setDepartments(response.data || [])
+      setDepartments(flattenDepartmentOptions(response.data || []))
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      handleError(error, '获取部门列表失败')
     }
-  }
+  }, [handleError])
 
   // 初始化数据
   useEffect(() => {
-    fetchUsers()
-    fetchRoles()
-    fetchDepartments()
-  }, [])
+    void fetchUsers(1, 10, {})
+    void fetchRoles()
+    void fetchDepartments()
+  }, [fetchDepartments, fetchRoles, fetchUsers])
 
   // 处理模态框表单数据设置
   useEffect(() => {
@@ -199,7 +213,7 @@ const UserManagement = () => {
         showSuccess('用户创建成功')
       }
       handleCloseModal()
-      await fetchUsers()
+      await fetchUsers(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, editingUser ? '用户更新失败' : '用户创建失败')
     } finally {
@@ -212,7 +226,7 @@ const UserManagement = () => {
     try {
       await api.users.delete({ user_id: userId })
       showSuccess('用户删除成功')
-      await fetchUsers()
+      await fetchUsers(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, '用户删除失败')
     }
@@ -318,49 +332,67 @@ const UserManagement = () => {
       key: 'action',
       width: 200,
       fixed: 'right',
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="编辑">
-            <Button
-              type="primary"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleOpenModal(record)}
-            />
-          </Tooltip>
-          <Tooltip title="重置密码">
-            <Popconfirm
-              title="确认重置密码？"
-              description="密码将重置为：123456"
-              onConfirm={() => handleResetPassword(record.id)}
-              okText="确认"
-              cancelText="取消"
-            >
+      render: (_, record) => {
+        const isCurrentUser = currentUser?.id === record.id
+        const canResetPassword = !record.is_superuser || isCurrentUser
+
+        return (
+          <Space size="small">
+            <Tooltip title="编辑">
               <Button
+                type="primary"
                 size="small"
-                icon={<LockOutlined />}
-                className="text-orange-500 border-orange-500 hover:bg-orange-50"
+                icon={<EditOutlined />}
+                onClick={() => handleOpenModal(record)}
               />
-            </Popconfirm>
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确认删除用户？"
-              description="删除后无法恢复，请谨慎操作"
-              onConfirm={() => handleDeleteUser(record.id)}
-              okText="确认"
-              cancelText="取消"
-              okType="danger"
-            >
-              <Button
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-              />
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      )
+            </Tooltip>
+            {canResetPassword ? (
+              <Tooltip title={record.is_superuser ? '重置自己的密码' : '重置密码'}>
+                <Popconfirm
+                  title="确认重置密码？"
+                  description="密码将重置为：123456"
+                  onConfirm={() => handleResetPassword(record.id)}
+                  okText="确认"
+                  cancelText="取消"
+                >
+                  <Button
+                    size="small"
+                    icon={<LockOutlined />}
+                    className="text-orange-500 border-orange-500 hover:bg-orange-50"
+                  />
+                </Popconfirm>
+              </Tooltip>
+            ) : (
+              <Tooltip title="不能重置其他超级管理员的密码">
+                <span>
+                  <Button
+                    disabled
+                    size="small"
+                    icon={<LockOutlined />}
+                    className="text-orange-500 border-orange-500"
+                  />
+                </span>
+              </Tooltip>
+            )}
+            <Tooltip title="删除">
+              <Popconfirm
+                title="确认删除用户？"
+                description="删除后无法恢复，请谨慎操作"
+                onConfirm={() => handleDeleteUser(record.id)}
+                okText="确认"
+                cancelText="取消"
+                okType="danger"
+              >
+                <Button
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                />
+              </Popconfirm>
+            </Tooltip>
+          </Space>
+        )
+      }
     }
   ]
 
@@ -421,10 +453,7 @@ const UserManagement = () => {
                 placeholder="选择部门"
                 allowClear
                 style={{ width: 150 }}
-                options={departments.map(dept => ({
-                  label: dept.name,
-                  value: dept.id
-                }))}
+                options={departments}
               />
             </Form.Item>
             <Form.Item className="mb-2">
@@ -445,7 +474,7 @@ const UserManagement = () => {
                 </Button>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={() => fetchUsers()}
+                  onClick={() => fetchUsers(currentPage, pageSize, searchParams)}
                   loading={loading}
                 >
                   刷新
@@ -699,10 +728,7 @@ const UserManagement = () => {
                   id="modal_dept_id"
                   placeholder="请选择部门"
                   allowClear
-                  options={departments.map(dept => ({
-                    label: dept.name,
-                    value: dept.id
-                  }))}
+                  options={departments}
                 />
               </Form.Item>
             </Col>
@@ -735,7 +761,7 @@ const UserManagement = () => {
                   id="modal_is_active"
                   options={[
                     { label: '正常', value: true },
-                    { label: '禁用', value: false }
+                    { label: '禁用', value: false, disabled: isEditingCurrentUser }
                   ]}
                 />
               </Form.Item>

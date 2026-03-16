@@ -1,165 +1,170 @@
 import { useEffect, useState } from 'react'
-import { Row, Col, Card, Statistic, Progress, Table, Badge, Space } from 'antd'
-import {
-  UserOutlined,
-  TeamOutlined,
-  ApartmentOutlined,
-  FileTextOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-} from '@ant-design/icons'
+import { ApiOutlined, ApartmentOutlined, FileTextOutlined, ReloadOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
+import { Button, Card, Col, Descriptions, Empty, Progress, Row, Space, Statistic, Table, Tag } from 'antd'
+
+import api from '@/api'
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(false)
+  const [overview, setOverview] = useState(null)
 
-  // 模拟统计数据
+  useEffect(() => {
+    let cancelled = false
+
+    const loadOverview = async () => {
+      setLoading(true)
+      try {
+        const response = await api.auth.getOverview()
+        if (!cancelled) {
+          setOverview(response.data || null)
+        }
+      } catch (error) {
+        console.error('获取概览数据失败:', error)
+        if (!cancelled) {
+          setOverview(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadOverview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const summary = overview?.summary || {}
+  const system = overview?.system || {}
+  const auditTrend = overview?.audit_trend || []
+  const recentActivities = overview?.recent_activities || []
+  const maxTrendCount = Math.max(...auditTrend.map((item) => item.count), 0)
+
   const statistics = [
     {
+      key: 'users',
       title: '用户总数',
-      value: 1128,
+      value: summary.user_total || 0,
       icon: <UserOutlined />,
-      color: '#1890ff',
-      growth: 12.5,
+      color: '#1677ff',
+      extra: `启用 ${summary.active_user_total || 0}`,
     },
     {
+      key: 'roles',
       title: '角色数量',
-      value: 8,
+      value: summary.role_total || 0,
       icon: <TeamOutlined />,
       color: '#52c41a',
-      growth: 8.2,
+      extra: '权限角色池',
     },
     {
+      key: 'departments',
       title: '部门数量',
-      value: 15,
+      value: summary.dept_total || 0,
       icon: <ApartmentOutlined />,
-      color: '#722ed1',
-      growth: -2.1,
+      color: '#13c2c2',
+      extra: '组织结构节点',
     },
     {
-      title: '今日访问',
-      value: 2847,
+      key: 'apis',
+      title: 'API 数量',
+      value: summary.api_total || 0,
+      icon: <ApiOutlined />,
+      color: '#722ed1',
+      extra: '接口元数据',
+    },
+    {
+      key: 'audits',
+      title: '今日操作',
+      value: summary.today_audit_total || 0,
       icon: <FileTextOutlined />,
       color: '#fa8c16',
-      growth: 15.8,
-    },
-  ]
-
-  // 最近活动数据
-  const recentActivities = [
-    {
-      key: '1',
-      user: 'admin',
-      action: '创建用户',
-      target: 'user_001',
-      time: '2024-01-15 10:30:25',
-      status: 'success',
-    },
-    {
-      key: '2',
-      user: 'manager',
-      action: '更新角色权限',
-      target: 'role_editor',
-      time: '2024-01-15 09:45:12',
-      status: 'success',
-    },
-    {
-      key: '3',
-      user: 'editor',
-      action: '删除菜单',
-      target: 'menu_test',
-      time: '2024-01-15 09:15:33',
-      status: 'warning',
-    },
-    {
-      key: '4',
-      user: 'user_001',
-      action: '登录系统',
-      target: '系统',
-      time: '2024-01-15 08:30:15',
-      status: 'success',
+      extra: '审计记录',
     },
   ]
 
   const activityColumns = [
     {
       title: '用户',
-      dataIndex: 'user',
-      key: 'user',
+      dataIndex: 'username',
+      key: 'username',
+      width: 120,
+      render: (value) => value || 'system',
+    },
+    {
+      title: '模块',
+      dataIndex: 'module',
+      key: 'module',
+      width: 140,
+      render: (value) => value || '基础模块',
     },
     {
       title: '操作',
       dataIndex: 'action',
       key: 'action',
-    },
-    {
-      title: '目标',
-      dataIndex: 'target',
-      key: 'target',
-    },
-    {
-      title: '时间',
-      dataIndex: 'time',
-      key: 'time',
+      ellipsis: true,
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => (
-        <Badge 
-          status={status === 'success' ? 'success' : 'warning'} 
-          text={status === 'success' ? '成功' : '警告'} 
-        />
-      ),
+      width: 120,
+      render: (status) => {
+        const color = status >= 500 ? 'red' : status >= 400 ? 'orange' : 'green'
+        return <Tag color={color}>{status}</Tag>
+      },
+    },
+    {
+      title: '耗时',
+      dataIndex: 'response_time',
+      key: 'response_time',
+      width: 120,
+      render: (value) => `${value || 0} ms`,
+    },
+    {
+      title: '时间',
+      dataIndex: 'time',
+      key: 'time',
+      width: 180,
     },
   ]
 
-  useEffect(() => {
-    // 这里可以加载实际的统计数据
-    setLoading(false)
-  }, [])
-
   return (
     <div className="space-y-6">
-      {/* 欢迎标题 */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">欢迎来到 FastAPI Admin 管理系统</h1>
-        <p className="opacity-90">现代化的前后端分离管理平台，基于 React + Ant Design + Tailwind CSS</p>
+      <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-cyan-700 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">{system.title || '管理平台工作台'}</h1>
+            <p className="text-white/80">
+              当前环境 {system.environment || 'unknown'}，版本 {system.version || '0.0.0'}。工作台已切换为真实后端概览数据。
+            </p>
+          </div>
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={() => window.location.reload()}>
+              刷新页面
+            </Button>
+          </Space>
+        </div>
       </div>
 
-      {/* 统计卡片 */}
       <Row gutter={[16, 16]}>
-        {statistics.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
-            <Card hoverable className="h-full">
+        {statistics.map((item) => (
+          <Col xs={24} sm={12} lg={8} xl={4} key={item.key}>
+            <Card hoverable loading={loading} className="h-full">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-gray-500 text-sm mb-1">{stat.title}</p>
-                  <Statistic 
-                    value={stat.value} 
-                    valueStyle={{ fontSize: '24px', fontWeight: 'bold' }}
-                  />
-                  <div className="flex items-center mt-2">
-                    {stat.growth > 0 ? (
-                      <ArrowUpOutlined className="text-green-500 text-xs mr-1" />
-                    ) : (
-                      <ArrowDownOutlined className="text-red-500 text-xs mr-1" />
-                    )}
-                    <span 
-                      className={`text-xs ${
-                        stat.growth > 0 ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      {Math.abs(stat.growth)}%
-                    </span>
-                    <span className="text-gray-400 text-xs ml-1">较上周</span>
-                  </div>
+                <div>
+                  <div className="text-gray-500 text-sm mb-1">{item.title}</div>
+                  <Statistic value={item.value} valueStyle={{ fontSize: 24, fontWeight: 700 }} />
+                  <div className="text-xs text-gray-400 mt-2">{item.extra}</div>
                 </div>
-                <div 
-                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl"
-                  style={{ backgroundColor: stat.color }}
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl shadow-sm"
+                  style={{ backgroundColor: item.color }}
                 >
-                  {stat.icon}
+                  {item.icon}
                 </div>
               </div>
             </Card>
@@ -167,74 +172,73 @@ const Dashboard = () => {
         ))}
       </Row>
 
-      {/* 图表和活动 */}
       <Row gutter={[16, 16]}>
-        {/* 系统状态 */}
-        <Col xs={24} lg={12}>
-          <Card title="系统状态" hoverable>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span>CPU 使用率</span>
-                  <span className="text-blue-500 font-medium">45%</span>
-                </div>
-                <Progress percent={45} strokeColor="#1890ff" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span>内存使用率</span>
-                  <span className="text-green-500 font-medium">68%</span>
-                </div>
-                <Progress percent={68} strokeColor="#52c41a" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span>磁盘使用率</span>
-                  <span className="text-orange-500 font-medium">32%</span>
-                </div>
-                <Progress percent={32} strokeColor="#fa8c16" />
-              </div>
-            </div>
+        <Col xs={24} xl={10}>
+          <Card title="框架状态" loading={loading} hoverable className="h-full">
+            <Descriptions column={1} size="small" styles={{ label: { width: 160 } }}>
+              <Descriptions.Item label="运行环境">
+                <Tag color={system.environment === 'production' ? 'red' : 'blue'}>
+                  {system.environment || 'unknown'}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="数据库">{system.database || 'sqlite'}</Descriptions.Item>
+              <Descriptions.Item label="访问日志">
+                {system.access_log_enabled ? '已启用' : '已关闭'}
+              </Descriptions.Item>
+              <Descriptions.Item label="自动引导">
+                {system.auto_bootstrap ? '已启用' : '已关闭'}
+              </Descriptions.Item>
+              <Descriptions.Item label="启动迁移">
+                {system.auto_migration ? '自动升级' : '显式迁移'}
+              </Descriptions.Item>
+              <Descriptions.Item label="基础数据初始化">
+                {system.auto_seed_data ? '自动初始化' : '手动初始化'}
+              </Descriptions.Item>
+              <Descriptions.Item label="API 元数据刷新">
+                {system.auto_refresh_api ? '自动刷新' : '按需刷新'}
+              </Descriptions.Item>
+            </Descriptions>
           </Card>
         </Col>
 
-        {/* 快速操作 */}
-        <Col xs={24} lg={12}>
-          <Card title="快速操作" hoverable>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer transition-colors">
-                <UserOutlined className="text-2xl text-blue-500 mb-2" />
-                <div className="text-sm font-medium">创建用户</div>
+        <Col xs={24} xl={14}>
+          <Card title="近 7 天操作趋势" loading={loading} hoverable className="h-full">
+            {auditTrend.length > 0 ? (
+              <div className="space-y-4">
+                {auditTrend.map((item) => (
+                  <div key={item.date}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">{item.date}</span>
+                      <span className="text-sm font-medium text-gray-800">{item.count} 次</span>
+                    </div>
+                    <Progress
+                      percent={maxTrendCount > 0 ? Math.round((item.count / maxTrendCount) * 100) : 0}
+                      showInfo={false}
+                      strokeColor={{ from: '#1677ff', to: '#13c2c2' }}
+                    />
+                  </div>
+                ))}
               </div>
-              <div className="p-4 bg-green-50 rounded-lg hover:bg-green-100 cursor-pointer transition-colors">
-                <TeamOutlined className="text-2xl text-green-500 mb-2" />
-                <div className="text-sm font-medium">添加角色</div>
-              </div>
-              <div className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 cursor-pointer transition-colors">
-                <ApartmentOutlined className="text-2xl text-purple-500 mb-2" />
-                <div className="text-sm font-medium">新建部门</div>
-              </div>
-              <div className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 cursor-pointer transition-colors">
-                <FileTextOutlined className="text-2xl text-orange-500 mb-2" />
-                <div className="text-sm font-medium">查看日志</div>
-              </div>
-            </div>
+            ) : (
+              <Empty description="暂无审计趋势数据" />
+            )}
           </Card>
         </Col>
       </Row>
 
-      {/* 最近活动 */}
-      <Card title="最近活动" hoverable>
+      <Card title="最近操作" loading={loading} hoverable>
         <Table
+          rowKey="id"
           columns={activityColumns}
           dataSource={recentActivities}
-          pagination={{ pageSize: 5 }}
-          loading={loading}
+          pagination={{ pageSize: 8, hideOnSinglePage: true }}
+          locale={{ emptyText: <Empty description="暂无操作记录" /> }}
           size="small"
+          scroll={{ x: 900 }}
         />
       </Card>
     </div>
   )
 }
 
-export default Dashboard 
+export default Dashboard

@@ -7,7 +7,7 @@
 
 ## Build, Test, and Development Commands
 Backend:
-- `uv sync` installs Python dependencies from `uv.lock`.
+- `uv sync` installs Python dependencies, including `pytest`.
 - `python main.py` starts Granian/FastAPI on `http://localhost:9999`.
 - `aerich migrate` then `aerich upgrade` generates and applies schema changes.
 
@@ -18,7 +18,8 @@ Frontend:
 - `cd web && pnpm lint` runs ESLint.
 
 Testing:
-- `python app/tests/test_log_system.py` runs the backend regression script.
+- `uv run pytest app/tests` runs the backend test suite.
+- `uv run pytest app/tests/test_log_system.py` runs the log-system regression checks only.
 
 ## Coding Style & Naming Conventions
 Python uses 4-space indentation and the repo is configured for Black, Ruff, and isort with a 120-character line length. Prefer `snake_case` for modules, functions, and variables. Keep route, controller, and schema names aligned by feature.
@@ -26,7 +27,7 @@ Python uses 4-space indentation and the repo is configured for Black, Ruff, and 
 React code uses ES modules, functional components, 2-space indentation, and no semicolons in existing files. Use `PascalCase` for components and page folders such as `UserManagement/`, `camelCase` for hooks and utilities, and `index.jsx` as the feature entry file when a folder groups related code.
 
 ## Testing Guidelines
-Automated coverage is currently light: there is no configured frontend test runner or coverage threshold. Add backend tests under `app/tests/test_*.py` and keep them deterministic. For UI work, run at minimum `pnpm lint` and `pnpm build` before opening a PR.
+Automated coverage is currently light: there is no configured frontend test runner or coverage threshold. Add backend tests under `app/tests/test_*.py`, keep them deterministic, and write them in `pytest`-compatible style so they run under `uv run pytest app/tests`. For UI work, run at minimum `pnpm lint` and `pnpm build` before opening a PR.
 
 ## Commit & Pull Request Guidelines
 Recent history follows Conventional Commit style, sometimes with emoji prefixes, for example `feat: ...`, `refactor(auth, menu): ...`, and `build(deps): ...`. Use a lowercase type, optional scope, and an imperative summary.

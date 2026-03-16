@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Table,
   Button,
@@ -66,7 +66,7 @@ const ApiManagement = () => {
   ]
 
   // 获取API列表
-  const fetchApis = async (page = currentPage, size = pageSize, search = searchParams) => {
+  const fetchApis = useCallback(async (page = 1, size = 10, search = {}) => {
     setLoading(true)
     try {
       const params = {
@@ -85,23 +85,29 @@ const ApiManagement = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [handleError])
 
   // 获取所有API标签
-  const fetchAllTags = async () => {
+  const fetchAllTags = useCallback(async () => {
     try {
       const response = await api.apis.getTags()
-      setAvailableTags(response.data || [])
+      setAvailableTags(
+        (response.data || []).map((tag) => ({
+          label: tag,
+          value: tag,
+          count: 0,
+        }))
+      )
     } catch (error) {
       handleError(error, '获取API标签失败')
     }
-  }
+  }, [handleError])
 
   // 初始化数据
   useEffect(() => {
-    fetchApis()
-    fetchAllTags()
-  }, [])
+    void fetchApis(1, 10, {})
+    void fetchAllTags()
+  }, [fetchAllTags, fetchApis])
 
   // 搜索处理
   const handleSearch = async (values) => {
@@ -173,7 +179,7 @@ const ApiManagement = () => {
       showSuccess('API信息更新成功')
 
       handleCloseModal()
-      await fetchApis()
+      await fetchApis(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, 'API更新失败')
     } finally {
@@ -186,7 +192,7 @@ const ApiManagement = () => {
     try {
       await api.apis.delete({ api_id: apiId })
       showSuccess('API删除成功')
-      await fetchApis()
+      await fetchApis(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, 'API删除失败')
     }
@@ -198,7 +204,7 @@ const ApiManagement = () => {
     try {
       await api.apis.refresh()
       showSuccess('API列表刷新成功')
-      await fetchApis()
+      await fetchApis(currentPage, pageSize, searchParams)
       await fetchAllTags() // 刷新后重新获取标签列表
     } catch (error) {
       handleBusinessError(error, 'API刷新失败')
@@ -399,10 +405,7 @@ const ApiManagement = () => {
                >
                  {availableTags.map(tag => (
                    <Option key={tag.value} value={tag.value} label={tag.label}>
-                     <div className="flex items-center justify-between">
-                       <Tag color="cyan" size="small">{tag.label}</Tag>
-                       <span className="text-xs text-gray-400">({tag.count}个API)</span>
-                     </div>
+                     <Tag color="cyan" size="small">{tag.label}</Tag>
                    </Option>
                  ))}
                </Select>
@@ -425,7 +428,7 @@ const ApiManagement = () => {
                 </Button>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={() => fetchApis()}
+                  onClick={() => fetchApis(currentPage, pageSize, searchParams)}
                   loading={loading}
                 >
                   刷新

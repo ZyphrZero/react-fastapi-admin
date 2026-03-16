@@ -47,6 +47,18 @@ class BackGroundTaskMiddleware(SimpleBaseMiddleware):
         await BgTasks.execute_tasks()
 
 
+class DatabaseContextMiddleware(BaseHTTPMiddleware):
+    """为每个请求显式绑定 TortoiseContext。"""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        db_runtime = getattr(request.app.state, "db_runtime", None)
+        if db_runtime is None:
+            return await call_next(request)
+
+        async with db_runtime.activate():
+            return await call_next(request)
+
+
 class HttpAuditLogMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, methods: list[str], exclude_paths: list[str]):
         super().__init__(app)

@@ -3,6 +3,8 @@
  * 处理常见的HTTP错误码和错误消息，明确区分错误类型
  */
 
+import { clearSession } from '@/utils/session'
+
 // 错误类型枚举
 export const ERROR_TYPES = {
     BUSINESS_ERROR: 'business_error',    // 业务逻辑错误
@@ -117,9 +119,7 @@ export const extractErrorMessage = (response, defaultMessage) => {
  */
 export const handleAuthError = (status) => {
     if (status === 401) {
-        // 清除本地存储的认证信息
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
+        clearSession()
 
         // 避免在登录页重复重定向
         if (window.location.pathname !== '/login') {

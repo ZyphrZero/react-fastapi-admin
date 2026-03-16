@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Row, Col, Card, Form, Input, Button, Tabs, Avatar, Divider, Statistic } from 'antd'
+import { useCallback, useEffect, useState } from 'react'
+import { Row, Col, Card, Form, Input, Button, Tabs, Avatar, Divider } from 'antd'
 import { UserOutlined, LockOutlined, EditOutlined, SaveOutlined, MailOutlined, SafetyOutlined, PhoneOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import PasswordStrengthIndicator from '@/components/PasswordStrengthIndicator'
+import { clearSession, setStoredUserInfo } from '@/utils/session'
 
 const Profile = () => {
   const [userInfo, setUserInfo] = useState({})
@@ -17,7 +18,7 @@ const Profile = () => {
   const { handleError, handleBusinessError, showSuccess, showWarning, message } = useErrorHandler()
 
   // 获取用户信息
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     try {
       const response = await api.auth.getUserInfo()
       setUserInfo(response.data)
@@ -31,11 +32,11 @@ const Profile = () => {
       // 获取用户信息失败时使用通用错误处理
       handleError(error, '获取用户信息失败')
     }
-  }
+  }, [handleError, profileForm])
 
   useEffect(() => {
-    fetchUserInfo()
-  }, [])
+    void fetchUserInfo()
+  }, [fetchUserInfo])
 
   // 更新个人信息
   const handleUpdateProfile = async (values) => {
@@ -58,10 +59,10 @@ const Profile = () => {
       await api.auth.updateProfile(processedValues)
       showSuccess('个人信息更新成功！')
       
-      // 重新获取用户信息并更新localStorage和Layout组件
+      // 重新获取用户信息并同步到会话状态
       const response = await api.auth.getUserInfo()
       setUserInfo(response.data)
-      localStorage.setItem('userInfo', JSON.stringify(response.data))
+      setStoredUserInfo(response.data)
       
       // 更新表单值以反映最新的用户信息
       profileForm.setFieldsValue({
@@ -69,11 +70,6 @@ const Profile = () => {
         email: response.data.email || '',
         phone: response.data.phone || '',
       })
-      
-      // 通知Layout组件更新用户信息显示
-      if (window.updateUserInfo) {
-        window.updateUserInfo()
-      }
     } catch (error) {
       // 个人信息更新失败时使用业务错误处理
       handleBusinessError(error, '更新失败，请重试')
@@ -102,8 +98,7 @@ const Profile = () => {
 
       // 清除登录信息并跳转到登录页
       setTimeout(() => {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
+        clearSession()
         navigate('/login')
       }, 1500) // 1.5秒后跳转，让用户看到成功提示
 

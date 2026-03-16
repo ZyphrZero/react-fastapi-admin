@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '@/api'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { setAccessToken, setStoredUserInfo } from '@/utils/session'
 
 const Login = () => {
   const [loading, setLoading] = useState(false)
@@ -19,11 +20,11 @@ const Login = () => {
       })
 
       // 保存token和用户信息
-      localStorage.setItem('token', response.data.access_token)
+      setAccessToken(response.data.access_token)
       
       // 获取用户信息
       const userInfo = await api.auth.getUserInfo()
-      localStorage.setItem('userInfo', JSON.stringify(userInfo.data))
+      setStoredUserInfo(userInfo.data)
 
       showSuccess('登录成功！')
       navigate('/dashboard')

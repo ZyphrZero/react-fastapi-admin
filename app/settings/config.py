@@ -1,8 +1,7 @@
-import os
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +37,9 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = Field(default="React FastAPI Admin", description="项目名称")
     APP_DESCRIPTION: str = Field(default="React FastAPI Admin Description", description="应用描述")
     DEBUG: bool = Field(default=True, description="调试模式")
+    HOST: str = Field(default="0.0.0.0", description="服务监听地址")
+    PORT: int = Field(default=9999, description="服务监听端口")
+    SERVER_RELOAD: Optional[bool] = Field(default=None, description="是否启用服务热重载")
 
     # CORS 配置
     CORS_ORIGINS: List[str] = Field(default=["*"], description="CORS 允许的来源")
@@ -94,6 +96,16 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_URL_PREFIX: str = Field(default="/static/uploads", description="本地存储 URL 前缀")
     LOCAL_STORAGE_FULL_URL: str = Field(default="", description="本地存储完整 URL")
 
+    # 启动引导配置
+    AUTO_BOOTSTRAP: bool = Field(default=True, description="是否在启动时执行引导流程")
+    RUN_MIGRATIONS_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时应用迁移")
+    SEED_BASE_DATA_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时初始化基础数据")
+    REFRESH_API_METADATA_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时刷新 API 元数据")
+    INITIAL_ADMIN_USERNAME: str = Field(default="admin", description="初始管理员用户名")
+    INITIAL_ADMIN_EMAIL: str = Field(default="admin@example.com", description="初始管理员邮箱")
+    INITIAL_ADMIN_NICKNAME: str = Field(default="admin", description="初始管理员昵称")
+    INITIAL_ADMIN_PASSWORD: str = Field(default="123456", description="初始管理员密码")
+
     # 数据库配置
     DB_CONNECTION: str = Field(default="sqlite", description="数据库连接类型")
     DB_FILE: str = Field(default="db.sqlite3", description="SQLite 数据库文件名")
@@ -107,6 +119,22 @@ class Settings(BaseSettings):
 
     # 时间格式配置
     DATETIME_FORMAT: str = Field(default="%Y-%m-%d %H:%M:%S", description="日期时间格式")
+
+    @field_validator(
+        "SERVER_RELOAD",
+        "RUN_MIGRATIONS_ON_STARTUP",
+        "SEED_BASE_DATA_ON_STARTUP",
+        "REFRESH_API_METADATA_ON_STARTUP",
+        mode="before",
+    )
+    @classmethod
+    def empty_optional_booleans_to_none(cls, value: object) -> object:
+        """兼容 .env 中留空的可选布尔值，将空字符串视为未设置。"""
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+        return value
 
     @computed_field
     @property
@@ -139,6 +167,44 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """判断是否为开发环境"""
         return self.APP_ENV.lower() == "development"
+
+    @computed_field
+    @property
+    def server_reload_enabled(self) -> bool:
+        """根据环境和配置判断是否启用热重载"""
+        if self.SERVER_RELOAD is not None:
+            return self.SERVER_RELOAD
+        return self.is_development
+
+    @computed_field
+    @property
+    def should_run_migrations_on_startup(self) -> bool:
+        """判断是否在启动时应用数据库迁移"""
+        if not self.AUTO_BOOTSTRAP:
+            return False
+        if self.RUN_MIGRATIONS_ON_STARTUP is not None:
+            return self.RUN_MIGRATIONS_ON_STARTUP
+        return self.is_development
+
+    @computed_field
+    @property
+    def should_seed_base_data_on_startup(self) -> bool:
+        """判断是否在启动时初始化基础数据"""
+        if not self.AUTO_BOOTSTRAP:
+            return False
+        if self.SEED_BASE_DATA_ON_STARTUP is not None:
+            return self.SEED_BASE_DATA_ON_STARTUP
+        return True
+
+    @computed_field
+    @property
+    def should_refresh_api_metadata_on_startup(self) -> bool:
+        """判断是否在启动时刷新 API 元数据"""
+        if not self.AUTO_BOOTSTRAP:
+            return False
+        if self.REFRESH_API_METADATA_ON_STARTUP is not None:
+            return self.REFRESH_API_METADATA_ON_STARTUP
+        return self.is_development
 
     @computed_field
     @property

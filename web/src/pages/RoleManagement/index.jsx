@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Table,
   Button,
@@ -52,7 +52,7 @@ const RoleManagement = () => {
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
 
   // 获取角色列表
-  const fetchRoles = async (page = currentPage, size = pageSize, search = searchParams) => {
+  const fetchRoles = useCallback(async (page = 1, size = 10, search = {}) => {
     setLoading(true)
     try {
       const params = {
@@ -70,12 +70,12 @@ const RoleManagement = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [handleError])
 
   // 初始化数据
   useEffect(() => {
-    fetchRoles()
-  }, [])
+    void fetchRoles(1, 10, {})
+  }, [fetchRoles])
 
   // 处理模态框表单数据设置
   useEffect(() => {
@@ -146,7 +146,7 @@ const RoleManagement = () => {
         showSuccess('角色创建成功')
       }
       handleCloseModal()
-      await fetchRoles()
+      await fetchRoles(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, editingRole ? '角色更新失败' : '角色创建失败')
     } finally {
@@ -159,7 +159,7 @@ const RoleManagement = () => {
     try {
       await api.roles.delete({ role_id: roleId })
       showSuccess('角色删除成功')
-      await fetchRoles()
+      await fetchRoles(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, '角色删除失败')
     }
@@ -304,7 +304,7 @@ const RoleManagement = () => {
                 </Button>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={() => fetchRoles()}
+                  onClick={() => fetchRoles(currentPage, pageSize, searchParams)}
                   loading={loading}
                 >
                   刷新

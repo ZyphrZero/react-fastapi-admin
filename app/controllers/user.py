@@ -73,10 +73,10 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
 
         # 权限缓存已移除 - 系统简化后不再需要缓存清理
 
-    async def reset_password(self, user_id: int, new_password: str = "123456"):
+    async def reset_password(self, user_id: int, new_password: str = "123456", current_user_id: Optional[int] = None):
         user_obj = await self.get(id=user_id)
-        if user_obj.is_superuser:
-            raise HTTPException(status_code=403, detail="不允许重置超级管理员密码")
+        if user_obj.is_superuser and current_user_id != user_id:
+            raise HTTPException(status_code=403, detail="不允许重置其他超级管理员密码")
 
         # 验证新密码强度（除非是默认密码）
         if new_password != "123456":

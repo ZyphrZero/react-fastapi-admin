@@ -7,7 +7,8 @@ from fastapi import Depends, Header, HTTPException, Request, Query
 
 from app.core.ctx import CTX_USER_ID
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
-from app.models import Role, User
+from app.models import User
+from app.repositories import user_repository
 from app.settings import settings
 
 
@@ -82,22 +83,14 @@ class AuthControl:
         :param user_id: 用户ID，为0表示未认证用户
         :return: True表示通过检查，False表示超过限制
         """
-        # 调试信息：打印当前限流配置状态
-        from app.utils.log_control import logger
-
-        # logger.debug(f"限流状态: {settings.RATE_LIMIT_ENABLED}, IP: {client_ip}, User: {user_id}")
-
         # 如果限流功能被禁用，直接返回True
         if not settings.RATE_LIMIT_ENABLED:
-            # logger.debug("限流功能已禁用 - 允许请求")
             return True
 
         current_time = int(time.time())
         key = f"{client_ip}:{user_id}" if user_id else client_ip
         max_requests = settings.RATE_LIMIT_MAX_REQUESTS
         time_window = settings.RATE_LIMIT_WINDOW_SECONDS
-
-        # logger.debug(f"限流参数 - Max: {max_requests}, Window: {time_window}s, Key: {key}")
 
         # 初始化或更新计数器
         if key not in cls._rate_limit_data:
@@ -113,10 +106,8 @@ class AuthControl:
 
         # 增加计数并检查是否超过限制
         data["count"] += 1
-        # logger.debug(f"Rate limit count: {data['count']}/{max_requests}")
 
         if data["count"] > max_requests:
-            # logger.warning(f"Rate limit exceeded for {key}: {data['count']}/{max_requests}")
             return False
 
         return True
@@ -214,7 +205,7 @@ class AuthControl:
                 user_id = cls._validate_jwt_token(token)
 
             # 验证用户是否存在
-            user = await User.filter(id=user_id).first()
+            user = await user_repository.get(user_id)
             if not user:
                 raise AuthenticationError("用户不存在或已被删除")
 
