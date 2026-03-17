@@ -42,7 +42,6 @@ class UserCreate(BaseModel):
     is_active: Optional[bool] = True
     is_superuser: Optional[bool] = False
     role_ids: Optional[List[int]] = Field(default_factory=list)
-    dept_id: Optional[int] = Field(default=None, description="部门ID")
 
     def create_dict(self):
         """返回用于数据库创建的字典，排除role_ids和处理空值"""
@@ -64,7 +63,6 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="是否激活")
     is_superuser: Optional[bool] = Field(None, description="是否是超级管理员")
     role_ids: Optional[List[int]] = Field(None, description="角色ids")
-    dept_id: Optional[int] = Field(None, description="部门ID")
 
     def update_dict(self):
         """返回用于数据库更新的字典，排除role_ids和空值字段"""
@@ -88,7 +86,6 @@ class TokenPayload(BaseModel):
     is_active: Optional[bool] = True
     is_superuser: bool
     role_ids: Optional[List[int]] = Field(default_factory=list)
-    dept_id: Optional[int] = 0
 
 
 class UpdatePassword(BaseModel):

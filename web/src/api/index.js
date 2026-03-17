@@ -49,16 +49,6 @@ export default {
         refresh: () => request.post('/api/refresh'),
         getTags: () => request.get('/api/tags'),
     },
-
-    // 部门管理
-    departments: {
-        getList: (params = {}) => request.get('/dept/list', { params }),
-        getById: (id) => request.get(`/dept/get`, { params: { id } }),
-        create: (data = {}) => request.post('/dept/create', data),
-        update: (data = {}) => request.post('/dept/update', data),
-        delete: (data) => request.delete('/dept/delete', { params: data }),
-    },
-
     // 审计日志
     auditLogs: {
         getList: (params = {}) => request.get('/auditlog/list', { params }),

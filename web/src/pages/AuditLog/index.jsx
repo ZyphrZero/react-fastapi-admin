@@ -1,113 +1,55 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  ClearOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  EyeOutlined,
-  FileSearchOutlined,
-  InfoCircleOutlined,
-  ReloadOutlined,
-  SearchOutlined,
-  WarningOutlined,
-} from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  ConfigProvider,
-  DatePicker,
-  Descriptions,
-  Drawer,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tabs,
-  Tag,
-  Tooltip,
-} from 'antd'
-import dayjs from 'dayjs'
+  CopyIcon,
+  DownloadIcon,
+  EyeIcon,
+  FileSearchIcon,
+  InfoIcon,
+  RefreshCcwIcon,
+  SearchIcon,
+  ShieldAlertIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react'
 
 import api from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { getStoredUserInfo } from '@/utils/session'
 
-const { RangePicker } = DatePicker
-const { TextArea } = Input
-
 const DEFAULT_PAGE_SIZE = 100
-const TABLE_SCROLL_X = 1560
-const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
-const RANGE_PICKER_DEFAULT_TIME = [
-  dayjs().hour(0).minute(0).second(0).millisecond(0),
-  dayjs().hour(23).minute(59).second(59).millisecond(0),
-]
+const PAGE_SIZE_OPTIONS = ['20', '50', '100', '200']
+const methodOptions = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+const logLevelOptions = ['info', 'warning', 'error']
+const statusOptions = ['200', '201', '400', '401', '403', '404', '422', '500']
 
-const methodOptions = [
-  { label: 'GET', value: 'GET' },
-  { label: 'POST', value: 'POST' },
-  { label: 'PUT', value: 'PUT' },
-  { label: 'DELETE', value: 'DELETE' },
-  { label: 'PATCH', value: 'PATCH' },
-]
-
-const logLevelOptions = [
-  { label: 'Info', value: 'info' },
-  { label: 'Warning', value: 'warning' },
-  { label: 'Error', value: 'error' },
-]
-
-const statusOptions = [
-  { label: '200', value: 200 },
-  { label: '201', value: 201 },
-  { label: '400', value: 400 },
-  { label: '401', value: 401 },
-  { label: '403', value: 403 },
-  { label: '404', value: 404 },
-  { label: '422', value: 422 },
-  { label: '500', value: 500 },
-]
-
-const getMethodColor = (method) => {
-  const normalizedMethod = String(method || '').toUpperCase()
-
-  if (normalizedMethod === 'GET') return 'green'
-  if (normalizedMethod === 'POST') return 'blue'
-  if (normalizedMethod === 'PUT') return 'orange'
-  if (normalizedMethod === 'DELETE') return 'red'
-  if (normalizedMethod === 'PATCH') return 'gold'
-  return 'default'
-}
-
-const getStatusColor = (status) => {
-  if (status >= 500) return 'red'
-  if (status >= 400) return 'orange'
-  if (status >= 300) return 'blue'
-  if (status >= 200) return 'green'
-  return 'default'
-}
-
-const getLogLevelColor = (level) => {
-  const normalizedLevel = String(level || '').toLowerCase()
-
-  if (normalizedLevel === 'error') return 'red'
-  if (normalizedLevel === 'warning') return 'gold'
-  if (normalizedLevel === 'info') return 'blue'
-  return 'default'
-}
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return '-'
-  }
-
-  return new Date(value).toLocaleString('zh-CN')
-}
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString('zh-CN') : '-')
 
 const formatJsonBlock = (value) => {
   if (value === null || typeof value === 'undefined' || value === '') {
@@ -125,22 +67,24 @@ const formatJsonBlock = (value) => {
   }
 }
 
+const normalizeDateTimeLocal = (value) => {
+  if (!value) return ''
+  return value.length === 16 ? `${value}:00` : value
+}
+
 const buildSearchParams = (values = {}) => {
   const nextParams = {}
 
   if (values.username?.trim()) nextParams.username = values.username.trim()
   if (values.module?.trim()) nextParams.module = values.module.trim()
   if (values.summary?.trim()) nextParams.summary = values.summary.trim()
-  if (values.method) nextParams.method = values.method
-  if (typeof values.status === 'number') nextParams.status = values.status
+  if (values.method && values.method !== 'all') nextParams.method = values.method
+  if (values.status && values.status !== 'all') nextParams.status = Number(values.status)
   if (values.ip_address?.trim()) nextParams.ip_address = values.ip_address.trim()
   if (values.operation_type?.trim()) nextParams.operation_type = values.operation_type.trim()
-  if (values.log_level) nextParams.log_level = values.log_level
-
-  if (Array.isArray(values.time_range) && values.time_range.length === 2) {
-    nextParams.start_time = values.time_range[0]?.format?.('YYYY-MM-DDTHH:mm:ss')
-    nextParams.end_time = values.time_range[1]?.format?.('YYYY-MM-DDTHH:mm:ss')
-  }
+  if (values.log_level && values.log_level !== 'all') nextParams.log_level = values.log_level
+  if (values.start_time) nextParams.start_time = normalizeDateTimeLocal(values.start_time)
+  if (values.end_time) nextParams.end_time = normalizeDateTimeLocal(values.end_time)
 
   return nextParams
 }
@@ -167,16 +111,44 @@ const downloadBlobFile = (blob, filename) => {
   window.URL.revokeObjectURL(downloadUrl)
 }
 
-const shouldUpdateCellByRecord = (record, prevRecord) => record !== prevRecord
-
-const auditTableTheme = {
-  components: {
-    Table: {
-      rowSelectedBg: '#f5f5f5',
-      rowSelectedHoverBg: '#eceff3',
-    },
-  },
+const getMethodVariant = (method) => {
+  if (method === 'GET') return 'secondary'
+  if (method === 'POST') return 'default'
+  if (method === 'DELETE') return 'destructive'
+  return 'outline'
 }
+
+const getStatusVariant = (status) => {
+  if (status >= 500) return 'destructive'
+  if (status >= 400) return 'outline'
+  return 'secondary'
+}
+
+const getLogLevelVariant = (level) => {
+  if (level === 'error') return 'destructive'
+  if (level === 'warning') return 'outline'
+  return 'secondary'
+}
+
+const DetailItem = ({ label, children, className }) => (
+  <div className={className}>
+    <div className="mb-1 text-xs text-muted-foreground">{label}</div>
+    <div className="text-sm leading-6 text-foreground">{children}</div>
+  </div>
+)
+
+const DetailSection = ({ title, children, className }) => (
+  <section className={className}>
+    <div className="mb-3 text-sm font-medium text-foreground">{title}</div>
+    <div className="grid gap-4">{children}</div>
+  </section>
+)
+
+const DetailCodeBlock = ({ value }) => (
+  <pre className="max-h-[48vh] overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+    {formatJsonBlock(value)}
+  </pre>
+)
 
 const AuditLog = () => {
   const currentUser = getStoredUserInfo()
@@ -189,29 +161,40 @@ const AuditLog = () => {
   const [detailLoading, setDetailLoading] = useState(false)
 
   const [auditLogs, setAuditLogs] = useState([])
+  const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [hasMore, setHasMore] = useState(false)
   const [nextCursor, setNextCursor] = useState(null)
   const [cursorHistory, setCursorHistory] = useState([null])
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
-  const [searchParams, setSearchParams] = useState({})
   const [latestExportFile, setLatestExportFile] = useState('')
+  const [searchValues, setSearchValues] = useState({
+    username: '',
+    module: '',
+    summary: '',
+    method: 'all',
+    status: 'all',
+    ip_address: '',
+    operation_type: '',
+    log_level: 'all',
+    start_time: '',
+    end_time: '',
+  })
+  const [searchParams, setSearchParams] = useState({})
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [activeLog, setActiveLog] = useState(null)
   const [clearModalVisible, setClearModalVisible] = useState(false)
-
-  const [searchForm] = Form.useForm()
-  const [clearForm] = Form.useForm()
-  const detailRequestRef = useRef(0)
+  const [clearDays, setClearDays] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [batchDeleteVisible, setBatchDeleteVisible] = useState(false)
 
   const { handleError, handleBusinessError, handleSilentError, showInfo, showSuccess, showWarning } = useErrorHandler()
 
   const fetchAuditLogs = useCallback(
     async (cursor = null, size = DEFAULT_PAGE_SIZE, nextSearchParams = {}, page = 1) => {
       setLoading(true)
-
       try {
         const response = await api.auditLogs.getList({
           page_size: size,
@@ -220,6 +203,7 @@ const AuditLog = () => {
         })
 
         setAuditLogs(response.data || [])
+        setTotal(response.total || 0)
         setHasMore(Boolean(response.has_more))
         setNextCursor(response.next_cursor || null)
         setCurrentPage(page)
@@ -232,55 +216,72 @@ const AuditLog = () => {
         setLoading(false)
       }
     },
-    [handleError]
+    [handleError],
   )
 
   useEffect(() => {
     void fetchAuditLogs(null, DEFAULT_PAGE_SIZE, {}, 1)
   }, [fetchAuditLogs])
 
-  const handleSearch = async (values) => {
-    const nextParams = buildSearchParams(values)
+  const refreshCurrentPage = useCallback(async () => {
+    const currentCursor = cursorHistory[currentPage - 1] || null
+    const response = await fetchAuditLogs(currentCursor, pageSize, searchParams, currentPage)
+    const currentData = response?.data || []
 
+    if (currentData.length === 0 && currentPage > 1) {
+      const previousPage = currentPage - 1
+      const previousCursor = cursorHistory[previousPage - 1] || null
+      setCursorHistory((previous) => previous.slice(0, previousPage))
+      await fetchAuditLogs(previousCursor, pageSize, searchParams, previousPage)
+    }
+  }, [cursorHistory, currentPage, fetchAuditLogs, pageSize, searchParams])
+
+  const handleSearch = async (event) => {
+    event.preventDefault()
+
+    const nextParams = buildSearchParams(searchValues)
     setSearchParams(nextParams)
     setSelectedRowKeys([])
     setCursorHistory([null])
     setNextCursor(null)
     setHasMore(false)
-    setCurrentPage(1)
     await fetchAuditLogs(null, pageSize, nextParams, 1)
   }
 
   const handleClearSearch = async () => {
-    searchForm.resetFields()
+    setSearchValues({
+      username: '',
+      module: '',
+      summary: '',
+      method: 'all',
+      status: 'all',
+      ip_address: '',
+      operation_type: '',
+      log_level: 'all',
+      start_time: '',
+      end_time: '',
+    })
     setSearchParams({})
     setSelectedRowKeys([])
     setCursorHistory([null])
     setNextCursor(null)
     setHasMore(false)
-    setCurrentPage(1)
     await fetchAuditLogs(null, pageSize, {}, 1)
   }
 
   const handlePreviousPage = async () => {
-    if (currentPage <= 1) {
-      return
-    }
+    if (currentPage <= 1) return
 
     const targetPage = currentPage - 1
     const previousCursor = cursorHistory[targetPage - 1] || null
-
     setSelectedRowKeys([])
     await fetchAuditLogs(previousCursor, pageSize, searchParams, targetPage)
   }
 
   const handleNextPage = async () => {
-    if (!nextCursor) {
-      return
-    }
+    if (!nextCursor) return
 
     const targetPage = currentPage + 1
-
     setSelectedRowKeys([])
     setCursorHistory((previous) => {
       const nextHistory = previous.slice(0, currentPage)
@@ -290,7 +291,8 @@ const AuditLog = () => {
     await fetchAuditLogs(nextCursor, pageSize, searchParams, targetPage)
   }
 
-  const handlePageSizeChange = async (size) => {
+  const handlePageSizeChange = async (value) => {
+    const size = Number(value)
     setSelectedRowKeys([])
     setPageSize(size)
     setCursorHistory([null])
@@ -305,72 +307,41 @@ const AuditLog = () => {
   }
 
   const openDetail = useCallback(async (record) => {
-    const currentRequestId = detailRequestRef.current + 1
-    detailRequestRef.current = currentRequestId
-
     setActiveLog(record)
     setDetailOpen(true)
     setDetailLoading(true)
 
     try {
       const response = await api.auditLogs.getDetail(record.id)
-
-      if (detailRequestRef.current !== currentRequestId) {
-        return
-      }
-
       setActiveLog(response.data || record)
     } catch (error) {
-      if (detailRequestRef.current === currentRequestId) {
-        handleBusinessError(error, '获取审计日志详情失败')
-      }
+      handleBusinessError(error, '获取审计日志详情失败')
     } finally {
-      if (detailRequestRef.current === currentRequestId) {
-        setDetailLoading(false)
-      }
+      setDetailLoading(false)
     }
   }, [handleBusinessError])
 
-  const closeDetail = useCallback(() => {
-    detailRequestRef.current += 1
-    setDetailLoading(false)
-    setDetailOpen(false)
-    setActiveLog(null)
-  }, [])
+  const handleDelete = async () => {
+    if (!deleteTarget) return
 
-  const refreshCurrentPage = useCallback(async () => {
-    const currentCursor = cursorHistory[currentPage - 1] || null
-    const response = await fetchAuditLogs(currentCursor, pageSize, searchParams, currentPage)
-    const currentData = response?.data || []
-
-    if (currentData.length === 0 && currentPage > 1) {
-      const previousPage = currentPage - 1
-      const previousCursor = cursorHistory[previousPage - 1] || null
-
-      setCursorHistory((previous) => previous.slice(0, previousPage))
-      await fetchAuditLogs(previousCursor, pageSize, searchParams, previousPage)
-    }
-  }, [cursorHistory, currentPage, fetchAuditLogs, pageSize, searchParams])
-
-  const handleDelete = useCallback(async (id) => {
     try {
-      await api.auditLogs.delete(id)
+      await api.auditLogs.delete(deleteTarget.id)
       showSuccess('日志删除成功')
-      setSelectedRowKeys((previous) => previous.filter((key) => key !== id))
+      setDeleteTarget(null)
+      setSelectedRowKeys((previous) => previous.filter((key) => key !== deleteTarget.id))
       await refreshCurrentPage()
     } catch (error) {
       handleBusinessError(error, '日志删除失败')
     }
-  }, [handleBusinessError, refreshCurrentPage, showSuccess])
+  }
 
   const handleBatchDelete = async () => {
-    if (!selectedRowKeys.length) {
-      return
-    }
+    if (!selectedRowKeys.length) return
 
     try {
       await api.auditLogs.batchDelete(selectedRowKeys)
       showSuccess(`已删除 ${selectedRowKeys.length} 条日志`)
+      setBatchDeleteVisible(false)
       setSelectedRowKeys([])
       await refreshCurrentPage()
     } catch (error) {
@@ -378,64 +349,51 @@ const AuditLog = () => {
     }
   }
 
-  const downloadExportFile = useCallback(
-    async (filename, options = {}) => {
-      const { silent = false } = options
+  const downloadExport = useCallback(async (filename, options = {}) => {
+    const { silent = false } = options
 
-      if (!filename) {
-        if (!silent) {
-          showWarning('没有可下载的导出文件')
-        }
-        return false
+    if (!filename) {
+      if (!silent) showWarning('没有可下载的导出文件')
+      return false
+    }
+
+    setDownloadLoading(true)
+    try {
+      const response = await api.auditLogs.download(filename)
+      downloadBlobFile(response.data, filename)
+      showSuccess('导出文件下载成功')
+      return true
+    } catch (error) {
+      if (silent) {
+        handleSilentError(error, '下载导出文件失败')
+      } else {
+        handleBusinessError(error, '下载导出文件失败')
       }
-
-      setDownloadLoading(true)
-
-      try {
-        const response = await api.auditLogs.download(filename)
-        downloadBlobFile(response.data, filename)
-        showSuccess('导出文件下载成功')
-        return true
-      } catch (error) {
-        if (silent) {
-          handleSilentError(error, '下载导出文件失败')
-        } else {
-          handleBusinessError(error, '下载导出文件失败')
-        }
-        return false
-      } finally {
-        setDownloadLoading(false)
-      }
-    },
-    [handleBusinessError, handleSilentError, showSuccess, showWarning]
-  )
+      return false
+    } finally {
+      setDownloadLoading(false)
+    }
+  }, [handleBusinessError, handleSilentError, showSuccess, showWarning])
 
   const handleExport = async () => {
     setExportLoading(true)
-
     try {
       const response = await api.auditLogs.export(searchParams)
       const exportFile = parseExportFileName(response.msg)
 
       showSuccess(response.msg || '导出任务已提交')
-
-      if (!exportFile) {
-        return
-      }
+      if (!exportFile) return
 
       setLatestExportFile(exportFile)
       showInfo('导出文件生成中，系统会自动尝试下载')
 
       for (let attempt = 0; attempt < 6; attempt += 1) {
         await wait(1200)
-        const isDownloaded = await downloadExportFile(exportFile, { silent: true })
-
-        if (isDownloaded) {
-          return
-        }
+        const isDownloaded = await downloadExport(exportFile, { silent: true })
+        if (isDownloaded) return
       }
 
-      showWarning(`导出文件仍在生成，可稍后点击“下载最近导出”重试：${exportFile}`)
+      showWarning(`导出文件仍在生成，可稍后点击“下载导出”重试：${exportFile}`)
     } catch (error) {
       handleBusinessError(error, '导出日志失败')
     } finally {
@@ -443,19 +401,18 @@ const AuditLog = () => {
     }
   }
 
-  const handleSubmitClear = async (values) => {
+  const handleSubmitClear = async () => {
     setClearLoading(true)
-
     try {
       const params = {}
-      if (typeof values.days === 'number') {
-        params.days = values.days
+      if (clearDays !== '') {
+        params.days = Number(clearDays)
       }
 
       await api.auditLogs.clear(params)
-      showSuccess(typeof params.days === 'number' ? `已清理 ${params.days} 天前的日志` : '已清空全部审计日志')
+      showSuccess(clearDays !== '' ? `已清理 ${clearDays} 天前的日志` : '已清空全部审计日志')
       setClearModalVisible(false)
-      clearForm.resetFields()
+      setClearDays('')
       setSelectedRowKeys([])
       setCursorHistory([null])
       setNextCursor(null)
@@ -468,440 +425,538 @@ const AuditLog = () => {
     }
   }
 
-  const handleSelectionChange = useCallback((nextSelectedRowKeys) => {
-    setSelectedRowKeys((previous) => {
-      if (
-        previous.length === nextSelectedRowKeys.length
-        && previous.every((key, index) => key === nextSelectedRowKeys[index])
-      ) {
-        return previous
-      }
+  const handleCopyDetailContent = async (value, label) => {
+    try {
+      await navigator.clipboard.writeText(formatJsonBlock(value))
+      showSuccess(`${label}已复制`)
+    } catch (error) {
+      handleSilentError(error, `${label}复制失败`)
+      showWarning(`${label}复制失败`)
+    }
+  }
 
-      return nextSelectedRowKeys
-    })
-  }, [])
+  const toggleSelectedRow = (id, checked) => {
+    setSelectedRowKeys((current) =>
+      checked ? [...new Set([...current, id])] : current.filter((key) => key !== id),
+    )
+  }
 
-  const columns = useMemo(() => [
-    {
-      title: '时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (value) => (
-        <div>
-          <div className="font-medium text-slate-800">{formatDateTime(value)}</div>
-          <div className="text-xs text-slate-400">日志时间点</div>
+  const toggleSelectAllRows = (checked) => {
+    setSelectedRowKeys(checked ? auditLogs.map((log) => log.id) : [])
+  }
+
+  const renderAuditTable = () => {
+    if (!auditLogs.length) {
+      return (
+        <Empty className="border bg-muted/20 py-10">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileSearchIcon />
+            </EmptyMedia>
+            <EmptyTitle>暂无审计日志</EmptyTitle>
+            <EmptyDescription>调整筛选条件后重试，或等待新的操作记录写入。</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )
+    }
+
+    return (
+      <>
+        <div className="max-h-[60vh] overflow-auto rounded-lg border">
+          <Table containerClassName="overflow-visible">
+            <TableHeader>
+              <TableRow>
+                {isSuperuser ? (
+                  <TableHead className="sticky top-0 z-10 w-12 bg-background shadow-[0_1px_0_hsl(var(--border))]">
+                    <Checkbox
+                      checked={auditLogs.length > 0 && selectedRowKeys.length === auditLogs.length}
+                      onCheckedChange={(checked) => toggleSelectAllRows(Boolean(checked))}
+                    />
+                  </TableHead>
+                ) : null}
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">时间</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">操作人</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">模块 / 摘要</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">请求</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">结果</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">性能 / 来源</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-background text-right shadow-[0_1px_0_hsl(var(--border))]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {auditLogs.map((log) => (
+                <TableRow
+                  key={log.id}
+                  data-state={selectedRowKeys.includes(log.id) ? 'selected' : undefined}
+                  onDoubleClick={() => void openDetail(log)}
+                >
+                  {isSuperuser ? (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedRowKeys.includes(log.id)}
+                        onCheckedChange={(checked) => toggleSelectedRow(log.id, Boolean(checked))}
+                      />
+                    </TableCell>
+                  ) : null}
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-1">
+                      <div className="font-medium">{formatDateTime(log.created_at)}</div>
+                      <div className="text-xs text-muted-foreground">日志时间点</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-1">
+                      <div className="font-medium">{log.username || 'system'}</div>
+                      <div className="text-xs text-muted-foreground">用户 ID: {log.user_id || '-'}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-2">
+                      <Badge variant="outline">{log.module || '基础模块'}</Badge>
+                      <div className="text-sm">{log.summary || '-'}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getMethodVariant(log.method)}>{log.method || '-'}</Badge>
+                        <Badge variant={getLogLevelVariant(log.log_level)}>{log.log_level || 'unknown'}</Badge>
+                      </div>
+                      <code className="break-all rounded bg-muted px-2 py-1 text-xs">{log.path || '-'}</code>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-2">
+                      <Badge variant={getStatusVariant(log.status)}>{log.status ?? '-'}</Badge>
+                      <div className="text-xs text-muted-foreground">{log.operation_type || '未分类操作'}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-col gap-1">
+                      <div className="font-medium">{log.response_time || 0} ms</div>
+                      <div className="text-xs text-muted-foreground">{log.ip_address || '-'}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="icon-sm" onClick={() => void openDetail(log)}>
+                        <EyeIcon />
+                        <span className="sr-only">查看详情</span>
+                      </Button>
+                      {isSuperuser ? (
+                        <Button variant="destructive" size="icon-sm" onClick={() => setDeleteTarget(log)}>
+                          <Trash2Icon />
+                          <span className="sr-only">删除日志</span>
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-      ),
-    },
-    {
-      title: '操作人',
-      key: 'operator',
-      width: 160,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <div>
-          <div className="font-medium text-slate-800">{record.username || 'system'}</div>
-          <div className="text-xs text-slate-500">用户 ID: {record.user_id || '-'}</div>
-        </div>
-      ),
-    },
-    {
-      title: '模块 / 摘要',
-      key: 'module',
-      width: 240,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <div className="space-y-1">
-          <Tag color="geekblue">{record.module || '基础模块'}</Tag>
-          <div className="text-sm text-slate-700 line-clamp-2" title={record.summary}>
-            {record.summary || '-'}
+
+        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            第 {currentPage} 页，本页 {auditLogs.length} 条，共 {total} 条
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">每页</span>
+            <Select value={String(pageSize)} onValueChange={(value) => void handlePageSizeChange(value)}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {PAGE_SIZE_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value} 条
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" disabled={loading || currentPage <= 1} onClick={() => void handlePreviousPage()}>
+              上一页
+            </Button>
+            <Button variant="outline" disabled={loading || !hasMore} onClick={() => void handleNextPage()}>
+              下一页
+            </Button>
           </div>
         </div>
-      ),
-    },
-    {
-      title: '请求',
-      key: 'request',
-      width: 320,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Tag color={getMethodColor(record.method)} className="font-mono">
-              {record.method || '-'}
-            </Tag>
-            <Tag color={getLogLevelColor(record.log_level)}>{record.log_level || 'unknown'}</Tag>
+      </>
+    )
+  }
+
+  const renderDetailSheet = () => (
+    <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+      <SheetContent side="right" className="w-[min(56rem,100vw)] max-w-none overflow-hidden p-0">
+        <SheetHeader className="sticky top-0 z-10 border-b bg-background/95 p-5 backdrop-blur">
+          <SheetTitle>审计日志详情</SheetTitle>
+          <SheetDescription>查看请求上下文、响应结果和客户端信息</SheetDescription>
+        </SheetHeader>
+
+        {detailLoading ? (
+          <div className="p-5 text-sm text-muted-foreground">加载详情中...</div>
+        ) : activeLog ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="flex flex-col gap-4">
+                <Card size="sm">
+                  <CardContent className="flex flex-col gap-4 pt-0">
+                    <div className="flex flex-col gap-2 border-b pb-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={getMethodVariant(activeLog.method)}>{activeLog.method || '-'}</Badge>
+                        <Badge variant={getStatusVariant(activeLog.status)}>{activeLog.status ?? '-'}</Badge>
+                        <Badge variant={getLogLevelVariant(activeLog.log_level)}>{activeLog.log_level || '-'}</Badge>
+                        <Badge variant="outline">{activeLog.response_time || 0} ms</Badge>
+                      </div>
+                      <div className="text-lg font-semibold leading-tight">
+                        {activeLog.summary || activeLog.operation_type || '未命名操作'}
+                      </div>
+                      <code className="break-all rounded bg-muted px-3 py-2 text-xs">{activeLog.path || '-'}</code>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-[1fr_1fr_0.9fr]">
+                      <DetailSection
+                        title="基本信息"
+                        className="border-t pt-4 first:border-t-0 first:pt-0 lg:border-t-0 lg:pt-0 lg:pr-5"
+                      >
+                        <DetailItem label="日志 ID">{activeLog.id}</DetailItem>
+                        <DetailItem label="创建时间">{formatDateTime(activeLog.created_at)}</DetailItem>
+                        <DetailItem label="操作人">{activeLog.username || 'system'}</DetailItem>
+                        <DetailItem label="用户 ID">{activeLog.user_id || '-'}</DetailItem>
+                      </DetailSection>
+
+                      <DetailSection
+                        title="请求信息"
+                        className="border-t pt-4 lg:border-t-0 lg:border-l lg:pl-5 lg:pr-5"
+                      >
+                        <DetailItem label="模块">{activeLog.module || '基础模块'}</DetailItem>
+                        <DetailItem label="操作类型">{activeLog.operation_type || '-'}</DetailItem>
+                        <DetailItem label="请求方法">{activeLog.method || '-'}</DetailItem>
+                        <DetailItem label="状态码">{activeLog.status ?? '-'}</DetailItem>
+                      </DetailSection>
+
+                      <DetailSection
+                        title="客户端信息"
+                        className="border-t pt-4 lg:border-t-0 lg:border-l lg:pl-5"
+                      >
+                        <DetailItem label="IP 地址">{activeLog.ip_address || '-'}</DetailItem>
+                        <DetailItem label="日志级别">{activeLog.log_level || '-'}</DetailItem>
+                        <DetailItem label="响应耗时">{activeLog.response_time || 0} ms</DetailItem>
+                      </DetailSection>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Tabs defaultValue="request_args" className="flex flex-col gap-4">
+                  <TabsList variant="line" className="w-fit">
+                    <TabsTrigger value="request_args">请求参数</TabsTrigger>
+                    <TabsTrigger value="response_body">响应体</TabsTrigger>
+                    <TabsTrigger value="user_agent">User-Agent</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="request_args" className="mt-0">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">当前请求的入参快照</div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => void handleCopyDetailContent(activeLog.request_args, '请求参数')}
+                        >
+                          <CopyIcon />
+                          <span className="sr-only">复制请求参数</span>
+                        </Button>
+                      </div>
+                      <DetailCodeBlock value={activeLog.request_args} />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="response_body" className="mt-0">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">接口返回内容快照</div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => void handleCopyDetailContent(activeLog.response_body, '响应体')}
+                        >
+                          <CopyIcon />
+                          <span className="sr-only">复制响应体</span>
+                        </Button>
+                      </div>
+                      <DetailCodeBlock value={activeLog.response_body} />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="user_agent" className="mt-0">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">客户端 User-Agent 信息</div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => void handleCopyDetailContent(activeLog.user_agent || '暂无 User-Agent 信息', 'User-Agent')}
+                        >
+                          <CopyIcon />
+                          <span className="sr-only">复制 User-Agent</span>
+                        </Button>
+                      </div>
+                      <DetailCodeBlock value={activeLog.user_agent || '暂无 User-Agent 信息'} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
           </div>
-          <div className="font-mono text-xs text-slate-700 break-all">{record.path || '-'}</div>
-        </div>
-      ),
-    },
-    {
-      title: '结果',
-      key: 'result',
-      width: 180,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <div className="space-y-1">
-          <Tag color={getStatusColor(record.status)}>{record.status ?? '-'}</Tag>
-          <div className="text-xs text-slate-500">{record.operation_type || '未分类操作'}</div>
-        </div>
-      ),
-    },
-    {
-      title: '性能 / 来源',
-      key: 'meta',
-      width: 200,
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <div>
-          <div className="font-medium text-slate-800">{record.response_time || 0} ms</div>
-          <div className="text-xs text-slate-500">{record.ip_address || '-'}</div>
-        </div>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 140,
-      fixed: 'right',
-      shouldCellUpdate: shouldUpdateCellByRecord,
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="查看详情">
-            <Button type="primary" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(record)} />
-          </Tooltip>
-          {isSuperuser ? (
-            <Popconfirm
-              title="确认删除该日志？"
-              description="删除后不可恢复，请谨慎操作"
-              onConfirm={() => handleDelete(record.id)}
-              okText="确认"
-              cancelText="取消"
-              okType="danger"
-            >
-              <Button danger size="small" icon={<DeleteOutlined />} />
-            </Popconfirm>
-          ) : (
-            <Tooltip title="仅超级管理员可删除日志">
-              <span>
-                <Button danger disabled size="small" icon={<DeleteOutlined />} />
-              </span>
-            </Tooltip>
-          )}
-        </Space>
-      ),
-    },
-  ], [handleDelete, isSuperuser, openDetail])
-
-  const rowSelection = useMemo(() => ({
-    selectedRowKeys,
-    onChange: handleSelectionChange,
-    preserveSelectedRowKeys: false,
-    columnWidth: 52,
-  }), [handleSelectionChange, selectedRowKeys])
-
-  const shouldUseVirtualTable = auditLogs.length > 40
-  const tableScroll = shouldUseVirtualTable ? { x: TABLE_SCROLL_X, y: 640 } : { x: TABLE_SCROLL_X }
-
-  const detailTabItems = [
-    {
-      key: 'request_args',
-      label: '请求参数',
-      children: (
-        <pre className="min-h-[180px] whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">
-          {formatJsonBlock(activeLog?.request_args)}
-        </pre>
-      ),
-    },
-    {
-      key: 'response_body',
-      label: '响应体',
-      children: (
-        <pre className="min-h-[180px] whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">
-          {formatJsonBlock(activeLog?.response_body)}
-        </pre>
-      ),
-    },
-    {
-      key: 'user_agent',
-      label: 'User-Agent',
-      children: (
-        <TextArea
-          value={activeLog?.user_agent || '暂无 User-Agent 信息'}
-          autoSize={{ minRows: 6, maxRows: 10 }}
-          readOnly
-          className="font-mono"
-        />
-      ),
-    },
-  ]
+        ) : (
+          <Empty className="m-5 border bg-muted/20 py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <InfoIcon />
+              </EmptyMedia>
+              <EmptyTitle>未选择日志记录</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex min-h-0 flex-col gap-5">
+      <section className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">审计日志</h1>
-          <p className="mt-1 text-gray-500">查看系统操作记录、请求结果与上下文详情</p>
+          <h1 className="text-2xl font-semibold tracking-tight">审计日志</h1>
+          <p className="text-sm text-muted-foreground">查看系统操作记录、请求结果与上下文详情</p>
         </div>
-
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => void handleRefresh()} loading={loading}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => void handleRefresh()} disabled={loading}>
+            <RefreshCcwIcon data-icon="inline-start" />
             刷新
           </Button>
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => void handleExport()}
-            loading={exportLoading}
-          >
-            导出日志
+          <Button variant="outline" onClick={() => void handleExport()} disabled={exportLoading}>
+            <DownloadIcon data-icon="inline-start" />
+            {exportLoading ? '导出中...' : '导出日志'}
           </Button>
-          <Button
-            disabled={!latestExportFile}
-            icon={<DownloadOutlined />}
-            onClick={() => void downloadExportFile(latestExportFile, { silent: false })}
-            loading={downloadLoading}
-          >
+          <Button variant="outline" disabled={!latestExportFile || downloadLoading} onClick={() => void downloadExport(latestExportFile)}>
+            <DownloadIcon data-icon="inline-start" />
             下载导出
           </Button>
-          <Tooltip title={isSuperuser ? '清理历史审计日志' : '仅超级管理员可清理日志'}>
-            <span>
-              <Button
-                danger
-                disabled={!isSuperuser}
-                icon={<DeleteOutlined />}
-                onClick={() => setClearModalVisible(true)}
-              >
-                清理日志
-              </Button>
-            </span>
-          </Tooltip>
-        </Space>
-      </div>
-
-      <Card className="shadow-sm">
-        <div className="mb-6 border-b border-slate-200 pb-4">
-          <div className="mb-3 flex items-center">
-            <SearchOutlined className="mr-2 text-blue-500" />
-            <span className="font-medium text-slate-700">筛选条件</span>
-          </div>
-
-          <Form form={searchForm} layout="inline" onFinish={handleSearch} className="w-full gap-y-2">
-            <Form.Item name="username" className="mb-3">
-              <Input placeholder="操作人" allowClear style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="module" className="mb-3">
-              <Input placeholder="模块" allowClear style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="summary" className="mb-3">
-              <Input placeholder="接口摘要" allowClear style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="method" className="mb-3">
-              <Select placeholder="请求方法" allowClear options={methodOptions} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="status" className="mb-3">
-              <Select placeholder="状态码" allowClear options={statusOptions} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="log_level" className="mb-3">
-              <Select placeholder="日志级别" allowClear options={logLevelOptions} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="ip_address" className="mb-3">
-              <Input placeholder="IP 地址" allowClear style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="operation_type" className="mb-3">
-              <Input placeholder="操作类型" allowClear style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="time_range" className="mb-3">
-              <RangePicker showTime={{ defaultOpenValue: RANGE_PICKER_DEFAULT_TIME }} />
-            </Form.Item>
-            <Form.Item className="mb-3">
-              <Space>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  icon={<SearchOutlined />}
-                  loading={loading}
-                >
-                  搜索
-                </Button>
-                <Button icon={<ClearOutlined />} onClick={() => void handleClearSearch()}>
-                  清空
-                </Button>
-                <Button icon={<ReloadOutlined />} onClick={() => void handleRefresh()} loading={loading}>
-                  刷新
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
+          {isSuperuser ? (
+            <Button variant="destructive" onClick={() => setClearModalVisible(true)}>
+              <Trash2Icon data-icon="inline-start" />
+              清理日志
+            </Button>
+          ) : null}
         </div>
+      </section>
 
-        <div>
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center">
-              <FileSearchOutlined className="mr-2 text-blue-500" />
-              <span className="font-medium text-slate-700">审计记录</span>
-              <span className="ml-3 text-sm text-slate-500">第 {currentPage} 页，本页 {auditLogs.length} 条</span>
-            </div>
-
-            <Space wrap>
-              {selectedRowKeys.length > 0 ? (
-                <span className="text-sm text-slate-500">已选择 {selectedRowKeys.length} 条</span>
-              ) : null}
-              {isSuperuser ? (
-                <Popconfirm
-                  title="确认批量删除选中日志？"
-                  description="删除后无法恢复，请谨慎操作"
-                  onConfirm={() => void handleBatchDelete()}
-                  okText="确认"
-                  cancelText="取消"
-                  okType="danger"
-                  disabled={!selectedRowKeys.length}
-                >
-                  <Button
-                    danger
-                    disabled={!selectedRowKeys.length}
-                    icon={<DeleteOutlined />}
-                  >
-                    批量删除
-                  </Button>
-                </Popconfirm>
-              ) : (
-                <Tooltip title="仅超级管理员可批量删除">
-                  <span>
-                    <Button danger disabled icon={<DeleteOutlined />}>
-                      批量删除
-                    </Button>
-                  </span>
-                </Tooltip>
-              )}
-            </Space>
-          </div>
-
-          <ConfigProvider theme={auditTableTheme}>
-            <Table
-              rowKey="id"
-              columns={columns}
-              dataSource={auditLogs}
-              rowSelection={isSuperuser ? rowSelection : undefined}
-              loading={loading}
-              pagination={false}
-              virtual={shouldUseVirtualTable}
-              scroll={tableScroll}
-              size="middle"
-              className="mb-4"
-              locale={{ emptyText: <Empty description="暂无审计日志" /> }}
-              onRow={(record) => ({
-                onDoubleClick: () => void openDetail(record),
-              })}
+      <Card>
+        <CardHeader>
+          <CardTitle>筛选条件</CardTitle>
+          <CardDescription>按操作人、模块、接口、状态和时间范围筛选日志</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_18rem] xl:items-end" onSubmit={handleSearch}>
+            <Input
+              placeholder="操作人"
+              value={searchValues.username}
+              onChange={(event) => setSearchValues((current) => ({ ...current, username: event.target.value }))}
             />
-          </ConfigProvider>
+            <Input
+              placeholder="模块"
+              value={searchValues.module}
+              onChange={(event) => setSearchValues((current) => ({ ...current, module: event.target.value }))}
+            />
+            <Input
+              placeholder="接口摘要"
+              value={searchValues.summary}
+              onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
+            />
+            <Input
+              placeholder="IP 地址"
+              value={searchValues.ip_address}
+              onChange={(event) => setSearchValues((current) => ({ ...current, ip_address: event.target.value }))}
+            />
+            <Input
+              placeholder="操作类型"
+              value={searchValues.operation_type}
+              onChange={(event) => setSearchValues((current) => ({ ...current, operation_type: event.target.value }))}
+            />
 
-          <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-slate-500">
-              当前第 {currentPage} 页，{hasMore ? '还有更多记录' : '已到最后一页'}
+            <Select value={searchValues.method} onValueChange={(value) => setSearchValues((current) => ({ ...current, method: value }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="请求方法" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">全部方法</SelectItem>
+                  {methodOptions.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select value={searchValues.status} onValueChange={(value) => setSearchValues((current) => ({ ...current, status: value }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="状态码" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">全部状态码</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select value={searchValues.log_level} onValueChange={(value) => setSearchValues((current) => ({ ...current, log_level: value }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="日志级别" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">全部级别</SelectItem>
+                  {logLevelOptions.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="audit-start-time">开始时间</Label>
+              <Input
+                id="audit-start-time"
+                type="datetime-local"
+                value={searchValues.start_time}
+                onChange={(event) => setSearchValues((current) => ({ ...current, start_time: event.target.value }))}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="audit-end-time">结束时间</Label>
+              <Input
+                id="audit-end-time"
+                type="datetime-local"
+                value={searchValues.end_time}
+                onChange={(event) => setSearchValues((current) => ({ ...current, end_time: event.target.value }))}
+              />
             </div>
 
-            <Space wrap>
-              <span className="text-sm text-slate-500">每页</span>
-              <Select
-                value={pageSize}
-                options={PAGE_SIZE_OPTIONS.map((value) => ({ label: `${value} 条`, value }))}
-                style={{ width: 110 }}
-                onChange={(value) => void handlePageSizeChange(value)}
-              />
-              <Button disabled={loading || currentPage <= 1} onClick={() => void handlePreviousPage()}>
-                上一页
+            <div className="flex flex-wrap gap-2 xl:col-span-2 xl:items-end">
+              <Button type="submit" variant="outline" disabled={loading}>
+                <SearchIcon data-icon="inline-start" />
+                搜索
               </Button>
-              <Button type="primary" disabled={loading || !hasMore} onClick={() => void handleNextPage()}>
-                下一页
+              <Button type="button" variant="outline" onClick={handleClearSearch}>
+                <XIcon data-icon="inline-start" />
+                清空
               </Button>
-            </Space>
-          </div>
-        </div>
+              <Button type="button" variant="outline" onClick={() => void handleRefresh()} disabled={loading}>
+                <RefreshCcwIcon data-icon="inline-start" />
+                刷新
+              </Button>
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
-      <Drawer
-        title={
-          <div className="flex items-center">
-            <InfoCircleOutlined className="mr-2 text-blue-500" />
-            审计日志详情
-          </div>
-        }
-        open={detailOpen}
-        size="large"
-        onClose={closeDetail}
-      >
-        <Spin spinning={detailLoading}>
-          {activeLog ? (
-            <div className="space-y-6">
-              <Card size="small" className="overflow-hidden border-none bg-slate-50 shadow-none">
-                <Descriptions column={2} size="small" bordered>
-                  <Descriptions.Item label="日志 ID">{activeLog.id}</Descriptions.Item>
-                  <Descriptions.Item label="创建时间">{formatDateTime(activeLog.created_at)}</Descriptions.Item>
-                  <Descriptions.Item label="操作人">{activeLog.username || 'system'}</Descriptions.Item>
-                  <Descriptions.Item label="用户 ID">{activeLog.user_id || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="模块">{activeLog.module || '基础模块'}</Descriptions.Item>
-                  <Descriptions.Item label="操作类型">{activeLog.operation_type || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="请求方法">
-                    <Tag color={getMethodColor(activeLog.method)}>{activeLog.method || '-'}</Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="日志级别">
-                    <Tag color={getLogLevelColor(activeLog.log_level)}>{activeLog.log_level || '-'}</Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="状态码">
-                    <Tag color={getStatusColor(activeLog.status)}>{activeLog.status ?? '-'}</Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="响应耗时">{activeLog.response_time || 0} ms</Descriptions.Item>
-                  <Descriptions.Item label="IP 地址" span={2}>
-                    {activeLog.ip_address || '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="请求路径" span={2}>
-                    <div className="font-mono break-all text-xs text-slate-700">{activeLog.path || '-'}</div>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="摘要" span={2}>
-                    {activeLog.summary || '-'}
-                  </Descriptions.Item>
-                </Descriptions>
-              </Card>
-
-              <Tabs items={detailTabItems} />
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardHeader>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle>审计记录</CardTitle>
+              <CardDescription>第 {currentPage} 页，本页 {auditLogs.length} 条，共 {total} 条</CardDescription>
             </div>
-          ) : (
-            <Empty description="未选择日志记录" />
-          )}
-        </Spin>
-      </Drawer>
-
-      <Modal
-        title={
-          <div className="flex items-center">
-            <WarningOutlined className="mr-2 text-orange-500" />
-            清理审计日志
+            {isSuperuser ? (
+              <div className="flex items-center gap-2">
+                {selectedRowKeys.length > 0 ? (
+                  <span className="text-sm text-muted-foreground">已选择 {selectedRowKeys.length} 条</span>
+                ) : null}
+                <Button
+                  variant="destructive"
+                  disabled={!selectedRowKeys.length}
+                  onClick={() => setBatchDeleteVisible(true)}
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  批量删除
+                </Button>
+              </div>
+            ) : null}
           </div>
-        }
-        open={clearModalVisible}
-        onCancel={() => {
-          setClearModalVisible(false)
-          clearForm.resetFields()
+        </CardHeader>
+        <CardContent className="flex min-h-0 flex-col gap-4">{renderAuditTable()}</CardContent>
+      </Card>
+
+      {renderDetailSheet()}
+
+      <Dialog open={clearModalVisible} onOpenChange={setClearModalVisible}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>清理审计日志</DialogTitle>
+            <DialogDescription>留空表示清空全部日志。填写天数则表示只清理该天数之前的历史日志。</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              例如填写 30 表示清理 30 天前的数据。
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="clear-days">清理多少天前的日志</Label>
+              <Input
+                id="clear-days"
+                type="number"
+                min="1"
+                max="3650"
+                placeholder="留空则清空全部"
+                value={clearDays}
+                onChange={(event) => setClearDays(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setClearModalVisible(false)}>
+              取消
+            </Button>
+            <Button variant="destructive" disabled={clearLoading} onClick={() => void handleSubmitClear()}>
+              {clearLoading ? '清理中...' : '执行清理'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
         }}
-        onOk={() => clearForm.submit()}
-        okText="执行清理"
-        okButtonProps={{ danger: true, loading: clearLoading }}
-        cancelText="取消"
-        destroyOnHidden
-      >
-        <Form form={clearForm} layout="vertical" onFinish={handleSubmitClear} className="mt-4">
-          <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-700">
-            留空表示清空全部日志。填写天数则表示只清理该天数之前的历史日志，例如填写 30 表示清理 30 天前的数据。
-          </div>
+        title="确认删除该日志？"
+        description="删除后不可恢复，请谨慎操作。"
+        confirmText="确认删除"
+        destructive
+        onConfirm={() => void handleDelete()}
+      />
 
-          <Form.Item label="清理多少天前的日志" name="days">
-            <InputNumber min={1} max={3650} className="w-full" placeholder="留空则清空全部" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <ConfirmDialog
+        open={batchDeleteVisible}
+        onOpenChange={setBatchDeleteVisible}
+        title="确认批量删除选中日志？"
+        description="删除后无法恢复，请谨慎操作。"
+        confirmText="确认删除"
+        destructive
+        onConfirm={() => void handleBatchDelete()}
+      />
     </div>
   )
 }

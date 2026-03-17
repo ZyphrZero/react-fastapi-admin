@@ -92,14 +92,6 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'system/departments',
-        element: (
-          <PermissionRoute requiredPath="/system/departments">
-            <div>部门管理页面</div>
-          </PermissionRoute>
-        ),
-      },
-      {
         path: 'system/audit',
         element: (
           <PermissionRoute requiredPath="/system/audit">

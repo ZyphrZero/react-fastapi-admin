@@ -1,23 +1,19 @@
-import { App as AntdApp, ConfigProvider } from 'antd'
 import { RouterProvider } from 'react-router-dom'
-import zhCN from 'antd/locale/zh_CN'
+
+import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+
 import router from './router'
 
 function App() {
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#1890ff',
-          borderRadius: 8,
-        },
-      }}
-    >
-      <AntdApp>
+    <ThemeProvider defaultTheme="system" storageKey="react-fastapi-admin-theme">
+      <TooltipProvider>
         <RouterProvider router={router} />
-      </AntdApp>
-    </ConfigProvider>
+        <Toaster richColors position="top-right" />
+      </TooltipProvider>
+    </ThemeProvider>
   )
 }
 

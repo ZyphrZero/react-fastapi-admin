@@ -1,142 +1,71 @@
 import { useEffect, useMemo } from 'react'
-import { Progress, Space, Typography } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { CheckCircle2Icon, InfoIcon, XCircleIcon } from 'lucide-react'
+
+import { Progress } from '@/components/ui/progress'
 import { checkPasswordStrength } from '@/utils/passwordStrength'
 
-const { Text } = Typography
+const passwordChecks = [
+  { key: 'length', text: '长度至少 8 个字符' },
+  { key: 'uppercase', text: '包含大写字母' },
+  { key: 'lowercase', text: '包含小写字母' },
+  { key: 'digits', text: '包含数字' },
+  { key: 'special', text: '包含特殊字符' },
+]
 
-/**
- * 密码强度指示器组件
- * @param {string} password - 密码值
- * @param {Function} onStrengthChange - 强度变化回调
- * @param {boolean} showSuggestions - 是否显示建议
- */
+const indicatorToneMap = {
+  strong: 'text-green-600',
+  medium: 'text-amber-600',
+  weak: 'text-red-600',
+}
+
 const PasswordStrengthIndicator = ({ password, onStrengthChange, showSuggestions = true }) => {
   const strength = useMemo(() => checkPasswordStrength(password || ''), [password])
 
   useEffect(() => {
-    if (onStrengthChange) {
-      onStrengthChange(strength)
-    }
+    onStrengthChange?.(strength)
   }, [onStrengthChange, strength])
 
-  const getProgressStatus = () => {
-    switch (strength.level) {
-      case 'strong':
-        return 'success'
-      case 'medium':
-        return 'normal'
-      case 'weak':
-        return 'exception'
-      default:
-        return 'normal'
-    }
-  }
-
-  const getStrengthIcon = () => {
-    if (strength.passedAll === true) {
-      return <CheckCircleOutlined style={{ color: '#52c41a' }} />
-    }
-    return <InfoCircleOutlined style={{ color: strength.color }} />
-  }
-
-  const getStrengthInfo = () => {
-    if (!password) {
-      return {
-        text: '请输入密码',
-        icon: <InfoCircleOutlined style={{ color: '#d9d9d9' }} />
+  const headline = !password
+    ? { icon: <InfoIcon className="size-4 text-muted-foreground" />, text: '请输入密码' }
+    : {
+        icon: strength.passedAll
+          ? <CheckCircle2Icon className="size-4 text-green-600" />
+          : <InfoIcon className={`size-4 ${indicatorToneMap[strength.level] || 'text-muted-foreground'}`} />,
+        text: `密码强度：${strength.levelText} (${strength.score} 分)`,
       }
-    }
-
-    return {
-      text: `密码强度：${strength.levelText} (${strength.score}分)`,
-      icon: getStrengthIcon()
-    }
-  }
-
-  const strengthInfo = getStrengthInfo()
 
   return (
-    <div style={{ marginTop: 8 }}>
-      {/* 强度进度条 */}
-      <div style={{ marginBottom: 8 }}>
-        <Space>
-          <Progress
-            percent={strength.score}
-            strokeColor={strength.color}
-            status={getProgressStatus()}
-            size="small"
-            style={{ width: 120 }}
-            format={() => (
-              <span style={{ color: strength.color, fontSize: 12 }}>
-                {strength.levelText}
-              </span>
-            )}
-          />
-          <Space size={4}>
-            {strengthInfo.icon}
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {strengthInfo.text}
-            </Text>
-          </Space>
-        </Space>
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-28">
+          <Progress value={strength.score} className="h-2" />
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {headline.icon}
+          <span>{headline.text}</span>
+        </div>
       </div>
 
-      {/* 密码要求检查列表 */}
-      {showSuggestions && password && (
-        <div style={{ marginTop: 8 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            密码要求：
-          </Text>
-          <ul style={{ margin: '4px 0 0 0', padding: 0, listStyle: 'none' }}>
-            {[
-              {
-                key: 'length',
-                text: `长度至少8个字符`,
-                passed: Array.isArray(strength.passed) && strength.passed.includes('length')
-              },
-              {
-                key: 'uppercase',
-                text: '包含大写字母',
-                passed: Array.isArray(strength.passed) && strength.passed.includes('uppercase')
-              },
-              {
-                key: 'lowercase',
-                text: '包含小写字母',
-                passed: Array.isArray(strength.passed) && strength.passed.includes('lowercase')
-              },
-              {
-                key: 'digits',
-                text: '包含数字',
-                passed: Array.isArray(strength.passed) && strength.passed.includes('digits')
-              },
-              {
-                key: 'special',
-                text: '包含特殊字符',
-                passed: Array.isArray(strength.passed) && strength.passed.includes('special')
-              }
-            ].map((item) => (
-              <li key={item.key} style={{ fontSize: 11, marginBottom: 2, display: 'flex', alignItems: 'center' }}>
-                {item.passed ? (
-                  <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4, fontSize: 10 }} />
-                ) : (
-                  <CloseCircleOutlined style={{ color: '#ff4d4f', marginRight: 4, fontSize: 10 }} />
-                )}
-                <span
-                  style={{
-                    color: item.passed ? '#52c41a' : '#ff4d4f',
-                    textDecoration: item.passed ? 'line-through' : 'none',
-                    fontSize: 11
-                  }}
-                >
-                  {item.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {showSuggestions && password ? (
+        <div className="flex flex-col gap-2">
+          <div className="text-xs text-muted-foreground">密码要求</div>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {passwordChecks.map((item) => {
+              const passed = Array.isArray(strength.passed) && strength.passed.includes(item.key)
 
+              return (
+                <div
+                  key={item.key}
+                  className={`flex items-center gap-2 text-xs ${passed ? 'text-green-600' : 'text-red-600'}`}
+                >
+                  {passed ? <CheckCircle2Icon className="size-3.5" /> : <XCircleIcon className="size-3.5" />}
+                  <span className={passed ? 'line-through' : ''}>{item.text}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

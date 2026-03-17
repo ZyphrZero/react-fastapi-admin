@@ -124,21 +124,22 @@ async def get_audit_log_list(
     """
     获取审计日志轻量列表，使用游标分页降低大表查询成本
     """
-    q = build_query_filter(
+    base_q = build_query_filter(
         username, module, method, summary, status, ip_address, operation_type, log_level, start_time, end_time
     )
+    q = base_q
 
     if cursor:
         cursor_created_at, cursor_id = decode_cursor(cursor)
         q &= Q(created_at__lt=cursor_created_at) | (Q(created_at=cursor_created_at) & Q(id__lt=cursor_id))
 
-    rows = await AuditLog.filter(q).order_by("-created_at", "-id").limit(page_size + 1).values(*AUDIT_LOG_LIST_FIELDS)
+    total, rows = await AuditLog.filter(base_q).count(), await AuditLog.filter(q).order_by("-created_at", "-id").limit(page_size + 1).values(*AUDIT_LOG_LIST_FIELDS)
 
     has_more = len(rows) > page_size
     data = rows[:page_size]
     next_cursor = encode_cursor(data[-1]["created_at"], data[-1]["id"]) if has_more and data else None
 
-    return Success(data=data, page_size=page_size, has_more=has_more, next_cursor=next_cursor)
+    return Success(data=data, total=total, page_size=page_size, has_more=has_more, next_cursor=next_cursor)
 
 
 @router.get("/detail/{log_id}", summary="查看操作日志详情")

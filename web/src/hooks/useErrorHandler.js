@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { App } from 'antd'
+import { useCallback, useMemo } from 'react'
+import { toast } from 'sonner'
 import { parseError, globalErrorHandler, ERROR_TYPES } from '@/utils/errorHandler'
 
 const MESSAGE_DEDUPE_WINDOW_MS = 2000
@@ -11,12 +11,14 @@ const messageShownAt = new Map()
  * 支持自定义错误处理器和全局错误处理
  */
 export const useErrorHandler = () => {
-    const { message } = App.useApp()
-    const messageRef = useRef(message)
-
-    useEffect(() => {
-        messageRef.current = message
-    }, [message])
+    const message = useMemo(() => ({
+        open: ({ type = 'info', content, key, duration }) => toast[type]?.(content, { id: key, duration }),
+        success: (content, options = {}) => toast.success(content, options),
+        warning: (content, options = {}) => toast.warning(content, options),
+        info: (content, options = {}) => toast.info(content, options),
+        error: (content, options = {}) => toast.error(content, options),
+        loading: (content, duration = Infinity) => toast.loading(content, { duration }),
+    }), [])
 
     const showDedupedMessage = useCallback((type, content, options = {}) => {
         if (!content) return
@@ -32,13 +34,13 @@ export const useErrorHandler = () => {
 
         messageShownAt.set(dedupeKey, now)
 
-        messageRef.current.open({
+        message.open({
             type,
             content,
             key: dedupeKey,
             duration: options.duration,
         })
-    }, [])
+    }, [message])
 
     /**
      * 默认错误处理逻辑
@@ -166,24 +168,24 @@ export const useErrorHandler = () => {
      * @param {string} msg - 成功消息
      */
     const showSuccess = useCallback((msg) => {
-        messageRef.current.success(msg)
-    }, [])
+        message.success(msg)
+    }, [message])
 
     /**
      * 显示警告消息
      * @param {string} msg - 警告消息
      */
     const showWarning = useCallback((msg) => {
-        messageRef.current.warning(msg)
-    }, [])
+        message.warning(msg)
+    }, [message])
 
     /**
      * 显示信息消息
      * @param {string} msg - 信息消息
      */
     const showInfo = useCallback((msg) => {
-        messageRef.current.info(msg)
-    }, [])
+        message.info(msg)
+    }, [message])
 
     /**
      * 显示加载消息
@@ -191,8 +193,8 @@ export const useErrorHandler = () => {
      * @param {number} duration - 持续时间
      */
     const showLoading = useCallback((msg = '加载中...', duration = 0) => {
-        return messageRef.current.loading(msg, duration)
-    }, [])
+        return message.loading(msg, duration)
+    }, [message])
 
     return useMemo(() => ({
         // 错误处理方法

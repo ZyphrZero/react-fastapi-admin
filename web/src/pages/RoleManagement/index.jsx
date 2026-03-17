@@ -1,62 +1,106 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  ApiOutlined,
-  ClearOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  MenuOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SafetyOutlined,
-  SearchOutlined,
-  UserOutlined,
-} from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Pagination,
-  Popconfirm,
-  Space,
-  Spin,
-  Table,
-  Tag,
-  Tooltip,
-  Tree,
-} from 'antd'
+import { useCallback, useEffect, useState } from 'react'
+import { Edit3Icon, MenuIcon, PlusIcon, RefreshCcwIcon, SearchIcon, ShieldIcon, Trash2Icon, WaypointsIcon, XIcon } from 'lucide-react'
 
 import api from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 
-const { TextArea } = Input
+const validateRoleForm = (values) => {
+  const errors = {}
 
-const buildMenuTreeData = (menus = []) =>
-  menus.map((menu) => ({
-    key: menu.path,
-    title: menu.name,
-    children: buildMenuTreeData(menu.children || []),
-  }))
-
-const buildApiTreeData = (groups = []) =>
-  groups.map((group) => ({
-    key: `tag:${group.tag}`,
-    title: `${group.tag} (${group.items?.length || 0})`,
-    children: (group.items || []).map((item) => ({
-      key: `api:${item.id}`,
-      title: `${item.method} ${item.path} ${item.summary ? `- ${item.summary}` : ''}`,
-      isLeaf: true,
-    })),
-  }))
-
-const normalizeCheckedKeys = (checkedKeys) => {
-  if (Array.isArray(checkedKeys)) {
-    return checkedKeys
+  if (!values.name.trim()) {
+    errors.name = '请输入角色名称'
+  } else if (values.name.trim().length < 2 || values.name.trim().length > 20) {
+    errors.name = '角色名称长度为 2-20 个字符'
   }
-  return checkedKeys?.checked || []
+
+  if (values.desc.trim().length > 500) {
+    errors.desc = '角色描述不能超过 500 个字符'
+  }
+
+  return errors
 }
+
+const getMenuNodeMeta = (menu) => {
+  const path = menu.path ?? menu.key ?? ''
+  const title = menu.name ?? menu.title ?? (path || '未命名菜单')
+
+  return {
+    path,
+    title,
+    children: Array.isArray(menu.children) ? menu.children : [],
+  }
+}
+
+const collectLeafMenuPaths = (menu) => {
+  const { path, children } = getMenuNodeMeta(menu)
+
+  if (!children.length) {
+    return path ? [path] : []
+  }
+
+  return children.flatMap((child) => collectLeafMenuPaths(child))
+}
+
+const resolveMenuCheckedState = (menu, checkedMenuPaths) => {
+  const { path, children } = getMenuNodeMeta(menu)
+
+  if (!children.length) {
+    return checkedMenuPaths.includes(path)
+  }
+
+  const leafPaths = collectLeafMenuPaths(menu)
+  const checkedLeafCount = leafPaths.filter((leafPath) => checkedMenuPaths.includes(leafPath)).length
+
+  if (checkedLeafCount === 0) {
+    return false
+  }
+
+  if (checkedLeafCount === leafPaths.length) {
+    return true
+  }
+
+  return 'indeterminate'
+}
+
+const renderMenuTree = (nodes, checkedMenuPaths, toggleMenuSelection, depth = 0) =>
+  nodes.map((menu) => {
+    const { path, title, children } = getMenuNodeMeta(menu)
+
+    return (
+      <div key={path} className="flex flex-col gap-2">
+        <Label className="items-start">
+          <Checkbox
+            checked={resolveMenuCheckedState(menu, checkedMenuPaths)}
+            onCheckedChange={(checked) => toggleMenuSelection(menu, Boolean(checked))}
+          />
+          <span className={depth > 0 ? 'text-sm' : ''}>{title}</span>
+        </Label>
+        {children.length ? (
+          <div className="ml-6 flex flex-col gap-2 border-l border-border pl-4">
+            {renderMenuTree(children, checkedMenuPaths, toggleMenuSelection, depth + 1)}
+          </div>
+        ) : null}
+      </div>
+    )
+  })
 
 const RoleManagement = () => {
   const [loading, setLoading] = useState(false)
@@ -64,24 +108,25 @@ const RoleManagement = () => {
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [searchForm] = Form.useForm()
+  const [searchValue, setSearchValue] = useState('')
   const [searchParams, setSearchParams] = useState({})
 
   const [permissionOptionsLoading, setPermissionOptionsLoading] = useState(false)
   const [permissionOptions, setPermissionOptions] = useState({ menu_tree: [], api_groups: [] })
 
   const [modalVisible, setModalVisible] = useState(false)
-  const [modalForm] = Form.useForm()
+  const [modalValues, setModalValues] = useState({ name: '', desc: '' })
+  const [modalErrors, setModalErrors] = useState({})
   const [editingRole, setEditingRole] = useState(null)
   const [modalLoading, setModalLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [checkedMenuPaths, setCheckedMenuPaths] = useState([])
-  const [checkedApiKeys, setCheckedApiKeys] = useState([])
+  const [checkedApiIds, setCheckedApiIds] = useState([])
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
 
-  const menuTreeData = useMemo(() => buildMenuTreeData(permissionOptions.menu_tree || []), [permissionOptions.menu_tree])
-  const apiTreeData = useMemo(() => buildApiTreeData(permissionOptions.api_groups || []), [permissionOptions.api_groups])
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const fetchRoles = useCallback(
     async (page = 1, size = 10, search = {}) => {
@@ -102,7 +147,7 @@ const RoleManagement = () => {
         setLoading(false)
       }
     },
-    [handleError]
+    [handleError],
   )
 
   const fetchPermissionOptions = useCallback(async () => {
@@ -122,113 +167,108 @@ const RoleManagement = () => {
     void fetchPermissionOptions()
   }, [fetchPermissionOptions, fetchRoles])
 
-  const handleSearch = async (values) => {
-    const params = {}
-    if (values.role_name) {
-      params.role_name = values.role_name
+  const refreshRoles = async () => {
+    await fetchRoles(currentPage, pageSize, searchParams)
+  }
+
+  const handleSearch = async (event) => {
+    event.preventDefault()
+
+    const nextParams = {}
+    if (searchValue.trim()) {
+      nextParams.role_name = searchValue.trim()
     }
-    setSearchParams(params)
-    setCurrentPage(1)
-    await fetchRoles(1, pageSize, params)
+    setSearchParams(nextParams)
+    await fetchRoles(1, pageSize, nextParams)
   }
 
   const handleClearSearch = async () => {
-    searchForm.resetFields()
+    setSearchValue('')
     setSearchParams({})
-    setCurrentPage(1)
     await fetchRoles(1, pageSize, {})
   }
 
-  const handlePageChange = async (page, size) => {
-    setCurrentPage(page)
-    setPageSize(size)
+  const handlePageChange = async (page, size = pageSize) => {
     await fetchRoles(page, size, searchParams)
   }
 
-  const handleCloseModal = useCallback(() => {
-    setModalVisible(false)
-    setEditingRole(null)
-    setCheckedMenuPaths([])
-    setCheckedApiKeys([])
-    modalForm.resetFields()
-  }, [modalForm])
-
-  const handleOpenModal = async (role = null) => {
-    setEditingRole(role)
-    setModalVisible(true)
+  const closeModal = (open) => {
+    setModalVisible(open)
+    if (!open) {
+      setEditingRole(null)
+      setModalValues({ name: '', desc: '' })
+      setModalErrors({})
+      setCheckedMenuPaths([])
+      setCheckedApiIds([])
+      setDetailLoading(false)
+    }
   }
 
-  useEffect(() => {
-    if (!modalVisible) {
+  const openModal = async (role = null) => {
+    setEditingRole(role)
+    setModalVisible(true)
+    setModalErrors({})
+    setCheckedMenuPaths([])
+    setCheckedApiIds([])
+
+    if (!role) {
+      setModalValues({ name: '', desc: '' })
       return
     }
 
-    if (!permissionOptions.menu_tree?.length && !permissionOptionsLoading) {
-      void fetchPermissionOptions()
-    }
+    setDetailLoading(true)
+    try {
+      const response = await api.roles.getById(role.id)
+      const detail = response.data || {}
 
-    if (!editingRole) {
-      modalForm.resetFields()
-      setCheckedMenuPaths([])
-      setCheckedApiKeys([])
+      setModalValues({
+        name: detail.name || '',
+        desc: detail.desc || '',
+      })
+      setCheckedMenuPaths(detail.menu_paths || [])
+      setCheckedApiIds(detail.api_ids || [])
+    } catch (error) {
+      handleBusinessError(error, '获取角色详情失败')
+      closeModal(false)
+    } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const toggleMenuSelection = (menu, checked) => {
+    const leafPaths = collectLeafMenuPaths(menu)
+
+    setCheckedMenuPaths((current) => {
+      if (checked) {
+        return [...new Set([...current, ...leafPaths])]
+      }
+
+      return current.filter((item) => !leafPaths.includes(item))
+    })
+  }
+
+  const toggleApiId = (apiId, checked) => {
+    setCheckedApiIds((current) =>
+      checked ? [...new Set([...current, apiId])] : current.filter((item) => item !== apiId),
+    )
+  }
+
+  const handleSaveRole = async (event) => {
+    event.preventDefault()
+
+    const nextErrors = validateRoleForm(modalValues)
+    if (Object.keys(nextErrors).length > 0) {
+      setModalErrors(nextErrors)
       return
     }
 
-    let active = true
-
-    const loadRoleDetail = async () => {
-      setDetailLoading(true)
-      try {
-        const response = await api.roles.getById(editingRole.id)
-        if (!active) {
-          return
-        }
-
-        const detail = response.data || {}
-        modalForm.setFieldsValue({
-          name: detail.name || '',
-          desc: detail.desc || '',
-        })
-        setCheckedMenuPaths(detail.menu_paths || [])
-        setCheckedApiKeys((detail.api_ids || []).map((apiId) => `api:${apiId}`))
-      } catch (error) {
-        if (!active) {
-          return
-        }
-
-        handleBusinessError(error, '获取角色详情失败')
-        handleCloseModal()
-      } finally {
-        if (active) {
-          setDetailLoading(false)
-        }
-      }
-    }
-
-    void loadRoleDetail()
-
-    return () => {
-      active = false
-    }
-  }, [
-    editingRole,
-    fetchPermissionOptions,
-    handleBusinessError,
-    handleCloseModal,
-    modalForm,
-    modalVisible,
-    permissionOptions.menu_tree,
-    permissionOptionsLoading,
-  ])
-
-  const handleSaveRole = async (values) => {
     setModalLoading(true)
     try {
       const payload = {
-        ...values,
+        name: modalValues.name.trim(),
+        desc: modalValues.desc.trim(),
         menu_paths: checkedMenuPaths,
-        api_ids: checkedApiKeys.map((key) => Number(String(key).replace('api:', ''))),
+        api_ids: checkedApiIds,
       }
 
       if (editingRole) {
@@ -239,7 +279,7 @@ const RoleManagement = () => {
         showSuccess('角色创建成功')
       }
 
-      handleCloseModal()
+      closeModal(false)
       await fetchRoles(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, editingRole ? '角色更新失败' : '角色创建失败')
@@ -248,287 +288,283 @@ const RoleManagement = () => {
     }
   }
 
-  const handleDeleteRole = async (roleId) => {
+  const handleDeleteRole = async () => {
+    if (!deleteTarget) {
+      return
+    }
+
     try {
-      await api.roles.delete({ role_id: roleId })
+      await api.roles.delete({ role_id: deleteTarget.id })
       showSuccess('角色删除成功')
+      setDeleteTarget(null)
       await fetchRoles(currentPage, pageSize, searchParams)
     } catch (error) {
       handleBusinessError(error, '角色删除失败')
     }
   }
 
-  const columns = [
-    {
-      title: '角色名称',
-      dataIndex: 'name',
-      key: 'name',
-      width: 180,
-      render: (text) => (
-        <div className="flex items-center">
-          <UserOutlined className="mr-2 text-blue-500" />
-          <span className="font-medium">{text || '-'}</span>
-        </div>
-      ),
-    },
-    {
-      title: '角色描述',
-      dataIndex: 'desc',
-      key: 'desc',
-      width: 260,
-      render: (text) => text || '-',
-    },
-    {
-      title: '菜单权限',
-      key: 'menu_count',
-      width: 120,
-      render: (_, record) => <Tag color="geekblue">{record.menu_count || 0} 项</Tag>,
-    },
-    {
-      title: 'API权限',
-      key: 'api_count',
-      width: 120,
-      render: (_, record) => <Tag color="purple">{record.api_count || 0} 项</Tag>,
-    },
-    {
-      title: '用户数量',
-      key: 'user_count',
-      width: 120,
-      render: (_, record) => <Tag color="blue">{record.user_count || 0} 人</Tag>,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      render: (text) => (text ? new Date(text).toLocaleString('zh-CN') : '-'),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 200,
-      fixed: 'right',
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="编辑角色与权限">
-            <Button type="primary" size="small" icon={<EditOutlined />} onClick={() => void handleOpenModal(record)} />
-          </Tooltip>
-
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确认删除角色？"
-              description="删除后无法恢复，请谨慎操作"
-              onConfirm={() => void handleDeleteRole(record.id)}
-              okText="确认"
-              cancelText="取消"
-              okType="danger"
-            >
-              <Button danger size="small" icon={<DeleteOutlined />} />
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ]
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">角色管理</h1>
-          <p className="text-gray-500 mt-1">管理角色基础信息、菜单权限和 API 权限</p>
+          <h1 className="text-2xl font-semibold tracking-tight">角色管理</h1>
+          <p className="text-sm text-muted-foreground">管理角色基础信息、菜单权限和 API 权限</p>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => void handleOpenModal()}
-          className="bg-gradient-to-r from-blue-500 to-blue-600"
-        >
+        <Button onClick={() => void openModal()}>
+          <PlusIcon data-icon="inline-start" />
           新增角色
         </Button>
-      </div>
+      </section>
 
-      <Card className="shadow-sm">
-        <div className="mb-6 pb-4 border-b border-gray-200">
-          <div className="flex items-center mb-3">
-            <SearchOutlined className="mr-2 text-blue-500" />
-            <span className="font-medium text-gray-700">筛选条件</span>
-          </div>
-          <Form form={searchForm} layout="inline" onFinish={handleSearch} className="w-full">
-            <Form.Item name="role_name" className="mb-2">
-              <Input
-                id="search_role_name"
-                placeholder="角色名称"
-                prefix={<UserOutlined />}
-                allowClear
-                style={{ width: 220 }}
-              />
-            </Form.Item>
-            <Form.Item className="mb-2">
-              <Space>
-                <Button type="primary" htmlType="submit" icon={<SearchOutlined />} loading={loading}>
-                  搜索
-                </Button>
-                <Button icon={<ClearOutlined />} onClick={() => void handleClearSearch()}>
-                  清空
-                </Button>
-                <Button icon={<ReloadOutlined />} onClick={() => void fetchRoles(currentPage, pageSize, searchParams)} loading={loading}>
-                  刷新
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <SafetyOutlined className="mr-2 text-blue-500" />
-              <span className="font-medium text-gray-700">角色列表</span>
+      <Card>
+        <CardHeader>
+          <CardTitle>筛选条件</CardTitle>
+          <CardDescription>按角色名称筛选</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-col gap-3 md:flex-row md:items-end" onSubmit={handleSearch}>
+            <div className="w-full md:w-72">
+              <Input value={searchValue} placeholder="角色名称" onChange={(event) => setSearchValue(event.target.value)} />
             </div>
-            <div className="text-sm text-gray-500">共 {total} 条记录</div>
-          </div>
-
-          <Table
-            columns={columns}
-            dataSource={roles}
-            rowKey="id"
-            loading={loading}
-            pagination={false}
-            scroll={{ x: 1200 }}
-            size="middle"
-            className="mb-4"
-          />
-
-          <div className="flex justify-center pt-4 border-t border-gray-200">
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={total}
-              showSizeChanger
-              showQuickJumper
-              showTotal={(count, range) => `第 ${range[0]}-${range[1]} 条，共 ${count} 条`}
-              onChange={handlePageChange}
-              pageSizeOptions={['10', '20', '50', '100']}
-            />
-          </div>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" variant="outline" disabled={loading}>
+                <SearchIcon data-icon="inline-start" />
+                搜索
+              </Button>
+              <Button type="button" variant="outline" onClick={handleClearSearch}>
+                <XIcon data-icon="inline-start" />
+                清空
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void refreshRoles()} disabled={loading}>
+                <RefreshCcwIcon data-icon="inline-start" />
+                刷新
+              </Button>
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
-      <Modal
-        title={
-          <div className="flex items-center">
-            <SafetyOutlined className="mr-2 text-blue-500" />
-            {editingRole ? '编辑角色权限' : '新增角色'}
-          </div>
-        }
-        open={modalVisible}
-        onCancel={handleCloseModal}
-        footer={[
-          <Button key="cancel" onClick={handleCloseModal}>
-            取消
-          </Button>,
-          <Button key="submit" type="primary" loading={modalLoading} onClick={() => modalForm.submit()}>
-            {editingRole ? '更新' : '创建'}
-          </Button>,
-        ]}
-        width={960}
-        destroyOnHidden
-      >
-        {detailLoading ? (
-          <div className="py-16 flex items-center justify-center">
-            <Spin />
-          </div>
-        ) : (
-          <Form form={modalForm} layout="vertical" onFinish={handleSaveRole} className="mt-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card size="small" title="基础信息" className="lg:col-span-2">
-                <Form.Item
-                  label="角色名称"
-                  name="name"
-                  rules={[
-                    { required: true, message: '请输入角色名称' },
-                    { min: 2, max: 20, message: '角色名称长度为2-20个字符' },
-                  ]}
-                >
-                  <Input id="modal_role_name" placeholder="请输入角色名称" autoComplete="off" />
-                </Form.Item>
+      <Card>
+        <CardHeader>
+          <CardTitle>角色列表</CardTitle>
+          <CardDescription>共 {total} 条记录</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {roles.length > 0 ? (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>角色名称</TableHead>
+                    <TableHead>角色描述</TableHead>
+                    <TableHead>菜单权限</TableHead>
+                    <TableHead>API 权限</TableHead>
+                    <TableHead>用户数量</TableHead>
+                    <TableHead>创建时间</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {roles.map((role) => (
+                    <TableRow key={role.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <ShieldIcon className="size-4 text-muted-foreground" />
+                          {role.name || '-'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-normal">{role.desc || '-'}</TableCell>
+                      <TableCell><Badge variant="outline">{role.menu_count || 0} 项</Badge></TableCell>
+                      <TableCell><Badge variant="outline">{role.api_count || 0} 项</Badge></TableCell>
+                      <TableCell><Badge variant="secondary">{role.user_count || 0} 人</Badge></TableCell>
+                      <TableCell>{role.created_at ? new Date(role.created_at).toLocaleString('zh-CN') : '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="icon-sm" onClick={() => void openModal(role)}>
+                            <Edit3Icon />
+                            <span className="sr-only">编辑</span>
+                          </Button>
+                          <Button variant="destructive" size="icon-sm" onClick={() => setDeleteTarget(role)}>
+                            <Trash2Icon />
+                            <span className="sr-only">删除</span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-                <Form.Item
-                  label="角色描述"
-                  name="desc"
-                  rules={[{ max: 500, message: '角色描述不能超过500个字符' }]}
-                >
-                  <TextArea
-                    id="modal_role_desc"
-                    placeholder="请输入角色描述"
-                    rows={3}
-                    showCount
-                    maxLength={500}
-                    autoComplete="off"
-                  />
-                </Form.Item>
-              </Card>
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  第 {currentPage} / {totalPages} 页，共 {total} 条
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" disabled={currentPage <= 1 || loading} onClick={() => void handlePageChange(currentPage - 1)}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" disabled={currentPage >= totalPages || loading} onClick={() => void handlePageChange(currentPage + 1)}>
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <Empty className="border bg-muted/20 py-10">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ShieldIcon />
+                </EmptyMedia>
+                <EmptyTitle>暂无角色数据</EmptyTitle>
+                <EmptyDescription>调整筛选条件后重试，或先创建一个新角色。</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </CardContent>
+      </Card>
 
-              <Card
-                size="small"
-                title={
-                  <span>
-                    <MenuOutlined className="mr-2" />
-                    菜单权限
-                  </span>
-                }
-              >
-                {permissionOptionsLoading ? (
-                  <div className="py-12 flex items-center justify-center">
-                    <Spin />
-                  </div>
-                ) : menuTreeData.length > 0 ? (
-                  <Tree
-                    checkable
-                    defaultExpandAll
-                    checkedKeys={checkedMenuPaths}
-                    onCheck={(keys) => setCheckedMenuPaths(normalizeCheckedKeys(keys))}
-                    treeData={menuTreeData}
-                  />
-                ) : (
-                  <Empty description="暂无可授权菜单" />
-                )}
-              </Card>
+      <Dialog open={modalVisible} onOpenChange={closeModal}>
+        <DialogContent className="sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{editingRole ? '编辑角色权限' : '新增角色'}</DialogTitle>
+            <DialogDescription>维护角色信息并分配菜单与 API 权限</DialogDescription>
+          </DialogHeader>
 
-              <Card
-                size="small"
-                title={
-                  <span>
-                    <ApiOutlined className="mr-2" />
-                    API 权限
-                  </span>
-                }
-                extra={<span className="text-xs text-gray-500">API 管理页独立维护资源目录</span>}
-              >
-                {permissionOptionsLoading ? (
-                  <div className="py-12 flex items-center justify-center">
-                    <Spin />
-                  </div>
-                ) : apiTreeData.length > 0 ? (
-                  <Tree
-                    checkable
-                    defaultExpandAll
-                    checkedKeys={checkedApiKeys}
-                    onCheck={(keys) => {
-                      const nextKeys = normalizeCheckedKeys(keys).filter((key) => String(key).startsWith('api:'))
-                      setCheckedApiKeys(nextKeys)
+          {detailLoading ? (
+            <div className="py-12 text-sm text-muted-foreground">加载角色详情中...</div>
+          ) : (
+            <form className="flex flex-col gap-4" onSubmit={handleSaveRole}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="role-name" required invalid={Boolean(modalErrors.name)}>角色名称</Label>
+                  <Input
+                    id="role-name"
+                    required
+                    value={modalValues.name}
+                    onChange={(event) => {
+                      setModalValues((current) => ({ ...current, name: event.target.value }))
+                      setModalErrors((current) => ({ ...current, name: undefined }))
                     }}
-                    treeData={apiTreeData}
+                    aria-invalid={Boolean(modalErrors.name)}
                   />
-                ) : (
-                  <Empty description="暂无可授权 API" />
-                )}
-              </Card>
-            </div>
-          </Form>
-        )}
-      </Modal>
+                  {modalErrors.name ? <p className="text-xs text-destructive">{modalErrors.name}</p> : null}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="role-desc" invalid={Boolean(modalErrors.desc)}>角色描述</Label>
+                  <Textarea
+                    id="role-desc"
+                    value={modalValues.desc}
+                    className="min-h-24"
+                    onChange={(event) => {
+                      setModalValues((current) => ({ ...current, desc: event.target.value }))
+                      setModalErrors((current) => ({ ...current, desc: undefined }))
+                    }}
+                    aria-invalid={Boolean(modalErrors.desc)}
+                  />
+                  {modalErrors.desc ? <p className="text-xs text-destructive">{modalErrors.desc}</p> : null}
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MenuIcon className="size-4" />
+                      菜单权限
+                    </CardTitle>
+                    <CardDescription>按菜单路径分配访问权限</CardDescription>
+                  </CardHeader>
+                  <CardContent className="max-h-[28rem] overflow-y-auto">
+                    {permissionOptionsLoading ? (
+                      <div className="text-sm text-muted-foreground">加载权限资源中...</div>
+                    ) : permissionOptions.menu_tree?.length ? (
+                      <div className="flex flex-col gap-3">
+                        {renderMenuTree(permissionOptions.menu_tree, checkedMenuPaths, toggleMenuSelection)}
+                      </div>
+                    ) : (
+                      <Empty className="border bg-muted/20 py-8">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <MenuIcon />
+                          </EmptyMedia>
+                          <EmptyTitle>暂无可授权菜单</EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <WaypointsIcon className="size-4" />
+                      API 权限
+                    </CardTitle>
+                    <CardDescription>按接口分组分配访问权限</CardDescription>
+                  </CardHeader>
+                  <CardContent className="max-h-[28rem] overflow-y-auto">
+                    {permissionOptionsLoading ? (
+                      <div className="text-sm text-muted-foreground">加载权限资源中...</div>
+                    ) : permissionOptions.api_groups?.length ? (
+                      <div className="flex flex-col gap-4">
+                        {permissionOptions.api_groups.map((group) => (
+                          <div key={group.tag} className="rounded-lg border p-3">
+                            <div className="mb-3 text-sm font-medium">{group.tag} ({group.items?.length || 0})</div>
+                            <div className="flex flex-col gap-2">
+                              {(group.items || []).map((item) => (
+                                <Label key={item.id} className="items-start">
+                                  <Checkbox
+                                    checked={checkedApiIds.includes(item.id)}
+                                    onCheckedChange={(checked) => toggleApiId(item.id, Boolean(checked))}
+                                  />
+                                  <div className="flex flex-col gap-1">
+                                    <span className="font-mono text-xs text-muted-foreground">{item.method} {item.path}</span>
+                                    <span>{item.summary || '未命名接口'}</span>
+                                  </div>
+                                </Label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Empty className="border bg-muted/20 py-8">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <WaypointsIcon />
+                          </EmptyMedia>
+                          <EmptyTitle>暂无可授权 API</EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => closeModal(false)}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={modalLoading}>
+                  {modalLoading ? '提交中...' : editingRole ? '更新' : '创建'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title="确认删除角色？"
+        description={deleteTarget ? `删除角色 ${deleteTarget.name} 后无法恢复，请谨慎操作。` : ''}
+        confirmText="确认删除"
+        destructive
+        onConfirm={() => void handleDeleteRole()}
+      />
     </div>
   )
 }

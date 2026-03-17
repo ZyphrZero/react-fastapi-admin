@@ -1,591 +1,501 @@
+import { ChevronsUpDownIcon, Edit3Icon, InfoIcon, RefreshCcwIcon, SearchIcon, Trash2Icon, WaypointsIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Table,
-  Button,
-  Space,
-  Modal,
-  Form,
-  Input,
-  Card,
-  Row,
-  Col,
-  Tag,
-  Popconfirm,
-  Pagination,
-  Tooltip,
-  Select
-} from 'antd'
-import {
-  EditOutlined,
-  DeleteOutlined,
-  SearchOutlined,
-  ReloadOutlined,
-  ClearOutlined,
-  ApiOutlined,
-  SyncOutlined,
-  QuestionCircleOutlined,
-  InfoCircleOutlined
-} from '@ant-design/icons'
+
 import api from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 
-const { TextArea } = Input
-const { Option } = Select
+const getMethodVariant = (method) => {
+  if (method === 'GET') return 'secondary'
+  if (method === 'POST') return 'default'
+  if (method === 'DELETE') return 'destructive'
+  return 'outline'
+}
+
+const validateApiForm = (values) => {
+  const errors = {}
+
+  if (!values.summary.trim()) {
+    errors.summary = '请输入 API 描述'
+  } else if (values.summary.trim().length > 500) {
+    errors.summary = 'API 描述不能超过 500 个字符'
+  }
+
+  if (!values.tags.trim()) {
+    errors.tags = '请输入 API 标签'
+  } else if (values.tags.trim().length > 100) {
+    errors.tags = 'API 标签不能超过 100 个字符'
+  }
+
+  return errors
+}
+
+const normalizeTagOption = (tag) => {
+  if (typeof tag === 'string') {
+    return {
+      key: tag,
+      label: tag,
+      value: tag,
+      count: null,
+    }
+  }
+
+  if (tag && typeof tag === 'object') {
+    const fallbackValue = String(tag.value ?? tag.label ?? '')
+    const displayLabel = tag.label ?? (fallbackValue || '未分类')
+
+    return {
+      key: fallbackValue || JSON.stringify(tag),
+      label: String(displayLabel),
+      value: fallbackValue,
+      count: typeof tag.count === 'number' ? tag.count : null,
+    }
+  }
+
+  return null
+}
 
 const ApiManagement = () => {
-  // 基础状态
   const [loading, setLoading] = useState(false)
   const [apis, setApis] = useState([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  
-  // 搜索状态
-  const [searchForm] = Form.useForm()
+  const [searchValues, setSearchValues] = useState({ path: '', summary: '', tags: [] })
   const [searchParams, setSearchParams] = useState({})
   const [availableTags, setAvailableTags] = useState([])
-  
-  // 模态框状态
-  const [modalVisible, setModalVisible] = useState(false)
-  const [modalForm] = Form.useForm()
-  const [editingApi, setEditingApi] = useState(null)
-  const [modalLoading, setModalLoading] = useState(false)
-  
-  // 刷新状态
   const [refreshLoading, setRefreshLoading] = useState(false)
-  
+
+  const [modalVisible, setModalVisible] = useState(false)
+  const [modalValues, setModalValues] = useState({ path: '', method: 'GET', summary: '', tags: '' })
+  const [modalErrors, setModalErrors] = useState({})
+  const [modalLoading, setModalLoading] = useState(false)
+  const [editingApi, setEditingApi] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
 
-  // HTTP方法选项
-  const httpMethods = [
-    { label: 'GET', value: 'GET', color: 'green' },
-    { label: 'POST', value: 'POST', color: 'blue' },
-    { label: 'PUT', value: 'PUT', color: 'orange' },
-    { label: 'DELETE', value: 'DELETE', color: 'red' },
-    { label: 'PATCH', value: 'PATCH', color: 'purple' }
-  ]
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const selectedTags = availableTags.filter((tag) => searchValues.tags.includes(tag.value))
 
-  // 获取API列表
-  const fetchApis = useCallback(async (page = 1, size = 10, search = {}) => {
-    setLoading(true)
-    try {
-      const params = {
-        page,
-        page_size: size,
-        ...search
+  const fetchApis = useCallback(
+    async (page = 1, size = 10, search = {}) => {
+      setLoading(true)
+      try {
+        const response = await api.apis.getList({
+          page,
+          page_size: size,
+          ...search,
+        })
+        setApis(response.data || [])
+        setTotal(response.total || 0)
+        setCurrentPage(response.page || page)
+        setPageSize(response.page_size || size)
+      } catch (error) {
+        handleError(error, '获取 API 列表失败')
+      } finally {
+        setLoading(false)
       }
-      const response = await api.apis.getList(params)
-      const apiList = response.data || []
-      setApis(apiList)
-      setTotal(response.total || 0)
-      setCurrentPage(response.page || page)
-      setPageSize(response.page_size || size)
-    } catch (error) {
-      handleError(error, '获取API列表失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [handleError])
+    },
+    [handleError],
+  )
 
-  // 获取所有API标签
   const fetchAllTags = useCallback(async () => {
     try {
       const response = await api.apis.getTags()
-      setAvailableTags(
-        (response.data || []).map((tag) => ({
-          label: tag,
-          value: tag,
-          count: 0,
-        }))
-      )
+      const normalizedTags = Array.isArray(response.data)
+        ? response.data.map(normalizeTagOption).filter(Boolean)
+        : []
+
+      setAvailableTags(normalizedTags)
     } catch (error) {
-      handleError(error, '获取API标签失败')
+      handleError(error, '获取 API 标签失败')
     }
   }, [handleError])
 
-  // 初始化数据
   useEffect(() => {
     void fetchApis(1, 10, {})
     void fetchAllTags()
   }, [fetchAllTags, fetchApis])
 
-  useEffect(() => {
-    if (!modalVisible || !editingApi) {
-      return
-    }
-
-    modalForm.setFieldsValue({
-      id: editingApi.id,
-      path: editingApi.path || '',
-      method: editingApi.method || 'GET',
-      summary: editingApi.summary || '',
-      tags: editingApi.tags || '',
-    })
-  }, [editingApi, modalForm, modalVisible])
-
-  // 搜索处理
-  const handleSearch = async (values) => {
-    const params = {}
-    if (values.path) params.path = values.path
-    if (values.summary) params.summary = values.summary
-    if (values.tags && values.tags.length > 0) {
-      // 多标签筛选：将数组转换为逗号分隔的字符串
-      params.tags = Array.isArray(values.tags) ? values.tags.join(',') : values.tags
-    }
-
-    setSearchParams(params)
-    setCurrentPage(1)
-    await fetchApis(1, pageSize, params)
+  const refreshApis = async () => {
+    await fetchApis(currentPage, pageSize, searchParams)
   }
 
-  // 清空搜索
+  const handleSearch = async (event) => {
+    event.preventDefault()
+
+    const nextParams = {}
+    if (searchValues.path.trim()) nextParams.path = searchValues.path.trim()
+    if (searchValues.summary.trim()) nextParams.summary = searchValues.summary.trim()
+    if (searchValues.tags.length > 0) nextParams.tags = searchValues.tags.join(',')
+
+    setSearchParams(nextParams)
+    await fetchApis(1, pageSize, nextParams)
+  }
+
   const handleClearSearch = async () => {
-    searchForm.resetFields()
+    setSearchValues({ path: '', summary: '', tags: [] })
     setSearchParams({})
-    setCurrentPage(1)
     await fetchApis(1, pageSize, {})
   }
 
-  // 分页处理
-  const handlePageChange = async (page, size) => {
-    setCurrentPage(page)
-    setPageSize(size)
-    await fetchApis(page, size, searchParams)
+  const handlePageChange = async (page) => {
+    await fetchApis(page, pageSize, searchParams)
   }
 
-  // 打开编辑模态框
-  const handleOpenModal = (apiItem) => {
-    if (!apiItem) return // 只允许编辑，不允许创建
+  const openModal = (apiItem) => {
+    if (!apiItem) return
 
     setEditingApi(apiItem)
     setModalVisible(true)
+    setModalErrors({})
+    setModalValues({
+      path: apiItem.path || '',
+      method: apiItem.method || 'GET',
+      summary: apiItem.summary || '',
+      tags: apiItem.tags || '',
+    })
   }
 
-  // 关闭模态框
-  const handleCloseModal = () => {
-    setModalVisible(false)
-    setEditingApi(null)
-    modalForm.resetFields()
+  const closeModal = (open) => {
+    setModalVisible(open)
+    if (!open) {
+      setEditingApi(null)
+      setModalErrors({})
+      setModalValues({ path: '', method: 'GET', summary: '', tags: '' })
+    }
   }
 
-  // 保存API
-  const handleSaveApi = async (values) => {
-    if (!editingApi) return // 只允许更新，不允许创建
+  const handleSaveApi = async (event) => {
+    event.preventDefault()
+
+    if (!editingApi) return
+
+    const nextErrors = validateApiForm(modalValues)
+    if (Object.keys(nextErrors).length > 0) {
+      setModalErrors(nextErrors)
+      return
+    }
 
     setModalLoading(true)
     try {
-      // 更新API - 只允许更新描述和标签
       await api.apis.update({
-        ...values,
         id: editingApi.id,
-        path: editingApi.path, // 保持原路径不变
-        method: editingApi.method // 保持原方法不变
+        path: editingApi.path,
+        method: editingApi.method,
+        summary: modalValues.summary.trim(),
+        tags: modalValues.tags.trim(),
       })
-      showSuccess('API信息更新成功')
-
-      handleCloseModal()
+      showSuccess('API 信息更新成功')
+      closeModal(false)
       await fetchApis(currentPage, pageSize, searchParams)
     } catch (error) {
-      handleBusinessError(error, 'API更新失败')
+      handleBusinessError(error, 'API 更新失败')
     } finally {
       setModalLoading(false)
     }
   }
 
-  // 删除API
-  const handleDeleteApi = async (apiId) => {
+  const handleDeleteApi = async () => {
+    if (!deleteTarget) return
+
     try {
-      await api.apis.delete({ api_id: apiId })
-      showSuccess('API删除成功')
+      await api.apis.delete({ api_id: deleteTarget.id })
+      showSuccess('API 删除成功')
+      setDeleteTarget(null)
       await fetchApis(currentPage, pageSize, searchParams)
     } catch (error) {
-      handleBusinessError(error, 'API删除失败')
+      handleBusinessError(error, 'API 删除失败')
     }
   }
 
-  // 刷新API列表
   const handleRefreshApis = async () => {
     setRefreshLoading(true)
     try {
       await api.apis.refresh()
-      showSuccess('API列表刷新成功')
+      showSuccess('API 列表刷新成功')
       await fetchApis(currentPage, pageSize, searchParams)
-      await fetchAllTags() // 刷新后重新获取标签列表
+      await fetchAllTags()
     } catch (error) {
-      handleBusinessError(error, 'API刷新失败')
+      handleBusinessError(error, 'API 刷新失败')
     } finally {
       setRefreshLoading(false)
     }
   }
 
-  // 获取方法颜色
-  const getMethodColor = (method) => {
-    const methodObj = httpMethods.find(m => m.value === method)
-    return methodObj ? methodObj.color : 'default'
-  }
-
-
-
-  // 表格列定义
-  const columns = [
-    {
-      title: 'API信息',
-      key: 'api_info',
-      width: 350,
-      render: (_, record) => (
-        <div className="space-y-2">
-          <div className="flex items-center">
-            <Tag color={getMethodColor(record.method)} className="font-mono mr-2">
-              {record.method}
-            </Tag>
-            <code className="bg-gray-100 px-2 py-1 rounded text-sm flex-1">
-              {record.path || '-'}
-            </code>
-          </div>
-
-        </div>
-      )
-    },
-    {
-      title: 'API描述',
-      dataIndex: 'summary',
-      key: 'summary',
-      width: 250,
-      render: (text) => (
-        <div className="max-w-xs">
-          <div className="truncate" title={text}>
-            {text || '-'}
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'API标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      width: 120,
-      render: (tags) => (
-        <Tag color="cyan">{tags || '未分类'}</Tag>
-      )
-    },
-    {
-      title: '状态',
-      key: 'status',
-      width: 100,
-      render: () => (
-        <div className="space-y-1">
-          <Tag color="green" className="text-xs">
-            已同步
-          </Tag>
-        </div>
-      )
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 160,
-      render: (text) => text ? new Date(text).toLocaleString('zh-CN') : '-'
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 150,
-      fixed: 'right',
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="编辑API">
-            <Button
-              type="primary"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleOpenModal(record)}
-            />
-          </Tooltip>
-          <Tooltip title="删除API">
-            <Popconfirm
-              title="确认删除API？"
-              description="删除后无法恢复"
-              onConfirm={() => handleDeleteApi(record.id)}
-              okText="确认"
-              cancelText="取消"
-              okType="danger"
-            >
-              <Button
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-              />
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      )
-    }
-  ]
-
   return (
-    <div className="space-y-4">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-gray-800">API管理</h1>
-            <Tooltip
-              title={
-                <div className="text-sm max-w-sm">
-                  <div className="font-medium mb-2">API管理说明：</div>
-                  <div className="mb-1">• 系统自动扫描所有API接口，无需手动创建</div>
-                  <div className="mb-1">• 只能编辑API描述和标签，路径和方法不可修改</div>
-                  <div>• 代码更新后，重新扫描即可同步最新API</div>
-                </div>
-              }
-              placement="right"
-            >
-              <QuestionCircleOutlined className="ml-2 text-gray-400 hover:text-blue-500 cursor-help text-base" />
-            </Tooltip>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">API 管理</h1>
+            <InfoIcon className="size-4 text-muted-foreground" />
           </div>
-          <p className="text-gray-500 mt-1">自动管理系统API接口，扫描代码同步接口信息，无需手动维护</p>
+          <p className="text-sm text-muted-foreground">自动管理系统 API 接口，扫描代码同步接口信息</p>
         </div>
-        <Space>
-          <Button
-            type="primary"
-            icon={<SyncOutlined spin={refreshLoading} />}
-            onClick={handleRefreshApis}
-            loading={refreshLoading}
-            className="bg-gradient-to-r from-green-500 to-green-600"
-          >
-            {refreshLoading ? '扫描中...' : '扫描系统API'}
-          </Button>
-        </Space>
-      </div>
+        <Button onClick={() => void handleRefreshApis()} disabled={refreshLoading}>
+          <RefreshCcwIcon data-icon="inline-start" className={refreshLoading ? 'animate-spin' : undefined} />
+          {refreshLoading ? '扫描中...' : '扫描系统 API'}
+        </Button>
+      </section>
 
-      {/* API管理主卡片 */}
-      <Card className="shadow-sm">
-        {/* 搜索表单 */}
-        <div className="mb-6 pb-4 border-b border-gray-200">
-          <div className="flex items-center mb-3">
-            <SearchOutlined className="mr-2 text-blue-500" />
-            <span className="font-medium text-gray-700">筛选条件</span>
-          </div>
-          <Form
-            form={searchForm}
-            layout="inline"
-            onFinish={handleSearch}
-            className="w-full"
-          >
-                         <Form.Item name="path" className="mb-2">
-               <Input
-                 id="search_api_path"
-                 placeholder="API路径"
-                 prefix={<ApiOutlined />}
-                 allowClear
-                 style={{ width: 200 }}
-               />
-             </Form.Item>
-             <Form.Item name="summary" className="mb-2">
-               <Input
-                 id="search_api_summary"
-                 placeholder="API描述"
-                 allowClear
-                 style={{ width: 180 }}
-               />
-             </Form.Item>
-             <Form.Item name="tags" className="mb-2">
-               <Select
-                 id="search_api_tags"
-                 mode="multiple"
-                 placeholder={`选择标签 (${availableTags.length}个)`}
-                 allowClear
-                 showSearch
-                 filterOption={(input, option) => {
-                   const tagLabel = option?.label || '';
-                   return tagLabel.toLowerCase().includes(input.toLowerCase());
-                 }}
-                 style={{ width: 200 }}
-                 popupMatchSelectWidth={false}
-                 listHeight={200}
-                 notFoundContent="未找到匹配的标签"
-                 maxTagCount={2}
-                 maxTagPlaceholder={(omittedValues) => `+${omittedValues.length}个标签`}
-               >
-                 {availableTags.map(tag => (
-                   <Option key={tag.value} value={tag.value} label={tag.label}>
-                     <Tag color="cyan" size="small">{tag.label}</Tag>
-                   </Option>
-                 ))}
-               </Select>
-             </Form.Item>
-            <Form.Item className="mb-2">
-              <Space>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  icon={<SearchOutlined />}
-                  loading={loading}
-                >
-                  搜索
-                </Button>
-                <Button
-                  icon={<ClearOutlined />}
-                  onClick={handleClearSearch}
-                >
-                  清空
-                </Button>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={() => fetchApis(currentPage, pageSize, searchParams)}
-                  loading={loading}
-                >
-                  刷新
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </div>
-
-        {/* API列表 */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <ApiOutlined className="mr-2 text-blue-500" />
-              <span className="font-medium text-gray-700">API列表</span>
-            </div>
-            <div className="text-sm text-gray-500">
-              共 {total} 条记录
-            </div>
-          </div>
-          
-          <Table
-            columns={columns}
-            dataSource={apis}
-            rowKey="id"
-            loading={loading}
-            pagination={false}
-            scroll={{ x: 1000 }}
-            size="middle"
-            className="mb-4"
-          />
-          
-          {/* 分页 */}
-          <div className="flex justify-center pt-4 border-t border-gray-200">
-            <Pagination
-              current={currentPage}
-              pageSize={pageSize}
-              total={total}
-              showSizeChanger
-              showQuickJumper
-              showTotal={(total, range) => 
-                `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
-              }
-              onChange={handlePageChange}
-              pageSizeOptions={['10', '20', '50', '100']}
+      <Card>
+        <CardHeader>
+          <CardTitle>筛选条件</CardTitle>
+          <CardDescription>按路径、描述和标签筛选接口</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_auto] xl:items-end" onSubmit={handleSearch}>
+            <Input
+              placeholder="API 路径"
+              value={searchValues.path}
+              onChange={(event) => setSearchValues((current) => ({ ...current, path: event.target.value }))}
             />
-          </div>
-        </div>
+            <Input
+              placeholder="API 描述"
+              value={searchValues.summary}
+              onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                  <span className="truncate text-left">
+                    {selectedTags.length > 0
+                      ? selectedTags.map((tag) => tag.label).join('、')
+                      : '选择标签'}
+                  </span>
+                  <ChevronsUpDownIcon data-icon="inline-end" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                <DropdownMenuLabel>标签筛选</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  {availableTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag.key}
+                      checked={searchValues.tags.includes(tag.value)}
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(checked) =>
+                        setSearchValues((current) => ({
+                          ...current,
+                          tags: checked
+                            ? [...current.tags, tag.value]
+                            : current.tags.filter((value) => value !== tag.value),
+                        }))
+                      }
+                    >
+                      <span className="flex-1">{tag.label}</span>
+                      {tag.count ? <span className="text-xs text-muted-foreground">{tag.count}</span> : null}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" variant="outline" disabled={loading}>
+                <SearchIcon data-icon="inline-start" />
+                搜索
+              </Button>
+              <Button type="button" variant="outline" onClick={handleClearSearch}>
+                <XIcon data-icon="inline-start" />
+                清空
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void refreshApis()} disabled={loading}>
+                <RefreshCcwIcon data-icon="inline-start" />
+                刷新
+              </Button>
+            </div>
+          </form>
+
+          {availableTags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {(selectedTags.length > 0 ? selectedTags : availableTags).map((tag) => (
+                <Badge key={tag.key} variant={selectedTags.length > 0 ? 'secondary' : 'outline'}>
+                  {tag.label}
+                  {tag.count ? ` (${tag.count})` : ''}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
       </Card>
 
-      {/* 编辑API模态框 */}
-      <Modal
-        title={
-          <div className="flex items-center">
-            <ApiOutlined className="mr-2 text-blue-500" />
-            编辑API信息
-          </div>
-        }
-        open={modalVisible}
-        onCancel={handleCloseModal}
-        footer={[
-          <Button key="cancel" onClick={handleCloseModal}>
-            取消
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            loading={modalLoading}
-            onClick={() => modalForm.submit()}
-          >
-            {editingApi ? '更新' : '创建'}
-          </Button>
-        ]}
-        width={600}
-        destroyOnHidden
-      >
-        <Form
-          form={modalForm}
-          layout="vertical"
-          onFinish={handleSaveApi}
-          className="mt-4"
-        >
-          <Row gutter={16}>
-            <Col span={16}>
-              <Form.Item
-                label="API路径"
-                name="path"
-              >
-                <Input
-                  id="modal_api_path"
-                  disabled
-                  className="bg-gray-50"
-                />
-              </Form.Item>
-               </Col>
-               <Col span={8}>
-              <Form.Item
-                label="请求方法"
-                name="method"
-              >
-                <Select
-                  id="modal_api_method"
-                  disabled
-                  className="bg-gray-50"
-                >
-                  {httpMethods.map(method => (
-                    <Option key={method.value} value={method.value}>
-                      <Tag color={method.color}>{method.label}</Tag>
-                    </Option>
+      <Card>
+        <CardHeader>
+          <CardTitle>API 列表</CardTitle>
+          <CardDescription>共 {total} 条记录</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {apis.length > 0 ? (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>API 路径</TableHead>
+                    <TableHead>请求方式</TableHead>
+                    <TableHead>API 描述</TableHead>
+                    <TableHead>API 标签</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>创建时间</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {apis.map((apiItem) => (
+                    <TableRow key={apiItem.id}>
+                      <TableCell className="whitespace-normal">
+                        <code className="rounded bg-muted px-2 py-1 text-xs">{apiItem.path || '-'}</code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getMethodVariant(apiItem.method)}>{apiItem.method}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-normal">{apiItem.summary || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{apiItem.tags || '未分类'}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">已同步</Badge>
+                      </TableCell>
+                      <TableCell>{apiItem.created_at ? new Date(apiItem.created_at).toLocaleString('zh-CN') : '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="icon-sm" onClick={() => openModal(apiItem)}>
+                            <Edit3Icon />
+                            <span className="sr-only">编辑</span>
+                          </Button>
+                          <Button variant="destructive" size="icon-sm" onClick={() => setDeleteTarget(apiItem)}>
+                            <Trash2Icon />
+                            <span className="sr-only">删除</span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
+                </TableBody>
+              </Table>
 
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-            <div className="text-sm text-blue-600">
-              <strong>说明：</strong>API路径和方法由系统自动扫描生成，不可修改。您只能编辑API的描述和标签信息。
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  第 {currentPage} / {totalPages} 页，共 {total} 条
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" disabled={currentPage <= 1 || loading} onClick={() => void handlePageChange(currentPage - 1)}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" disabled={currentPage >= totalPages || loading} onClick={() => void handlePageChange(currentPage + 1)}>
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <Empty className="border bg-muted/20 py-10">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <WaypointsIcon />
+                </EmptyMedia>
+                <EmptyTitle>暂无 API 数据</EmptyTitle>
+                <EmptyDescription>请尝试刷新系统 API，或调整筛选条件后重试。</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={modalVisible} onOpenChange={closeModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑 API 信息</DialogTitle>
+            <DialogDescription>路径和方法由系统自动扫描生成，只允许修改描述和标签。</DialogDescription>
+          </DialogHeader>
+          <form className="flex flex-col gap-4" onSubmit={handleSaveApi}>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="api-path">API 路径</Label>
+              <Input id="api-path" value={modalValues.path} disabled />
             </div>
-          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="api-method">请求方法</Label>
+              <Input id="api-method" value={modalValues.method} disabled />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="api-summary" required invalid={Boolean(modalErrors.summary)}>API 描述</Label>
+              <Input
+                id="api-summary"
+                required
+                value={modalValues.summary}
+                onChange={(event) => {
+                  setModalValues((current) => ({ ...current, summary: event.target.value }))
+                  setModalErrors((current) => ({ ...current, summary: undefined }))
+                }}
+                aria-invalid={Boolean(modalErrors.summary)}
+              />
+              {modalErrors.summary ? <p className="text-xs text-destructive">{modalErrors.summary}</p> : null}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="api-tags" required invalid={Boolean(modalErrors.tags)}>API 标签</Label>
+              <Input
+                id="api-tags"
+                required
+                value={modalValues.tags}
+                onChange={(event) => {
+                  setModalValues((current) => ({ ...current, tags: event.target.value }))
+                  setModalErrors((current) => ({ ...current, tags: undefined }))
+                }}
+                aria-invalid={Boolean(modalErrors.tags)}
+              />
+              {modalErrors.tags ? <p className="text-xs text-destructive">{modalErrors.tags}</p> : null}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => closeModal(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={modalLoading}>
+                {modalLoading ? '更新中...' : '更新'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <Form.Item
-             label="API描述"
-             name="summary"
-             rules={[
-               { required: true, message: '请输入API描述' },
-               { max: 500, message: 'API描述不能超过500个字符' }
-             ]}
-           >
-             <Input 
-               id="modal_api_summary"
-               placeholder="请输入API功能描述" 
-             />
-           </Form.Item>
-           
-           <Form.Item
-             label="API标签"
-             name="tags"
-             rules={[
-               { required: true, message: '请输入API标签' },
-               { max: 100, message: 'API标签不能超过100个字符' }
-             ]}
-           >
-             <Input 
-               id="modal_api_tags"
-               placeholder="例如: User, Role, System" 
-             />
-           </Form.Item>
-        </Form>
-      </Modal>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title="确认删除 API？"
+        description={deleteTarget ? `删除接口 ${deleteTarget.method} ${deleteTarget.path} 后无法恢复。` : ''}
+        confirmText="确认删除"
+        destructive
+        onConfirm={() => void handleDeleteApi()}
+      />
     </div>
   )
 }
 
-export default ApiManagement 
+export default ApiManagement

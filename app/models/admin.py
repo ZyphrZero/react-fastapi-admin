@@ -16,7 +16,6 @@ class User(BaseModel, TimestampMixin):
     last_login = fields.DatetimeField(null=True, description="最后登录时间", db_index=True)
     session_version = fields.IntField(default=0, description="会话版本", db_index=True)
     roles = fields.ManyToManyField("models.Role", related_name="user_roles")
-    dept_id = fields.IntField(null=True, description="部门ID", db_index=True)
 
     class Meta:
         table = "user"
@@ -40,23 +39,6 @@ class Api(BaseModel, TimestampMixin):
 
     class Meta:
         table = "api"
-
-
-class Dept(BaseModel, TimestampMixin):
-    name = fields.CharField(max_length=20, unique=True, description="部门名称", db_index=True)
-    desc = fields.CharField(max_length=500, null=True, description="备注")
-    is_deleted = fields.BooleanField(default=False, description="软删除标记", db_index=True)
-    order = fields.IntField(default=0, description="排序", db_index=True)
-    parent_id = fields.IntField(default=0, max_length=10, description="父部门ID", db_index=True)
-
-    class Meta:
-        table = "dept"
-
-
-class DeptClosure(BaseModel, TimestampMixin):
-    ancestor = fields.IntField(description="父代", db_index=True)
-    descendant = fields.IntField(description="子代", db_index=True)
-    level = fields.IntField(default=0, description="深度", db_index=True)
 
 
 class AuditLog(BaseModel, TimestampMixin):

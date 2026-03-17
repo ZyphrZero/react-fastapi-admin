@@ -15,7 +15,6 @@ async def list_user(
     username: str = Query("", description="用户名称，用于搜索"),
     nickname: str = Query("", description="昵称，用于搜索"),
     email: str = Query("", description="邮箱地址"),
-    dept_id: int = Query(None, description="部门ID"),
 ):
     result = await user_admin_service.list_users(
         page=page,
@@ -23,7 +22,6 @@ async def list_user(
         username=username,
         nickname=nickname,
         email=email,
-        dept_id=dept_id,
     )
     return SuccessExtra(**result)
 

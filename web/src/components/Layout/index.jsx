@@ -1,10 +1,68 @@
-import { useEffect, useState } from 'react'
-import { Avatar, Breadcrumb, Button, Dropdown, Layout, Menu, Space, Spin, Tabs, theme } from 'antd'
-import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import {
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  FolderTreeIcon,
+  LogOutIcon,
+  Settings2Icon,
+  SparklesIcon,
+  UserCircle2Icon,
+  XIcon,
+} from 'lucide-react'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import api from '@/api'
+import { ModeToggle } from '@/components/mode-toggle'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import { Separator } from '@/components/ui/separator'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 import {
   clearSession,
   getStoredMenus,
@@ -14,33 +72,40 @@ import {
   subscribeSessionChange,
 } from '@/utils/session'
 
-const { Header, Sider, Content } = Layout
-
 const DEFAULT_TAB = {
   key: '/dashboard',
   label: '工作台',
   closable: false,
 }
 
+const DEFAULT_BREADCRUMB_LABELS = {
+  '/dashboard': '工作台',
+  '/profile': '个人中心',
+  '/system/settings': '系统设置',
+}
+
 const mapMenuTreeToItems = (menus = []) =>
   menus
     .filter((menu) => !menu.is_hidden)
     .sort((left, right) => (left.order || 0) - (right.order || 0))
-    .map((menu) => {
-      const children = mapMenuTreeToItems(menu.children || [])
+    .map((menu) => ({
+      key: menu.path,
+      label: menu.name,
+      redirect: menu.redirect,
+      icon: menu.icon,
+      children: mapMenuTreeToItems(menu.children || []),
+    }))
 
-      return {
-        key: menu.path,
-        label: menu.name,
-        redirect: menu.redirect,
-        icon: menu.icon ? <Icon icon={menu.icon} width="16" height="16" /> : null,
-        children: children.length > 0 ? children : undefined,
-      }
-    })
+const resolveMenuTarget = (item) => item.redirect || item.key
 
 const buildLabelMap = (items, labelMap = {}) => {
   items.forEach((item) => {
     labelMap[item.key] = item.label
+
+    if (item.redirect) {
+      labelMap[item.redirect] = item.label
+    }
+
     if (item.children?.length) {
       buildLabelMap(item.children, labelMap)
     }
@@ -49,21 +114,59 @@ const buildLabelMap = (items, labelMap = {}) => {
   return labelMap
 }
 
-const findMenuItem = (items, targetKey) => {
+const findItemTrail = (items, targetPath, parentTrail = []) => {
   for (const item of items) {
-    if (item.key === targetKey) {
-      return item
+    if (item.key === targetPath) {
+      return [...parentTrail, item]
     }
 
     if (item.children?.length) {
-      const child = findMenuItem(item.children, targetKey)
-      if (child) {
-        return child
+      const childTrail = findItemTrail(item.children, targetPath, [...parentTrail, item])
+      if (childTrail.length > 0) {
+        return childTrail
       }
+
+      if (item.redirect === targetPath) {
+        return [...parentTrail, item]
+      }
+    }
+
+    if (item.redirect === targetPath) {
+      return [...parentTrail, item]
     }
   }
 
-  return null
+  return []
+}
+
+const buildBreadcrumbItems = (menuItems, targetPath) => {
+  const matchedTrail = findItemTrail(menuItems, targetPath)
+
+  if (matchedTrail.length > 0) {
+    return matchedTrail.map((item) => ({
+      key: item.key,
+      label: item.label,
+      path: resolveMenuTarget(item),
+    }))
+  }
+
+  if (DEFAULT_BREADCRUMB_LABELS[targetPath]) {
+    return [
+      {
+        key: targetPath,
+        label: DEFAULT_BREADCRUMB_LABELS[targetPath],
+        path: targetPath,
+      },
+    ]
+  }
+
+  return [
+    {
+      key: targetPath,
+      label: targetPath,
+      path: targetPath,
+    },
+  ]
 }
 
 const findOpenKeys = (items, targetKey, parentKeys = []) => {
@@ -77,14 +180,110 @@ const findOpenKeys = (items, targetKey, parentKeys = []) => {
       if (childKeys.length > 0) {
         return childKeys
       }
+
+      if (item.redirect === targetKey) {
+        return [...parentKeys, item.key]
+      }
+    }
+
+    if (item.redirect === targetKey) {
+      return parentKeys
     }
   }
 
   return []
 }
 
+const hasActiveChild = (item, targetPath) => {
+  if (item.key === targetPath || item.redirect === targetPath) {
+    return true
+  }
+
+  return item.children?.some((child) => hasActiveChild(child, targetPath)) || false
+}
+
+const getUserInitials = (userInfo) => {
+  const source = userInfo?.nickname || userInfo?.username || '用户'
+  return source.replace(/\s+/g, '').slice(0, 2).toUpperCase()
+}
+
+const renderMenuIcon = (iconName) => {
+  if (!iconName) {
+    return <span className="size-1.5 rounded-full bg-sidebar-foreground/50" />
+  }
+
+  return <Icon icon={iconName} />
+}
+
+const UserMenu = ({ userInfo, onNavigate, onLogout }) => {
+  const { isMobile } = useSidebar()
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Avatar className="size-8 rounded-lg">
+                <AvatarFallback className="rounded-lg">{getUserInitials(userInfo)}</AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+                <span className="truncate font-medium">{userInfo?.nickname || userInfo?.username || '当前用户'}</span>
+                <span className="truncate text-xs text-sidebar-foreground/70">
+                  {userInfo?.email || (userInfo?.is_superuser ? '超级管理员' : '普通用户')}
+                </span>
+              </div>
+              <ChevronsUpDownIcon className="ml-auto" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="min-w-56 rounded-lg"
+            side={isMobile ? 'bottom' : 'right'}
+            align="end"
+            sideOffset={8}
+          >
+            <DropdownMenuLabel className="p-1.5">
+              <div className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm">
+                <Avatar className="size-8 rounded-lg">
+                  <AvatarFallback className="rounded-lg">{getUserInitials(userInfo)}</AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{userInfo?.nickname || userInfo?.username || '当前用户'}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {userInfo?.email || (userInfo?.is_superuser ? '超级管理员' : '普通用户')}
+                  </span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => onNavigate('/profile', '个人中心')}>
+                <UserCircle2Icon />
+                个人中心
+              </DropdownMenuItem>
+              {userInfo?.is_superuser ? (
+                <DropdownMenuItem onSelect={() => onNavigate('/system/settings', '系统设置')}>
+                  <Settings2Icon />
+                  系统设置
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => void onLogout()}>
+              <LogOutIcon />
+              退出登录
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  )
+}
+
 const AppLayout = () => {
-  const [collapsed, setCollapsed] = useState(false)
   const [userInfo, setUserInfo] = useState(() => getStoredUserInfo())
   const [menuItems, setMenuItems] = useState(() => mapMenuTreeToItems(getStoredMenus()))
   const [menuLoading, setMenuLoading] = useState(false)
@@ -93,15 +292,19 @@ const AppLayout = () => {
   const [activeTab, setActiveTab] = useState('/dashboard')
   const navigate = useNavigate()
   const location = useLocation()
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken()
 
-  const breadcrumbNameMap = {
-    '/profile': '个人中心',
-    '/system/settings': '系统设置',
-    ...buildLabelMap(menuItems),
-  }
+  const breadcrumbNameMap = useMemo(
+    () => ({
+      ...DEFAULT_BREADCRUMB_LABELS,
+      ...buildLabelMap(menuItems),
+    }),
+    [menuItems],
+  )
+
+  const breadcrumbItems = useMemo(
+    () => buildBreadcrumbItems(menuItems, location.pathname),
+    [location.pathname, menuItems],
+  )
 
   const resolveTabLabel = (path) => breadcrumbNameMap[path] || path
 
@@ -157,11 +360,13 @@ const AppLayout = () => {
 
     const loadMenus = async () => {
       setMenuLoading(true)
+
       try {
         const [menuResponse, apiPermissionResponse] = await Promise.all([
           api.auth.getUserMenu(),
           api.auth.getUserApi(),
         ])
+
         if (!cancelled) {
           const nextMenus = menuResponse.data || []
           setMenuItems(mapMenuTreeToItems(nextMenus))
@@ -170,6 +375,7 @@ const AppLayout = () => {
         }
       } catch (error) {
         console.error('获取菜单失败:', error)
+
         if (!cancelled) {
           setMenuItems([])
           setStoredMenus([])
@@ -182,7 +388,7 @@ const AppLayout = () => {
       }
     }
 
-    loadMenus()
+    void loadMenus()
 
     return () => {
       cancelled = true
@@ -200,12 +406,7 @@ const AppLayout = () => {
 
   useEffect(() => {
     const currentPath = location.pathname
-    const currentLabelMap = {
-      '/profile': '个人中心',
-      '/system/settings': '系统设置',
-      ...buildLabelMap(menuItems),
-    }
-    const label = currentLabelMap[currentPath] || currentPath
+    const label = breadcrumbNameMap[currentPath] || currentPath
 
     setActiveTab(currentPath)
     setTabs((previousTabs) => {
@@ -221,230 +422,255 @@ const AppLayout = () => {
 
       return previousTabs.map((tab) => (tab.key === currentPath ? { ...tab, label } : tab))
     })
-  }, [location.pathname, menuItems])
+  }, [breadcrumbNameMap, location.pathname])
 
   useEffect(() => {
     setOpenKeys(findOpenKeys(menuItems, location.pathname))
   }, [location.pathname, menuItems])
 
-  const userMenuItems = [
-    {
-      key: 'profile',
-      icon: <UserOutlined className="text-blue-500" />,
-      label: (
-        <div className="flex flex-col">
-          <span className="font-medium">个人中心</span>
-          <span className="text-xs text-gray-500">查看和编辑个人信息</span>
-        </div>
-      ),
-      onClick: () => addTab('/profile', '个人中心'),
-    },
-    ...(userInfo?.is_superuser
-      ? [
-          {
-            key: 'system-settings',
-            icon: <SettingOutlined className="text-slate-500" />,
-            label: (
-              <div className="flex flex-col">
-                <span className="font-medium">系统设置</span>
-                <span className="text-xs text-gray-500">配置对象存储等全局选项</span>
-              </div>
-            ),
-            onClick: () => addTab('/system/settings', '系统设置'),
-          },
-        ]
-      : []),
-    {
-      type: 'divider',
-    },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined className="text-red-500" />,
-      label: (
-        <div className="flex flex-col">
-          <span className="font-medium text-red-600">退出登录</span>
-          <span className="text-xs text-gray-500">安全退出系统</span>
-        </div>
-      ),
-      onClick: () => {
-        void handleLogout()
-      },
-    },
-  ]
+  const toggleOpenKey = (key) => {
+    setOpenKeys((currentOpenKeys) =>
+      currentOpenKeys.includes(key)
+        ? currentOpenKeys.filter((openKey) => openKey !== key)
+        : [...currentOpenKeys, key],
+    )
+  }
 
-  const breadcrumbItems = location.pathname
-    .split('/')
-    .filter(Boolean)
-    .map((_, index, pathSnippets) => {
-      const url = `/${pathSnippets.slice(0, index + 1).join('/')}`
-      return {
-        title: breadcrumbNameMap[url] || url,
-      }
-    })
+  const renderPrimaryNavigation = (items) => (
+    <SidebarMenu>
+      {items.map((item) => {
+        const targetPath = resolveMenuTarget(item)
+        const isCurrentRoute = location.pathname === targetPath
+        const isGroup = item.children?.length > 0
+        const isGroupActive = hasActiveChild(item, location.pathname)
+        const isOpen = openKeys.includes(item.key)
 
-  return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        className="shadow-lg"
-        theme="light"
-        style={{
-          overflow: 'auto',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-        }}
-      >
-        <div className="h-14 flex items-center justify-center border-b border-gray-100 bg-gray-50/50">
-          {collapsed ? (
-            <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-xs">FA</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-                <span className="text-white font-bold text-xs">FA</span>
-              </div>
-              <span className="text-base font-bold text-gray-800">FastAPI Admin</span>
-            </div>
-          )}
-        </div>
+        return (
+          <SidebarMenuItem key={item.key}>
+            <SidebarMenuButton
+              tooltip={item.label}
+              isActive={isCurrentRoute || isGroupActive}
+              onClick={() => {
+                if (isGroup) {
+                  toggleOpenKey(item.key)
+                  return
+                }
 
-        <div style={{ height: 'calc(100% - 56px)' }}>
-          {menuLoading ? (
-            <div className="h-full flex items-center justify-center">
-              <Spin size="small" />
-            </div>
-          ) : (
-            <Menu
-              theme="light"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              openKeys={collapsed ? [] : openKeys}
-              items={menuItems}
-              onOpenChange={setOpenKeys}
-              onClick={({ key }) => {
-                const menuItem = findMenuItem(menuItems, key)
-                const targetPath = menuItem?.redirect || key
                 addTab(targetPath, resolveTabLabel(targetPath))
               }}
-              className="border-r-0"
-              style={{ height: '100%', borderRight: 0 }}
-            />
-          )}
-        </div>
-      </Sider>
-
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s' }}>
-        <div>
-          <Header
-            style={{
-              padding: 10,
-              background: 'transparent',
-              height: '56px',
-              lineHeight: '56px',
-            }}
-            className="flex items-center justify-between px-4"
-          >
-            <div className="flex items-center">
-              <Button
-                type="text"
-                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={() => setCollapsed((previous) => !previous)}
-                className="text-lg w-15 h-15 flex items-center justify-center"
-              />
-
-              <Breadcrumb items={breadcrumbItems} className="ml-3" />
-            </div>
-
-            <Dropdown
-              menu={{ items: userMenuItems }}
-              placement="bottomRight"
-              arrow
-              trigger={['click']}
-              onOpenChange={(open) => {
-                if (open) {
-                  setUserInfo(getStoredUserInfo())
-                }
-              }}
             >
-              <div className="cursor-pointer group">
-                <Space className="px-3 py-2 rounded-lg transition-all duration-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:shadow-sm group-active:scale-95">
-                  <div className="relative">
-                    <Avatar
-                      size={32}
-                      icon={<UserOutlined />}
-                      className="bg-gradient-to-br from-blue-500 to-purple-600 transition-all duration-200 group-hover:shadow-md group-hover:scale-105"
-                      style={{
-                        border: '2px solid transparent',
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
-                    <div className="absolute -bottom-0.5 inset-y-9 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                  </div>
-                  <div className="flex flex-col items-start">
-                    <span className="text-gray-800 font-medium text-sm leading-tight group-hover:text-gray-900 transition-colors">
-                      {userInfo?.nickname || userInfo?.username || '用户'}
-                    </span>
-                    <span className="text-gray-500 text-xs leading-tight">
-                      {userInfo?.is_superuser ? '超级管理员' : '普通用户'}
-                    </span>
-                  </div>
-                  <div className="ml-1 text-gray-400 group-hover:text-gray-600 transition-colors">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                      <path d="M6 8.5L2.5 5H9.5L6 8.5Z" />
-                    </svg>
-                  </div>
-                </Space>
-              </div>
-            </Dropdown>
-          </Header>
+              {renderMenuIcon(item.icon)}
+              <span>{item.label}</span>
+            </SidebarMenuButton>
+            {isGroup ? (
+              <>
+                <SidebarMenuAction
+                  aria-label={`展开 ${item.label}`}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    toggleOpenKey(item.key)
+                  }}
+                  className={cn('transition-transform', isOpen && 'rotate-90')}
+                >
+                  <ChevronRightIcon />
+                </SidebarMenuAction>
+                {isOpen ? (
+                  <SidebarMenuSub>
+                    {item.children.map((child) => {
+                      const childTargetPath = resolveMenuTarget(child)
+                      const childActive = location.pathname === childTargetPath || hasActiveChild(child, location.pathname)
 
-          <div className="px-2">
-            <Tabs
-              type="editable-card"
-              activeKey={activeTab}
-              onChange={handleTabChange}
-              onEdit={(targetKey, action) => {
-                if (action === 'remove') {
-                  removeTab(targetKey)
-                }
-              }}
-              hideAdd
-              size="middle"
-              className="!mb-0"
-              tabBarStyle={{
-                marginBottom: 0,
-                borderBottom: 'none',
-              }}
-              items={tabs.map((tab) => ({
-                key: tab.key,
-                label: tab.label,
-                closable: tab.closable,
-              }))}
-            />
+                      return (
+                        <SidebarMenuSubItem key={child.key}>
+                          <SidebarMenuSubButton asChild isActive={childActive}>
+                            <button
+                              type="button"
+                              onClick={() => addTab(childTargetPath, resolveTabLabel(childTargetPath))}
+                            >
+                              <span>{child.label}</span>
+                            </button>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )
+                    })}
+                  </SidebarMenuSub>
+                ) : null}
+              </>
+            ) : null}
+          </SidebarMenuItem>
+        )
+      })}
+    </SidebarMenu>
+  )
+
+  return (
+    <SidebarProvider
+      style={{
+        '--sidebar-width': '18.5rem',
+        '--sidebar-width-mobile': '18rem',
+      }}
+    >
+      <Sidebar variant="inset">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to="/dashboard">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <SparklesIcon />
+                  </div>
+                  <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">React FastAPI Admin</span>
+                    <span className="truncate text-xs text-sidebar-foreground/70">管理后台</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>主导航</SidebarGroupLabel>
+            <SidebarGroupContent>
+              {menuLoading ? (
+                <SidebarMenu>
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <SidebarMenuItem key={`menu-skeleton-${index}`}>
+                      <SidebarMenuSkeleton showIcon />
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              ) : menuItems.length > 0 ? (
+                renderPrimaryNavigation(menuItems)
+              ) : (
+                <Empty className="border bg-sidebar-accent/30 py-8">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FolderTreeIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>暂无可用菜单</EmptyTitle>
+                    <EmptyDescription>当前账户没有可展示的导航项，或者菜单仍在同步中。</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup className="mt-auto group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel>快捷入口</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton size="sm" onClick={() => addTab('/profile', '个人中心')}>
+                    <UserCircle2Icon />
+                    <span>个人中心</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {userInfo?.is_superuser ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton size="sm" onClick={() => addTab('/system/settings', '系统设置')}>
+                      <Settings2Icon />
+                      <span>系统设置</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : null}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter>
+          <UserMenu userInfo={userInfo} onNavigate={addTab} onLogout={handleLogout} />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset className="min-h-svh">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbItems.map((item, index) => {
+                  const isLast = index === breadcrumbItems.length - 1
+
+                  return (
+                    <BreadcrumbItem key={`${item.path}-${index}`}>
+                      {isLast ? (
+                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                      ) : (
+                        <>
+                          <BreadcrumbLink asChild>
+                            <button type="button" onClick={() => addTab(item.path, item.label)}>
+                              {item.label}
+                            </button>
+                          </BreadcrumbLink>
+                          <BreadcrumbSeparator className="hidden md:block" />
+                        </>
+                      )}
+                    </BreadcrumbItem>
+                  )
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+          </div>
+        </header>
+
+        <div className="border-b bg-background/80">
+          <div className="flex min-h-11 items-center gap-1 overflow-x-auto px-4 lg:px-6">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.key
+
+              return (
+                <div
+                  key={tab.key}
+                  className={cn(
+                    'flex shrink-0 items-center rounded-md transition-colors',
+                    isActive
+                      ? 'bg-secondary text-secondary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange(tab.key)}
+                    className="truncate px-3 py-2 text-sm"
+                  >
+                    {tab.label}
+                  </button>
+                  {tab.closable ? (
+                    <button
+                      type="button"
+                      onClick={() => removeTab(tab.key)}
+                      className="mr-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                      aria-label={`关闭 ${tab.label}`}
+                    >
+                      <XIcon className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        <Content className="p-2">
+        <div className="flex flex-1 flex-col px-4 py-5 lg:px-6 lg:py-6">
           <div
-            style={{
-              padding: '16px 16px',
-              minHeight: 'calc(100vh - 120px)',
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}
-            className="shadow-sm border border-gray-100"
+            key={location.pathname}
+            className="flex flex-1 flex-col motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-2 motion-safe:duration-300"
           >
             <Outlet />
           </div>
-        </Content>
-      </Layout>
-    </Layout>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 

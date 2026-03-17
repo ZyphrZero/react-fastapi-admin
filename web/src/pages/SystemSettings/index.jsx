@@ -1,38 +1,78 @@
-import { useCallback, useEffect, useState } from 'react'
-import {
-  Button,
-  Card,
-  Col,
-  Form,
-  Input,
-  Row,
-  Switch,
-  Tabs,
-} from 'antd'
-import {
-  CloudServerOutlined,
-  DatabaseOutlined,
-  FolderOpenOutlined,
-  SaveOutlined,
-} from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CloudIcon, FolderIcon, HardDriveUploadIcon, SaveIcon, ServerCogIcon } from 'lucide-react'
 
 import api from '@/api'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 
+const defaultValues = {
+  provider: 'local',
+  local_upload_dir: 'uploads',
+  local_full_url: '',
+  oss_access_key_id: '',
+  oss_access_key_secret: '',
+  oss_bucket_name: '',
+  oss_endpoint: '',
+  oss_bucket_domain: '',
+  oss_upload_dir: 'uploads',
+}
+
+const validateSettings = (values) => {
+  const errors = {}
+
+  if (!values.local_upload_dir.trim()) {
+    errors.local_upload_dir = '请填写本地上传目录'
+  }
+
+  if (!values.oss_upload_dir.trim()) {
+    errors.oss_upload_dir = '请填写上传目录'
+  }
+
+  if (values.provider === 'oss') {
+    if (!values.oss_access_key_id.trim()) errors.oss_access_key_id = '启用对象存储时必须填写 AccessKey ID'
+    if (!values.oss_access_key_secret.trim()) errors.oss_access_key_secret = '启用对象存储时必须填写 AccessKey Secret'
+    if (!values.oss_bucket_name.trim()) errors.oss_bucket_name = '启用对象存储时必须填写 Bucket 名称'
+    if (!values.oss_endpoint.trim()) errors.oss_endpoint = '启用对象存储时必须填写 Endpoint'
+  }
+
+  return errors
+}
+
+const fieldConfig = [
+  { key: 'local_upload_dir', label: '本地上传目录', placeholder: '例如 uploads' },
+  { key: 'local_full_url', label: '本地完整访问地址', placeholder: '可选，例如 https://files.example.com' },
+]
+
+const ossFieldConfig = [
+  { key: 'oss_access_key_id', label: 'AccessKey ID', placeholder: '请输入 AccessKey ID' },
+  { key: 'oss_access_key_secret', label: 'AccessKey Secret', placeholder: '请输入 AccessKey Secret', type: 'password' },
+  { key: 'oss_bucket_name', label: 'Bucket 名称', placeholder: '例如 media-assets' },
+  { key: 'oss_endpoint', label: 'Endpoint', placeholder: '例如 oss-cn-hangzhou.aliyuncs.com' },
+  { key: 'oss_bucket_domain', label: '自定义域名', placeholder: '可选，例如 cdn.example.com' },
+  { key: 'oss_upload_dir', label: '上传目录', placeholder: '例如 uploads' },
+]
+
 const SystemSettings = () => {
-  const [form] = Form.useForm()
+  const [values, setValues] = useState(defaultValues)
+  const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const provider = Form.useWatch('provider', form) || 'local'
 
   const { handleBusinessError, handleError, showSuccess } = useErrorHandler()
+
+  const provider = values.provider || 'local'
 
   const fetchStorageSettings = useCallback(async () => {
     setLoading(true)
     try {
       const response = await api.systemSettings.getStorageSettings()
       const data = response.data || {}
-      form.setFieldsValue({
+      setValues({
         provider: data.provider || 'local',
         local_upload_dir: data.local_upload_dir || 'uploads',
         local_full_url: data.local_full_url || '',
@@ -48,22 +88,36 @@ const SystemSettings = () => {
     } finally {
       setLoading(false)
     }
-  }, [form, handleError])
+  }, [handleError])
 
   useEffect(() => {
     void fetchStorageSettings()
   }, [fetchStorageSettings])
 
-  const handleSave = async (values) => {
+  const updateField = (field, value) => {
+    setValues((current) => ({ ...current, [field]: value }))
+    setErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  const handleSave = async (event) => {
+    event.preventDefault()
+
+    const nextErrors = validateSettings(values)
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      return
+    }
+
     setSaving(true)
     try {
       const payload = {
         ...values,
-        provider: values.provider || 'local',
+        provider,
       }
       const response = await api.systemSettings.updateStorageSettings(payload)
       const data = response.data || payload
-      form.setFieldsValue({
+
+      setValues({
         provider: data.provider || 'local',
         local_upload_dir: data.local_upload_dir || 'uploads',
         local_full_url: data.local_full_url || '',
@@ -82,204 +136,171 @@ const SystemSettings = () => {
     }
   }
 
-  const storageSettingsContent = (
-    <Form
-      form={form}
-      layout="vertical"
-      initialValues={{
-        provider: 'local',
-        local_upload_dir: 'uploads',
-        local_full_url: '',
-        oss_upload_dir: 'uploads',
-      }}
-      onFinish={handleSave}
-    >
-      <Form.Item name="provider" hidden>
-        <Input />
-      </Form.Item>
-
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-4 mb-6">
-        <div>
-          <div className="text-base font-semibold text-gray-800">当前生效模式</div>
-          <div className="text-sm text-gray-500 mt-1">切换后保存即可生效，不影响另一套配置的填写和保存。</div>
-        </div>
-        <Switch
-          checked={provider === 'oss'}
-          checkedChildren="对象存储"
-          unCheckedChildren="本地"
-          onChange={(checked) => {
-            form.setFieldValue('provider', checked ? 'oss' : 'local')
-          }}
-        />
-      </div>
-
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <FolderOpenOutlined className="text-gray-500" />
-          <h2 className="text-base font-semibold text-gray-800 mb-0">本地存储</h2>
-        </div>
-
-        <Row gutter={[16, 0]}>
-          <Col xs={24} md={12}>
-            <Form.Item
-              label="本地上传目录"
-              name="local_upload_dir"
-              rules={[{ required: true, message: '请填写本地上传目录' }]}
-            >
-              <Input
-                size="large"
-                prefix={<FolderOpenOutlined className="text-slate-400" />}
-                placeholder="例如 uploads"
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item label="本地完整访问地址" name="local_full_url">
-              <Input
-                size="large"
-                prefix={<CloudServerOutlined className="text-slate-400" />}
-                placeholder="可选，例如 https://files.example.com"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
-        <CloudServerOutlined className="text-gray-500" />
-        <h2 className="text-base font-semibold text-gray-800 mb-0">对象存储</h2>
-      </div>
-
-      <Row gutter={[16, 0]}>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="AccessKey ID"
-            name="oss_access_key_id"
-            rules={[
-              {
-                required: provider === 'oss',
-                message: '启用对象存储时必须填写 AccessKey ID',
-              },
-            ]}
-          >
-            <Input
-              size="large"
-              prefix={<CloudServerOutlined className="text-slate-400" />}
-              placeholder="请输入 AccessKey ID"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="AccessKey Secret"
-            name="oss_access_key_secret"
-            rules={[
-              {
-                required: provider === 'oss',
-                message: '启用对象存储时必须填写 AccessKey Secret',
-              },
-            ]}
-          >
-            <Input.Password
-              size="large"
-              prefix={<DatabaseOutlined className="text-slate-400" />}
-              placeholder="请输入 AccessKey Secret"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Bucket 名称"
-            name="oss_bucket_name"
-            rules={[
-              {
-                required: provider === 'oss',
-                message: '启用对象存储时必须填写 Bucket 名称',
-              },
-            ]}
-          >
-            <Input
-              size="large"
-              prefix={<DatabaseOutlined className="text-slate-400" />}
-              placeholder="例如 media-assets"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Endpoint"
-            name="oss_endpoint"
-            rules={[
-              {
-                required: provider === 'oss',
-                message: '启用对象存储时必须填写 Endpoint',
-              },
-            ]}
-          >
-            <Input
-              size="large"
-              prefix={<CloudServerOutlined className="text-slate-400" />}
-              placeholder="例如 oss-cn-hangzhou.aliyuncs.com"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item label="自定义域名" name="oss_bucket_domain">
-            <Input
-              size="large"
-              prefix={<CloudServerOutlined className="text-slate-400" />}
-              placeholder="可选，例如 cdn.example.com"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="上传目录"
-            name="oss_upload_dir"
-            rules={[{ required: true, message: '请填写上传目录' }]}
-          >
-            <Input
-              size="large"
-              prefix={<FolderOpenOutlined className="text-slate-400" />}
-              placeholder="例如 uploads"
-              disabled={provider !== 'oss'}
-            />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <div className="flex justify-end">
-        <Button type="primary" htmlType="submit" size="large" icon={<SaveOutlined />} loading={saving}>
-          保存设置
-        </Button>
-      </div>
-    </Form>
+  const statusBadges = useMemo(
+    () => [
+      {
+        label: '当前模式',
+        value: provider === 'oss' ? '对象存储' : '本地存储',
+      },
+      {
+        label: '本地目录',
+        value: values.local_upload_dir || 'uploads',
+      },
+      {
+        label: '对象存储目录',
+        value: values.oss_upload_dir || 'uploads',
+      },
+    ],
+    [provider, values.local_upload_dir, values.oss_upload_dir],
   )
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">系统设置</h1>
-        <p className="text-gray-500 mt-1">管理系统级配置，仅超级管理员可修改。当前开放存储设置。</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">系统设置</h1>
+          <p className="text-sm text-muted-foreground">管理系统级配置，当前开放存储设置</p>
+        </div>
 
-      <Card loading={loading} title="设置项">
-        <Tabs
-          defaultActiveKey="storage"
-          items={[
-            {
-              key: 'storage',
-              label: '存储设置',
-              children: storageSettingsContent,
-            },
-          ]}
-        />
-      </Card>
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+          {statusBadges.map((item) => (
+            <div key={item.label} className="rounded-lg border bg-background px-3 py-2">
+              <span className="mr-2 text-muted-foreground">{item.label}</span>
+              <span className="font-medium text-foreground">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <Tabs defaultValue="storage">
+        <TabsList>
+          <TabsTrigger value="storage">存储设置</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="storage">
+          <Card>
+            <CardHeader>
+              <CardTitle>存储设置</CardTitle>
+              <CardDescription>切换存储模式后保存即可生效，不影响另一套配置的填写</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-sm text-muted-foreground">加载中...</div>
+              ) : (
+                <form className="flex flex-col gap-6" onSubmit={handleSave}>
+                  <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                        <ServerCogIcon />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">当前生效模式</div>
+                        <div className="text-sm text-muted-foreground">
+                          当前为 {provider === 'oss' ? '对象存储' : '本地存储'}，切换后保存即可应用
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-muted-foreground">本地</span>
+                      <Switch
+                        checked={provider === 'oss'}
+                        onCheckedChange={(checked) => updateField('provider', checked ? 'oss' : 'local')}
+                      />
+                      <span className="text-sm text-muted-foreground">对象存储</span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <Card size="sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <FolderIcon className="size-4" />
+                          本地存储
+                        </CardTitle>
+                        <CardDescription>本地磁盘目录与访问地址</CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex flex-col gap-4">
+                        {fieldConfig.map((field) => (
+                          <div key={field.key} className="flex flex-col gap-2">
+                            <Label
+                              htmlFor={field.key}
+                              required={field.key === 'local_upload_dir'}
+                              invalid={Boolean(errors[field.key])}
+                            >
+                              {field.label}
+                            </Label>
+                            <Input
+                              id={field.key}
+                              required={field.key === 'local_upload_dir'}
+                              value={values[field.key]}
+                              placeholder={field.placeholder}
+                              onChange={(event) => updateField(field.key, event.target.value)}
+                              aria-invalid={Boolean(errors[field.key])}
+                            />
+                            {errors[field.key] ? <p className="text-xs text-destructive">{errors[field.key]}</p> : null}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    <Card size="sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CloudIcon className="size-4" />
+                          对象存储
+                        </CardTitle>
+                        <CardDescription>启用对象存储时必须完成以下配置</CardDescription>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 md:grid-cols-2">
+                        {ossFieldConfig.map((field) => (
+                          <div
+                            key={field.key}
+                            className={`flex flex-col gap-2 ${field.key === 'oss_bucket_domain' ? 'md:col-span-2' : ''}`}
+                          >
+                            <Label
+                              htmlFor={field.key}
+                              required={
+                                field.key === 'oss_upload_dir' ||
+                                (provider === 'oss' &&
+                                  ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
+                              }
+                              invalid={Boolean(errors[field.key])}
+                            >
+                              {field.label}
+                            </Label>
+                            <Input
+                              id={field.key}
+                              type={field.type || 'text'}
+                              required={
+                                field.key === 'oss_upload_dir' ||
+                                (provider === 'oss' &&
+                                  ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
+                              }
+                              disabled={provider !== 'oss'}
+                              value={values[field.key]}
+                              placeholder={field.placeholder}
+                              onChange={(event) => updateField(field.key, event.target.value)}
+                              aria-invalid={Boolean(errors[field.key])}
+                            />
+                            {errors[field.key] ? <p className="text-xs text-destructive">{errors[field.key]}</p> : null}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={saving}>
+                      <SaveIcon data-icon="inline-start" />
+                      {saving ? '保存中...' : '保存设置'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

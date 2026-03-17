@@ -5,7 +5,7 @@ import asyncio
 from tortoise.expressions import Q
 
 from app.core.exceptions import AuthenticationError, ValidationError
-from app.repositories import dept_repository, role_repository, user_repository
+from app.repositories import role_repository, user_repository
 from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.utils.password import get_password_hash, validate_password_strength, verify_password
 
@@ -17,7 +17,6 @@ class UserAdminService:
         username: str = "",
         nickname: str = "",
         email: str = "",
-        dept_id: int | None = None,
     ) -> Q:
         query = Q()
         if username:
@@ -26,8 +25,6 @@ class UserAdminService:
             query &= Q(nickname__contains=nickname)
         if email:
             query &= Q(email__contains=email)
-        if dept_id is not None:
-            query &= Q(dept_id=dept_id)
         return query
 
     async def list_users(
@@ -38,22 +35,10 @@ class UserAdminService:
         username: str = "",
         nickname: str = "",
         email: str = "",
-        dept_id: int | None = None,
     ) -> dict:
-        search = self.build_search_query(username=username, nickname=nickname, email=email, dept_id=dept_id)
+        search = self.build_search_query(username=username, nickname=nickname, email=email)
         total, user_objects = await user_repository.list_users(page=page, page_size=page_size, search=search)
         data = list(await asyncio.gather(*(obj.to_dict(m2m=True, exclude_fields=["password"]) for obj in user_objects)))
-
-        dept_ids = {item.get("dept_id") for item in data if item.get("dept_id")}
-        dept_map = {}
-        if dept_ids:
-            dept_objects = await dept_repository.list_by_ids(dept_ids)
-            dept_dicts = await asyncio.gather(*(dept.to_dict() for dept in dept_objects))
-            dept_map = {dept["id"]: dept for dept in dept_dicts}
-
-        for item in data:
-            current_dept_id = item.pop("dept_id", None)
-            item["dept"] = dept_map.get(current_dept_id, {})
 
         return {
             "data": data,

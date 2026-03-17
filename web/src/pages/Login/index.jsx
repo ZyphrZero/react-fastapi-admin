@@ -1,8 +1,17 @@
-import { useState } from 'react'
-import { Form, Input, Button, Card } from 'antd'
-import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons'
+import { useMemo, useState } from 'react'
+import { ArrowRightIcon, LockKeyholeIcon, SparklesIcon, UserIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
 import api from '@/api'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { findFirstAccessiblePath } from '@/utils/permission'
 import {
@@ -14,23 +23,55 @@ import {
   setStoredUserInfo,
 } from '@/utils/session'
 
+const validateLoginForm = (values) => {
+  const nextErrors = {}
+
+  if (!values.username.trim()) {
+    nextErrors.username = '请输入用户名'
+  } else if (values.username.trim().length < 3) {
+    nextErrors.username = '用户名至少 3 个字符'
+  }
+
+  if (!values.password) {
+    nextErrors.password = '请输入密码'
+  }
+
+  return nextErrors
+}
+
 const Login = () => {
   const [loading, setLoading] = useState(false)
+  const [formValues, setFormValues] = useState({ username: '', password: '' })
+  const [fieldErrors, setFieldErrors] = useState({})
   const navigate = useNavigate()
   const { handleBusinessError, showSuccess } = useErrorHandler()
 
-  const onFinish = async (values) => {
+  const formIsValid = useMemo(() => Object.keys(validateLoginForm(formValues)).length === 0, [formValues])
+
+  const updateField = (name, value) => {
+    setFormValues((current) => ({ ...current, [name]: value }))
+    setFieldErrors((current) => ({ ...current, [name]: undefined }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    const nextErrors = validateLoginForm(formValues)
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors)
+      return
+    }
+
     setLoading(true)
     try {
       const response = await api.auth.login({
-        username: values.username,
-        password: values.password,
+        username: formValues.username.trim(),
+        password: formValues.password,
       })
 
-      // 保存token和用户信息
       setAccessToken(response.data.access_token)
       setRefreshToken(response.data.refresh_token)
-      
+
       const [userInfo, userMenu, userApi] = await Promise.all([
         api.auth.getUserInfo(),
         api.auth.getUserMenu(),
@@ -41,7 +82,7 @@ const Login = () => {
       setStoredMenus(userMenu.data || [])
       setStoredApiPermissions(userApi.data || [])
 
-      showSuccess('登录成功！')
+      showSuccess('登录成功')
       navigate(findFirstAccessiblePath(userMenu.data || []))
     } catch (error) {
       clearSession()
@@ -52,88 +93,73 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-400/20 blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-br from-purple-400/20 to-pink-400/20 blur-3xl"></div>
-      </div>
-
-      <div className="relative w-full max-w-md">
-        <Card 
-          className="shadow-2xl border-0 backdrop-blur-sm bg-white/90"
-          styles={{
-            body: {
-              padding: '2rem'
-            }
-          }}
-        >
-          {/* Logo和标题 */}
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-              <LoginOutlined className="text-2xl text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">React FastAPI Admin</h1>
-            <p className="text-gray-500">欢迎回来，请登录您的账户</p>
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <SparklesIcon className="size-4" />
           </div>
-
-          {/* 登录表单 */}
-          <Form
-            name="login"
-            onFinish={onFinish}
-            size="large"
-            className="space-y-4"
-          >
-            <Form.Item
-              name="username"
-              rules={[
-                { required: true, message: '请输入用户名!' },
-                { min: 3, message: '用户名至少3个字符!' }
-              ]}
-            >
-              <Input
-                prefix={<UserOutlined className="text-gray-400" />}
-                placeholder="用户名"
-                className="rounded-lg border-gray-200 hover:border-blue-400 focus:border-blue-500"
-                autoComplete="username"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="password"
-              rules={[
-                { required: true, message: '请输入密码!' }
-              ]}
-            >
-              <Input.Password
-                prefix={<LockOutlined className="text-gray-400" />}
-                placeholder="密码"
-                className="rounded-lg border-gray-200 hover:border-blue-400 focus:border-blue-500"
-                autoComplete="current-password"
-              />
-            </Form.Item>
-
-            <Form.Item className="mb-0">
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loading}
-                className="w-full h-12 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 border-0 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                {loading ? '登录中...' : '登录'}
-              </Button>
-            </Form.Item>
-          </Form>
-
-        </Card>
-
-        {/* 版权信息 */}
-        <div className="text-center mt-8 text-sm text-gray-400">
-          <p>© 2025 React FastAPI Admin. 基于 React + Ant Design + Tailwind CSS</p>
+          React FastAPI Admin
         </div>
+
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">登录后台</CardTitle>
+            <CardDescription>使用账户信息继续</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit}>
+              <FieldGroup>
+                <Field data-invalid={Boolean(fieldErrors.username)}>
+                  <FieldLabel htmlFor="username" required>用户名</FieldLabel>
+                  <div className="relative">
+                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      autoComplete="username"
+                      required
+                      className="pl-9"
+                      placeholder="请输入用户名"
+                      value={formValues.username}
+                      onChange={(event) => updateField('username', event.target.value)}
+                      aria-invalid={Boolean(fieldErrors.username)}
+                    />
+                  </div>
+                  <FieldError>{fieldErrors.username}</FieldError>
+                </Field>
+
+                <Field data-invalid={Boolean(fieldErrors.password)}>
+                  <FieldLabel htmlFor="password" required>密码</FieldLabel>
+                  <div className="relative">
+                    <LockKeyholeIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      className="pl-9"
+                      placeholder="请输入密码"
+                      value={formValues.password}
+                      onChange={(event) => updateField('password', event.target.value)}
+                      aria-invalid={Boolean(fieldErrors.password)}
+                    />
+                  </div>
+                  <FieldError>{fieldErrors.password}</FieldError>
+                </Field>
+
+                <Field>
+                  <Button type="submit" size="lg" disabled={loading || !formIsValid}>
+                    {loading ? '登录中...' : '登录后台'}
+                    {!loading ? <ArrowRightIcon data-icon="inline-end" /> : null}
+                  </Button>
+                </Field>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
 }
 
-export default Login 
+export default Login
