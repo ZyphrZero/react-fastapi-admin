@@ -3,11 +3,11 @@
 # react-fastapi-admin
 
 <p>
-  <strong>一个基于 FastAPI + React + Ant Design 的现代化后台管理系统</strong>
+  <strong>一个基于 FastAPI + React + shadcn/ui 的现代化后台管理系统</strong>
 </p>
 
 <p>
-  默认使用 SQLite 启动，内置启动引导、JWT 认证、RBAC 权限控制、审计日志与文件上传能力。
+  默认使用 SQLite 启动，内置启动引导、JWT 认证、RBAC 权限控制、审计日志、文件上传与个人中心头像裁剪上传能力。
 </p>
 
 <p>
@@ -42,7 +42,7 @@
     </td>
     <td width="33%">
       <strong>前后端分离</strong><br>
-      后端基于 FastAPI，前端基于 React 19 + Vite 8，接口与页面职责清晰。
+      后端基于 FastAPI，前端基于 React 19 + Vite 8，页面、权限与接口职责清晰。
     </td>
   </tr>
   <tr>
@@ -52,7 +52,7 @@
     </td>
     <td width="33%">
       <strong>上传能力可切换</strong><br>
-      支持本地存储与对象存储，超级管理员可在系统设置页面直接切换与维护。
+      支持本地存储与对象存储，头像上传支持裁剪并统一转换为 WebP。
     </td>
     <td width="33%">
       <strong>开箱即看文档</strong><br>
@@ -67,19 +67,20 @@
 | --- | --- | --- |
 | 认证与会话 | 已完成 | JWT 登录、刷新令牌、退出登录、密码修改、个人资料更新 |
 | 权限控制 | 已完成 | RBAC 菜单权限、API 权限、前端页面守卫 |
-| 工作台 | 已完成 | 概览统计、系统状态、近期活动 |
+| 工作台 | 已完成 | 概览统计、运行状态、趋势图、分布图、近期活动 |
 | 用户管理 | 已完成 | 用户查询、创建、编辑、启停等管理能力 |
 | 角色管理 | 已完成 | 角色维护、权限分配 |
 | API 管理 | 已完成 | API 元数据维护与权限关联 |
 | 审计日志 | 已完成 | 条件检索、游标分页、详情、导出 |
+| 个人中心 | 已完成 | 头像裁剪上传、WebP 转换、昵称/邮箱/手机号维护 |
 | 文件上传 | 已完成 | 本地存储与对象存储上传 |
 
 ## 技术栈
 
 | 层级 | 技术 |
 | --- | --- |
-| Backend | FastAPI, Granian, Tortoise ORM, Aerich, Pydantic Settings, Loguru, PyJWT |
-| Frontend | React 19, Vite 8, Ant Design 6, Tailwind CSS 4, React Router 7, Axios |
+| Backend | FastAPI, Granian, Tortoise ORM, Aerich, Pydantic Settings, Loguru, PyJWT, Pillow |
+| Frontend | React 19, Vite 8, shadcn/ui, Tailwind CSS 4, React Router 7, Axios, Recharts |
 | Database | SQLite 默认，可切换 MySQL / PostgreSQL |
 
 ## 项目结构
@@ -181,7 +182,10 @@ pnpm install
 pnpm dev
 ```
 
-前端开发服务器默认运行在 `http://127.0.0.1:5173`，并会将 `/api` 请求代理到 `http://127.0.0.1:9999/api/v1`。
+前端开发服务器默认运行在 `http://127.0.0.1:5173`，并会将以下路径代理到后端：
+
+- `/api` -> `http://127.0.0.1:9999/api/v1`
+- `/static` -> `http://127.0.0.1:9999/static`
 
 ## 访问入口
 
@@ -198,6 +202,13 @@ pnpm dev
 - 用户名默认为 `admin`
 - 密码由 `INITIAL_ADMIN_PASSWORD` 决定
 - 如果未配置初始密码，请从首次启动控制台复制系统生成的一次性密码
+
+## 界面说明
+
+- 工作台使用 `Recharts` + `shadcn/ui chart` 组件展示近 7 天趋势、模块热度和状态分布。
+- 登录页支持浅色、深色和跟随系统主题切换，并使用点阵 + 渐变风格背景。
+- 个人中心支持头像裁剪上传，前端导出 WebP，后端再次统一转换为 WebP 后保存。
+- 本地静态资源通过 `/static` 暴露，头像与上传文件在开发环境也可直接通过 Vite 代理访问。
 
 ## 常用命令
 
@@ -259,12 +270,14 @@ aerich upgrade
 - 登录、刷新令牌等基础接口位于 `/api/v1/base`
 - 受保护模块包括用户、角色、API、审计日志、上传等资源
 - 前端菜单权限与接口权限均基于角色聚合结果控制
+- 个人中心头像上传接口位于 `/api/v1/base/upload_avatar`，仅要求已登录，不依赖额外页面权限
 
 ### 启动行为
 
 - 根路径 `/` 会重定向到 `/docs`
 - 开发环境会根据配置自动决定是否启用热重载、自动迁移和 API 元数据刷新
 - 本地文件上传默认挂载到 `/static`
+- `.webp` 静态资源已注册为 `image/webp` MIME 类型，适用于头像与图片资源直接访问
 
 ## Docker 说明
 
