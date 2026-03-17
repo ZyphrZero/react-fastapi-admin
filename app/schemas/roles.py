@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaseRole(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     desc: str = ""
@@ -13,9 +15,6 @@ class BaseRole(BaseModel):
     users: Optional[list] = Field(default_factory=list)
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
 
 
 class RoleCreate(BaseModel):

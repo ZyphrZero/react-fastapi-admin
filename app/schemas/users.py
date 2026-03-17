@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class BaseUser(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: Optional[EmailStr] = None
     username: Optional[str] = None
@@ -13,14 +15,13 @@ class BaseUser(BaseModel):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     last_login: Optional[datetime]
-    roles: Optional[list] = []
-
-    class Config:
-        from_attributes = True
+    roles: Optional[list] = Field(default_factory=list)
 
 
 class UserOut(BaseModel):
     """用户输出模型，用于API响应"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     username: str
@@ -31,9 +32,6 @@ class UserOut(BaseModel):
     updated_at: datetime
     last_login: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
 
 class UserCreate(BaseModel):
     email: EmailStr = Field(description="邮箱")
@@ -43,7 +41,7 @@ class UserCreate(BaseModel):
     password: str = Field(description="密码")
     is_active: Optional[bool] = True
     is_superuser: Optional[bool] = False
-    role_ids: Optional[List[int]] = []
+    role_ids: Optional[List[int]] = Field(default_factory=list)
     dept_id: Optional[int] = Field(default=None, description="部门ID")
 
     def create_dict(self):
@@ -89,7 +87,7 @@ class TokenPayload(BaseModel):
     email: str
     is_active: Optional[bool] = True
     is_superuser: bool
-    role_ids: Optional[List[int]] = []
+    role_ids: Optional[List[int]] = Field(default_factory=list)
     dept_id: Optional[int] = 0
 
 

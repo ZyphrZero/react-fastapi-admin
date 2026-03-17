@@ -6,24 +6,24 @@ from .enums import MethodType
 
 
 class User(BaseModel, TimestampMixin):
-    username = fields.CharField(max_length=20, unique=True, description="用户名称", index=True)
-    nickname = fields.CharField(max_length=30, null=True, description="昵称", index=True)
-    email = fields.CharField(max_length=255, null=True, unique=True, description="邮箱", index=True)
-    phone = fields.CharField(max_length=20, null=True, description="电话", index=True)
+    username = fields.CharField(max_length=20, unique=True, description="用户名称", db_index=True)
+    nickname = fields.CharField(max_length=30, null=True, description="昵称", db_index=True)
+    email = fields.CharField(max_length=255, null=True, unique=True, description="邮箱", db_index=True)
+    phone = fields.CharField(max_length=20, null=True, description="电话", db_index=True)
     password = fields.CharField(max_length=128, null=True, description="密码")
-    is_active = fields.BooleanField(default=True, description="是否激活", index=True)
-    is_superuser = fields.BooleanField(default=False, description="是否为超级管理员", index=True)
-    last_login = fields.DatetimeField(null=True, description="最后登录时间", index=True)
-    session_version = fields.IntField(default=0, description="会话版本", index=True)
+    is_active = fields.BooleanField(default=True, description="是否激活", db_index=True)
+    is_superuser = fields.BooleanField(default=False, description="是否为超级管理员", db_index=True)
+    last_login = fields.DatetimeField(null=True, description="最后登录时间", db_index=True)
+    session_version = fields.IntField(default=0, description="会话版本", db_index=True)
     roles = fields.ManyToManyField("models.Role", related_name="user_roles")
-    dept_id = fields.IntField(null=True, description="部门ID", index=True)
+    dept_id = fields.IntField(null=True, description="部门ID", db_index=True)
 
     class Meta:
         table = "user"
 
 
 class Role(BaseModel, TimestampMixin):
-    name = fields.CharField(max_length=20, unique=True, description="角色名称", index=True)
+    name = fields.CharField(max_length=20, unique=True, description="角色名称", db_index=True)
     desc = fields.CharField(max_length=500, null=True, description="角色描述")
     menu_paths = fields.JSONField(default=list, description="菜单权限路径")
     api_ids = fields.JSONField(default=list, description="API权限ID列表")
@@ -33,48 +33,48 @@ class Role(BaseModel, TimestampMixin):
 
 
 class Api(BaseModel, TimestampMixin):
-    path = fields.CharField(max_length=100, description="API路径", index=True)
-    method = fields.CharEnumField(MethodType, description="请求方法", index=True)
-    summary = fields.CharField(max_length=500, description="请求简介", index=True)
-    tags = fields.CharField(max_length=100, description="API标签", index=True)
+    path = fields.CharField(max_length=100, description="API路径", db_index=True)
+    method = fields.CharEnumField(MethodType, description="请求方法", db_index=True)
+    summary = fields.CharField(max_length=500, description="请求简介", db_index=True)
+    tags = fields.CharField(max_length=100, description="API标签", db_index=True)
 
     class Meta:
         table = "api"
 
 
 class Dept(BaseModel, TimestampMixin):
-    name = fields.CharField(max_length=20, unique=True, description="部门名称", index=True)
+    name = fields.CharField(max_length=20, unique=True, description="部门名称", db_index=True)
     desc = fields.CharField(max_length=500, null=True, description="备注")
-    is_deleted = fields.BooleanField(default=False, description="软删除标记", index=True)
-    order = fields.IntField(default=0, description="排序", index=True)
-    parent_id = fields.IntField(default=0, max_length=10, description="父部门ID", index=True)
+    is_deleted = fields.BooleanField(default=False, description="软删除标记", db_index=True)
+    order = fields.IntField(default=0, description="排序", db_index=True)
+    parent_id = fields.IntField(default=0, max_length=10, description="父部门ID", db_index=True)
 
     class Meta:
         table = "dept"
 
 
 class DeptClosure(BaseModel, TimestampMixin):
-    ancestor = fields.IntField(description="父代", index=True)
-    descendant = fields.IntField(description="子代", index=True)
-    level = fields.IntField(default=0, description="深度", index=True)
+    ancestor = fields.IntField(description="父代", db_index=True)
+    descendant = fields.IntField(description="子代", db_index=True)
+    level = fields.IntField(default=0, description="深度", db_index=True)
 
 
 class AuditLog(BaseModel, TimestampMixin):
-    user_id = fields.IntField(description="用户ID", index=True)
-    username = fields.CharField(max_length=64, default="", description="用户名称", index=True)
-    module = fields.CharField(max_length=64, default="", description="功能模块", index=True)
-    summary = fields.CharField(max_length=128, default="", description="请求描述", index=True)
-    method = fields.CharField(max_length=10, default="", description="请求方法", index=True)
-    path = fields.CharField(max_length=255, default="", description="请求路径", index=True)
-    status = fields.IntField(default=-1, description="状态码", index=True)
-    response_time = fields.IntField(default=0, description="响应时间(单位ms)", index=True)
+    user_id = fields.IntField(description="用户ID", db_index=True)
+    username = fields.CharField(max_length=64, default="", description="用户名称", db_index=True)
+    module = fields.CharField(max_length=64, default="", description="功能模块", db_index=True)
+    summary = fields.CharField(max_length=128, default="", description="请求描述", db_index=True)
+    method = fields.CharField(max_length=10, default="", description="请求方法", db_index=True)
+    path = fields.CharField(max_length=255, default="", description="请求路径", db_index=True)
+    status = fields.IntField(default=-1, description="状态码", db_index=True)
+    response_time = fields.IntField(default=0, description="响应时间(单位ms)", db_index=True)
     request_args = fields.JSONField(null=True, description="请求参数")
     response_body = fields.JSONField(null=True, description="返回数据")
-    ip_address = fields.CharField(max_length=64, default="", description="IP地址", index=True)
-    user_agent = fields.CharField(max_length=512, default="", description="用户代理", index=True)
-    operation_type = fields.CharField(max_length=32, default="", description="操作类型", index=True)
-    log_level = fields.CharField(max_length=16, default="info", description="日志级别", index=True)
-    is_deleted = fields.BooleanField(default=False, description="是否已删除", index=True)
+    ip_address = fields.CharField(max_length=64, default="", description="IP地址", db_index=True)
+    user_agent = fields.CharField(max_length=512, default="", description="用户代理", db_index=True)
+    operation_type = fields.CharField(max_length=32, default="", description="操作类型", db_index=True)
+    log_level = fields.CharField(max_length=16, default="info", description="日志级别", db_index=True)
+    is_deleted = fields.BooleanField(default=False, description="是否已删除", db_index=True)
 
     class Meta:
         table = "audit_log"

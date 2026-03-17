@@ -18,7 +18,7 @@ class BaseModel(models.Model):
     基础模型类 - 提供通用字段和序列化功能
     """
 
-    id = fields.IntField(pk=True, index=True, description="ID")
+    id = fields.IntField(primary_key=True, description="ID")
 
     def _format_field_value(self, value: Any) -> Any:
         """
@@ -173,7 +173,7 @@ class TimestampMixin:
 class UUIDModel:
     """UUID混合类 - 提供UUID字段支持"""
 
-    uuid = fields.CharField(max_length=36, unique=True, index=True, description="UUID标识")
+    uuid = fields.CharField(max_length=36, unique=True, db_index=True, description="UUID标识")
 
 
 class SoftDeleteMixin:
