@@ -102,6 +102,7 @@ class ProfileUpdate(BaseModel):
     """用户个人信息更新模型"""
 
     nickname: Optional[str] = Field(None, max_length=30, description="昵称")
+    avatar: Optional[str] = Field(None, max_length=500, description="头像地址")
     email: Optional[EmailStr] = Field(None, description="邮箱")
     phone: Optional[str] = Field(None, max_length=11, description="手机号码")
 

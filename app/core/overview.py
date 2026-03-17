@@ -103,7 +103,6 @@ async def get_platform_overview() -> dict:
     )
 
     recent_activities = []
-    created_at_value = None
     for log in recent_logs:
         created_at_value = log.created_at.strftime(settings.DATETIME_FORMAT) if log.created_at else None
         recent_activities.append(
@@ -118,7 +117,6 @@ async def get_platform_overview() -> dict:
                 "log_level": log.log_level,
                 "response_time": log.response_time,
                 "created_at": created_at_value,
-                "time": created_at_value,
             }
         )
 
@@ -136,18 +134,14 @@ async def get_platform_overview() -> dict:
         },
         "system": {
             "app_title": settings.APP_TITLE,
-            "title": settings.APP_TITLE,
             "version": settings.VERSION,
             "environment": settings.APP_ENV,
             "database": settings.DB_CONNECTION,
             "access_log_enabled": settings.LOG_ENABLE_ACCESS_LOG,
             "auto_bootstrap": settings.AUTO_BOOTSTRAP,
             "run_migrations_on_startup": settings.should_run_migrations_on_startup,
-            "auto_migration": settings.should_run_migrations_on_startup,
             "seed_base_data_on_startup": settings.should_seed_base_data_on_startup,
-            "auto_seed_data": settings.should_seed_base_data_on_startup,
             "refresh_api_metadata_on_startup": settings.should_refresh_api_metadata_on_startup,
-            "auto_refresh_api": settings.should_refresh_api_metadata_on_startup,
         },
         "audit_trend": audit_trend,
         "charts": {

@@ -1,10 +1,12 @@
 import os
 import shutil
 import uuid
+from io import BytesIO
 from datetime import datetime
 from typing import Dict, List
 
 from fastapi import HTTPException, UploadFile, status
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.settings.config import settings
 from app.services.system_setting_service import system_setting_service
@@ -46,12 +48,33 @@ class UploadController:
         local_full_url = storage_settings.get("local_full_url", "").rstrip("/")
         return file_key.startswith("/static/") or (local_full_url and file_key.startswith(local_full_url))
 
-    def generate_oss_file_name(self, original_filename: str) -> str:
+    def generate_oss_file_name(self, original_filename: str, extension_override: str | None = None) -> str:
         """生成对象存储中的文件名，基于时间和UUID"""
-        ext = self.get_file_extension(original_filename)
+        ext = extension_override or self.get_file_extension(original_filename)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         random_uuid = str(uuid.uuid4()).replace("-", "")[:8]
         return f"{timestamp}_{random_uuid}{ext}"
+
+    def convert_avatar_to_webp(self, file_content: bytes, max_edge: int = 512, quality: int = 82) -> bytes:
+        """将头像图片统一转为 WebP，并控制最终尺寸。"""
+        try:
+            with Image.open(BytesIO(file_content)) as image:
+                image = ImageOps.exif_transpose(image)
+
+                if image.mode in {"RGBA", "LA"} or (image.mode == "P" and "transparency" in image.info):
+                    image = image.convert("RGBA")
+                else:
+                    image = image.convert("RGB")
+
+                image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+
+                buffer = BytesIO()
+                image.save(buffer, format="WEBP", quality=quality, method=6)
+                return buffer.getvalue()
+        except UnidentifiedImageError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法识别的图片文件") from exc
+        except OSError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="图片处理失败，请更换文件重试") from exc
 
     def generate_oss_path(self, upload_dir: str, file_type: str = "common") -> str:
         """
@@ -297,6 +320,23 @@ class UploadController:
 
         # 返回结果
         return {"url": file_url, "name": file.filename, "size": len(file_content)}
+
+    async def upload_avatar(self, file: UploadFile) -> Dict:
+        """
+        上传头像图片，统一转码为 WebP 再存储。
+
+        Args:
+            file: 上传的头像文件
+
+        Returns:
+            Dict: 包含上传结果的字典
+        """
+        file_content = await self.check_image_file(file)
+        webp_content = self.convert_avatar_to_webp(file_content)
+        file_name = self.generate_oss_file_name(file.filename, extension_override=".webp")
+        file_url = await self.upload_to_oss(webp_content, file_name, file_type="avatar")
+
+        return {"url": file_url, "name": file_name, "size": len(webp_content)}
 
     async def upload_files(self, files: List[UploadFile]) -> List[Dict]:
         """

@@ -20,6 +20,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (urlPath) => urlPath.replace(/^\/api/, '/api/v1'),
       },
+      '/static': {
+        target: 'http://127.0.0.1:9999',
+        changeOrigin: true,
+      },
     },
   },
 })

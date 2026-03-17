@@ -5,16 +5,18 @@ import {
   ChevronsUpDownIcon,
   FolderTreeIcon,
   LogOutIcon,
+  RefreshCcwIcon,
   Settings2Icon,
-  SparklesIcon,
   UserCircle2Icon,
   XIcon,
 } from 'lucide-react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import api from '@/api'
+import BrandLogo from '@/components/BrandLogo'
 import { ModeToggle } from '@/components/mode-toggle'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -63,6 +65,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { resolveAvatarUrl } from '@/utils/avatar'
 import {
   clearSession,
   getStoredMenus,
@@ -228,6 +231,7 @@ const UserMenu = ({ userInfo, onNavigate, onLogout }) => {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="size-8 rounded-lg">
+                <AvatarImage src={resolveAvatarUrl(userInfo?.avatar)} alt={userInfo?.nickname || userInfo?.username || '当前用户'} className="rounded-lg" />
                 <AvatarFallback className="rounded-lg">{getUserInitials(userInfo)}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
@@ -248,6 +252,7 @@ const UserMenu = ({ userInfo, onNavigate, onLogout }) => {
             <DropdownMenuLabel className="p-1.5">
               <div className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm">
                 <Avatar className="size-8 rounded-lg">
+                  <AvatarImage src={resolveAvatarUrl(userInfo?.avatar)} alt={userInfo?.nickname || userInfo?.username || '当前用户'} className="rounded-lg" />
                   <AvatarFallback className="rounded-lg">{getUserInitials(userInfo)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
@@ -339,6 +344,10 @@ const AppLayout = () => {
   const handleTabChange = (key) => {
     setActiveTab(key)
     navigate(key)
+  }
+
+  const handleGlobalRefresh = () => {
+    window.location.reload()
   }
 
   const handleLogout = async () => {
@@ -517,13 +526,14 @@ const AppLayout = () => {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <Link to="/dashboard">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <SparklesIcon />
-                  </div>
-                  <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">React FastAPI Admin</span>
-                    <span className="truncate text-xs text-sidebar-foreground/70">管理后台</span>
-                  </div>
+                  <BrandLogo
+                    className="min-w-0 gap-3.5"
+                    markClassName="!size-10"
+                    titleClassName="text-[15px]"
+                    subtitleClassName="text-[10px] tracking-[0.24em]"
+                    title="React FastAPI Admin"
+                    subtitle="CONTROL CENTER"
+                  />
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -591,7 +601,7 @@ const AppLayout = () => {
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-8" />
             <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbItems.map((item, index) => {
@@ -620,10 +630,13 @@ const AppLayout = () => {
 
           <div className="flex items-center gap-2">
             <ModeToggle />
+            <Button type="button" variant="ghost" size="icon-sm" onClick={handleGlobalRefresh} aria-label="刷新当前页面">
+              <RefreshCcwIcon />
+            </Button>
           </div>
         </header>
 
-        <div className="border-b bg-background/80">
+        <div className="sticky top-16 z-10 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex min-h-11 items-center gap-1 overflow-x-auto px-4 lg:px-6">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.key

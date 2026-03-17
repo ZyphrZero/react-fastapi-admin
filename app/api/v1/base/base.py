@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, Request, UploadFile
 
+from app.controllers.upload import upload_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import AuthControl, DependAuth
 from app.schemas.base import Success
@@ -60,6 +61,11 @@ async def update_user_password(req_in: UpdatePassword):
 async def update_user_profile(req_in: ProfileUpdate):
     await auth_service.update_current_user_profile(CTX_USER_ID.get(), req_in)
     return Success(msg="个人信息更新成功")
+
+
+@router.post("/upload_avatar", summary="上传头像", dependencies=[DependAuth])
+async def upload_avatar(file: UploadFile = File(...)):
+    return Success(data=await upload_controller.upload_avatar(file))
 
 
 @router.post("/logout", summary="用户注销", dependencies=[DependAuth])

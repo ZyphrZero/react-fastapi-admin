@@ -5,14 +5,13 @@ import {
   EyeIcon,
   FileSearchIcon,
   InfoIcon,
-  RefreshCcwIcon,
   SearchIcon,
-  ShieldAlertIcon,
   Trash2Icon,
   XIcon,
 } from 'lucide-react'
 
 import api from '@/api'
+import DateTimePicker from '@/components/DateTimePicker'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,8 +26,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -299,11 +298,6 @@ const AuditLog = () => {
     setNextCursor(null)
     setHasMore(false)
     await fetchAuditLogs(null, size, searchParams, 1)
-  }
-
-  const handleRefresh = async () => {
-    const currentCursor = cursorHistory[currentPage - 1] || null
-    await fetchAuditLogs(currentCursor, pageSize, searchParams, currentPage)
   }
 
   const openDetail = useCallback(async (record) => {
@@ -734,10 +728,6 @@ const AuditLog = () => {
           <p className="text-sm text-muted-foreground">查看系统操作记录、请求结果与上下文详情</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void handleRefresh()} disabled={loading}>
-            <RefreshCcwIcon data-icon="inline-start" />
-            刷新
-          </Button>
           <Button variant="outline" onClick={() => void handleExport()} disabled={exportLoading}>
             <DownloadIcon data-icon="inline-start" />
             {exportLoading ? '导出中...' : '导出日志'}
@@ -761,99 +751,128 @@ const AuditLog = () => {
           <CardDescription>按操作人、模块、接口、状态和时间范围筛选日志</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_18rem] xl:items-end" onSubmit={handleSearch}>
-            <Input
-              placeholder="操作人"
-              value={searchValues.username}
-              onChange={(event) => setSearchValues((current) => ({ ...current, username: event.target.value }))}
-            />
-            <Input
-              placeholder="模块"
-              value={searchValues.module}
-              onChange={(event) => setSearchValues((current) => ({ ...current, module: event.target.value }))}
-            />
-            <Input
-              placeholder="接口摘要"
-              value={searchValues.summary}
-              onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
-            />
-            <Input
-              placeholder="IP 地址"
-              value={searchValues.ip_address}
-              onChange={(event) => setSearchValues((current) => ({ ...current, ip_address: event.target.value }))}
-            />
-            <Input
-              placeholder="操作类型"
-              value={searchValues.operation_type}
-              onChange={(event) => setSearchValues((current) => ({ ...current, operation_type: event.target.value }))}
-            />
+          <form className="flex flex-col gap-4" onSubmit={handleSearch}>
+            <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_18rem] xl:items-end">
+              <Field>
+                <FieldLabel htmlFor="audit-username">操作人</FieldLabel>
+                <Input
+                  id="audit-username"
+                  placeholder="例如 admin"
+                  value={searchValues.username}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, username: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="audit-module">模块</FieldLabel>
+                <Input
+                  id="audit-module"
+                  placeholder="例如 审计日志"
+                  value={searchValues.module}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, module: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="audit-summary">接口摘要</FieldLabel>
+                <Input
+                  id="audit-summary"
+                  placeholder="例如 查看审计日志"
+                  value={searchValues.summary}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="audit-ip-address">IP 地址</FieldLabel>
+                <Input
+                  id="audit-ip-address"
+                  placeholder="例如 127.0.0.1"
+                  value={searchValues.ip_address}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, ip_address: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="audit-operation-type">操作类型</FieldLabel>
+                <Input
+                  id="audit-operation-type"
+                  placeholder="例如 删除"
+                  value={searchValues.operation_type}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, operation_type: event.target.value }))}
+                />
+              </Field>
 
-            <Select value={searchValues.method} onValueChange={(value) => setSearchValues((current) => ({ ...current, method: value }))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="请求方法" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">全部方法</SelectItem>
-                  {methodOptions.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {method}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              <Field>
+                <FieldLabel htmlFor="audit-method">请求方法</FieldLabel>
+                <Select value={searchValues.method} onValueChange={(value) => setSearchValues((current) => ({ ...current, method: value }))}>
+                  <SelectTrigger id="audit-method" className="w-full">
+                    <SelectValue placeholder="请求方法" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">全部方法</SelectItem>
+                      {methodOptions.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            <Select value={searchValues.status} onValueChange={(value) => setSearchValues((current) => ({ ...current, status: value }))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="状态码" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">全部状态码</SelectItem>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              <Field>
+                <FieldLabel htmlFor="audit-status">状态码</FieldLabel>
+                <Select value={searchValues.status} onValueChange={(value) => setSearchValues((current) => ({ ...current, status: value }))}>
+                  <SelectTrigger id="audit-status" className="w-full">
+                    <SelectValue placeholder="状态码" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">全部状态码</SelectItem>
+                      {statusOptions.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            <Select value={searchValues.log_level} onValueChange={(value) => setSearchValues((current) => ({ ...current, log_level: value }))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="日志级别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">全部级别</SelectItem>
-                  {logLevelOptions.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {level}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              <Field>
+                <FieldLabel htmlFor="audit-log-level">日志级别</FieldLabel>
+                <Select value={searchValues.log_level} onValueChange={(value) => setSearchValues((current) => ({ ...current, log_level: value }))}>
+                  <SelectTrigger id="audit-log-level" className="w-full">
+                    <SelectValue placeholder="日志级别" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">全部级别</SelectItem>
+                      {logLevelOptions.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="audit-start-time">开始时间</Label>
-              <Input
-                id="audit-start-time"
-                type="datetime-local"
-                value={searchValues.start_time}
-                onChange={(event) => setSearchValues((current) => ({ ...current, start_time: event.target.value }))}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="audit-end-time">结束时间</Label>
-              <Input
-                id="audit-end-time"
-                type="datetime-local"
-                value={searchValues.end_time}
-                onChange={(event) => setSearchValues((current) => ({ ...current, end_time: event.target.value }))}
-              />
-            </div>
+              <Field>
+                <FieldLabel htmlFor="audit-start-time">开始时间</FieldLabel>
+                <DateTimePicker
+                  value={searchValues.start_time}
+                  onChange={(nextValue) => setSearchValues((current) => ({ ...current, start_time: nextValue }))}
+                  placeholder="选择开始时间"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="audit-end-time">结束时间</FieldLabel>
+                <DateTimePicker
+                  value={searchValues.end_time}
+                  onChange={(nextValue) => setSearchValues((current) => ({ ...current, end_time: nextValue }))}
+                  placeholder="选择结束时间"
+                />
+              </Field>
+            </FieldGroup>
 
             <div className="flex flex-wrap gap-2 xl:col-span-2 xl:items-end">
               <Button type="submit" variant="outline" disabled={loading}>
@@ -863,10 +882,6 @@ const AuditLog = () => {
               <Button type="button" variant="outline" onClick={handleClearSearch}>
                 <XIcon data-icon="inline-start" />
                 清空
-              </Button>
-              <Button type="button" variant="outline" onClick={() => void handleRefresh()} disabled={loading}>
-                <RefreshCcwIcon data-icon="inline-start" />
-                刷新
               </Button>
             </div>
           </form>
@@ -912,8 +927,8 @@ const AuditLog = () => {
             <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
               例如填写 30 表示清理 30 天前的数据。
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="clear-days">清理多少天前的日志</Label>
+            <Field>
+              <FieldLabel htmlFor="clear-days">清理多少天前的日志</FieldLabel>
               <Input
                 id="clear-days"
                 type="number"
@@ -923,7 +938,7 @@ const AuditLog = () => {
                 value={clearDays}
                 onChange={(event) => setClearDays(event.target.value)}
               />
-            </div>
+            </Field>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setClearModalVisible(false)}>

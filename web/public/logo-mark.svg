@@ -1,0 +1,42 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="paper" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF8" />
+      <stop offset="0.58" stop-color="#FFF2F6" />
+      <stop offset="1" stop-color="#FFF0D8" />
+    </linearGradient>
+    <radialGradient id="blush" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(21 19) rotate(24) scale(24 16)">
+      <stop stop-color="#FB7185" stop-opacity="0.4" />
+      <stop offset="1" stop-color="#FB7185" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="amber" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(45 43) rotate(-12) scale(20 15)">
+      <stop stop-color="#F59E0B" stop-opacity="0.34" />
+      <stop offset="1" stop-color="#F59E0B" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="stroke-main" x1="18" y1="19" x2="47" y2="41" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B44E77" />
+      <stop offset="0.58" stop-color="#F08DB5" />
+      <stop offset="1" stop-color="#F5AE42" />
+    </linearGradient>
+    <linearGradient id="highlight" x1="18" y1="18" x2="43" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.88" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="shadow-stroke" x1="20" y1="23" x2="46" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6E2643" stop-opacity="0.46" />
+      <stop offset="1" stop-color="#B86429" stop-opacity="0.18" />
+    </linearGradient>
+    <filter id="shadow" x="11" y="13" width="42" height="36" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2.6" stdDeviation="2.4" flood-color="#B85A7F" flood-opacity="0.17" />
+    </filter>
+    <filter id="soft" x="7" y="7" width="50" height="50" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4.6" />
+    </filter>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="17" fill="url(#paper)" />
+  <ellipse cx="23" cy="22" rx="13.5" ry="9.8" fill="url(#blush)" filter="url(#soft)" opacity="0.95" />
+  <ellipse cx="43.5" cy="41.5" rx="12" ry="8.8" fill="url(#amber)" filter="url(#soft)" opacity="0.92" />
+  <path d="M18.4 21.4C25.6 17.9 33.4 18.1 40.9 20.2C44.1 21.1 45.2 24 43.3 26.2L32.6 37.9C31.1 39.5 31.8 41.8 34 41.8C37.6 41.7 41.2 40.6 45.6 38.5" stroke="url(#shadow-stroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.52" />
+  <path d="M18.4 20C25.6 16.5 33.4 16.7 40.9 18.8C44.1 19.7 45.2 22.6 43.3 24.8L32.6 36.5C31.1 38.1 31.8 40.4 34 40.4C37.6 40.3 41.2 39.2 45.6 37.1" stroke="url(#stroke-main)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)" />
+  <path d="M21.2 19.1C27 17.2 33 17.1 38.6 18.4C40.8 18.9 41.6 20.7 40.6 22.2L34.3 29.3" stroke="url(#highlight)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" opacity="0.86" />
+</svg>

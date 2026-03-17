@@ -38,6 +38,7 @@ def make_middlewares() -> list[Middleware]:
             exclude_paths=[
                 "/docs",
                 "/openapi.json",
+                "/static/",
                 "/api/v1/auditlog/list",
                 "/api/v1/auditlog/detail",
                 "/api/v1/auditlog/delete",

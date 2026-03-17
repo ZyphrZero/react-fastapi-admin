@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronsUpDownIcon, Edit3Icon, KeyRoundIcon, PlusIcon, RefreshCcwIcon, SearchIcon, Trash2Icon, UserIcon, XIcon } from 'lucide-react'
+import { ChevronsUpDownIcon, Edit3Icon, KeyRoundIcon, PlusIcon, SearchIcon, Trash2Icon, UserIcon, XIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import api from '@/api'
@@ -26,8 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -193,10 +193,6 @@ const UserManagement = () => {
     void fetchUsers(1, 10, {})
     void fetchRoles()
   }, [fetchRoles, fetchUsers])
-
-  const refreshUsers = async () => {
-    await fetchUsers(currentPage, pageSize, searchParams)
-  }
 
   const openModal = (user = null) => {
     setEditingUser(user)
@@ -515,9 +511,9 @@ const UserManagement = () => {
             <DialogDescription>维护用户基本信息和角色权限</DialogDescription>
           </DialogHeader>
           <form className="flex flex-col gap-4" onSubmit={handleSaveUser}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="modal-username" required invalid={Boolean(modalErrors.username)}>用户名</Label>
+            <FieldGroup className="grid gap-4 md:grid-cols-2">
+              <Field data-invalid={Boolean(modalErrors.username)}>
+                <FieldLabel htmlFor="modal-username" required>用户名</FieldLabel>
                 <Input
                   id="modal-username"
                   value={modalValues.username}
@@ -526,23 +522,23 @@ const UserManagement = () => {
                   onChange={(event) => updateModalField('username', event.target.value)}
                   aria-invalid={Boolean(modalErrors.username)}
                 />
-                {modalErrors.username ? <p className="text-xs text-destructive">{modalErrors.username}</p> : null}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="modal-nickname" invalid={Boolean(modalErrors.nickname)}>昵称</Label>
+                <FieldError>{modalErrors.username}</FieldError>
+              </Field>
+              <Field data-invalid={Boolean(modalErrors.nickname)}>
+                <FieldLabel htmlFor="modal-nickname">昵称</FieldLabel>
                 <Input
                   id="modal-nickname"
                   value={modalValues.nickname}
                   onChange={(event) => updateModalField('nickname', event.target.value)}
                   aria-invalid={Boolean(modalErrors.nickname)}
                 />
-                {modalErrors.nickname ? <p className="text-xs text-destructive">{modalErrors.nickname}</p> : null}
-              </div>
-            </div>
+                <FieldError>{modalErrors.nickname}</FieldError>
+              </Field>
+            </FieldGroup>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="modal-email" required invalid={Boolean(modalErrors.email)}>邮箱</Label>
+            <FieldGroup className="grid gap-4 md:grid-cols-2">
+              <Field data-invalid={Boolean(modalErrors.email)}>
+                <FieldLabel htmlFor="modal-email" required>邮箱</FieldLabel>
                 <Input
                   id="modal-email"
                   type="email"
@@ -551,25 +547,25 @@ const UserManagement = () => {
                   onChange={(event) => updateModalField('email', event.target.value)}
                   aria-invalid={Boolean(modalErrors.email)}
                 />
-                {modalErrors.email ? <p className="text-xs text-destructive">{modalErrors.email}</p> : null}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="modal-phone" invalid={Boolean(modalErrors.phone)}>手机号</Label>
+                <FieldError>{modalErrors.email}</FieldError>
+              </Field>
+              <Field data-invalid={Boolean(modalErrors.phone)}>
+                <FieldLabel htmlFor="modal-phone">手机号</FieldLabel>
                 <Input
                   id="modal-phone"
                   value={modalValues.phone}
                   onChange={(event) => updateModalField('phone', event.target.value.replace(/[^\d]/g, ''))}
                   aria-invalid={Boolean(modalErrors.phone)}
                 />
-                {modalErrors.phone ? <p className="text-xs text-destructive">{modalErrors.phone}</p> : null}
-              </div>
-            </div>
+                <FieldError>{modalErrors.phone}</FieldError>
+              </Field>
+            </FieldGroup>
 
             {!editingUser ? (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="modal-password" required invalid={Boolean(modalErrors.password)}>密码</Label>
+                <FieldGroup className="grid gap-4 md:grid-cols-2">
+                  <Field data-invalid={Boolean(modalErrors.password)}>
+                    <FieldLabel htmlFor="modal-password" required>密码</FieldLabel>
                     <Input
                       id="modal-password"
                       type="password"
@@ -579,10 +575,10 @@ const UserManagement = () => {
                       onChange={(event) => updateModalField('password', event.target.value)}
                       aria-invalid={Boolean(modalErrors.password)}
                     />
-                    {modalErrors.password ? <p className="text-xs text-destructive">{modalErrors.password}</p> : null}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="modal-confirm-password" required invalid={Boolean(modalErrors.confirmPassword)}>确认密码</Label>
+                    <FieldError>{modalErrors.password}</FieldError>
+                  </Field>
+                  <Field data-invalid={Boolean(modalErrors.confirmPassword)}>
+                    <FieldLabel htmlFor="modal-confirm-password" required>确认密码</FieldLabel>
                     <Input
                       id="modal-confirm-password"
                       type="password"
@@ -592,9 +588,9 @@ const UserManagement = () => {
                       onChange={(event) => updateModalField('confirmPassword', event.target.value)}
                       aria-invalid={Boolean(modalErrors.confirmPassword)}
                     />
-                    {modalErrors.confirmPassword ? <p className="text-xs text-destructive">{modalErrors.confirmPassword}</p> : null}
-                  </div>
-                </div>
+                    <FieldError>{modalErrors.confirmPassword}</FieldError>
+                  </Field>
+                </FieldGroup>
 
                 <PasswordStrengthIndicator
                   password={modalValues.password}
@@ -604,14 +600,14 @@ const UserManagement = () => {
               </>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label>账户状态</Label>
+            <FieldGroup className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="user-active-status">账户状态</FieldLabel>
                 <Select
                   value={modalValues.is_active ? 'true' : 'false'}
                   onValueChange={(value) => updateModalField('is_active', value === 'true')}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="user-active-status" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -623,14 +619,14 @@ const UserManagement = () => {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>超级管理员</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="user-superuser-status">超级管理员</FieldLabel>
                 <Select
                   value={modalValues.is_superuser ? 'true' : 'false'}
                   onValueChange={(value) => updateModalField('is_superuser', value === 'true')}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="user-superuser-status" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -640,11 +636,11 @@ const UserManagement = () => {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
+              </Field>
+            </FieldGroup>
 
-            <div className="flex flex-col gap-3">
-              <Label>用户角色</Label>
+            <Field>
+              <FieldLabel>用户角色</FieldLabel>
               <div className="rounded-lg border p-3">
                 {roles.length > 0 ? (
                   <div className="flex flex-col gap-3">
@@ -703,7 +699,7 @@ const UserManagement = () => {
                   <p className="text-sm text-muted-foreground">暂无可选角色</p>
                 )}
               </div>
-            </div>
+            </Field>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => closeModal(false)}>
@@ -727,8 +723,9 @@ const UserManagement = () => {
           </DialogHeader>
 
           <form className="flex flex-col gap-4" onSubmit={handleResetPassword}>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="reset-password" required invalid={Boolean(resetPasswordErrors.newPassword)}>新密码</Label>
+            <FieldGroup>
+              <Field data-invalid={Boolean(resetPasswordErrors.newPassword)}>
+                <FieldLabel htmlFor="reset-password" required>新密码</FieldLabel>
               <Input
                 id="reset-password"
                 type="password"
@@ -738,28 +735,29 @@ const UserManagement = () => {
                 onChange={(event) => updateResetPasswordField('newPassword', event.target.value)}
                 aria-invalid={Boolean(resetPasswordErrors.newPassword)}
               />
-              {resetPasswordErrors.newPassword ? <p className="text-xs text-destructive">{resetPasswordErrors.newPassword}</p> : null}
-            </div>
+                <FieldError>{resetPasswordErrors.newPassword}</FieldError>
+              </Field>
 
-            <PasswordStrengthIndicator
-              password={resetPasswordValues.newPassword}
-              onStrengthChange={setPasswordStrength}
-              showSuggestions
-            />
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="reset-confirm-password" required invalid={Boolean(resetPasswordErrors.confirmNewPassword)}>确认新密码</Label>
-              <Input
-                id="reset-confirm-password"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={resetPasswordValues.confirmNewPassword}
-                onChange={(event) => updateResetPasswordField('confirmNewPassword', event.target.value)}
-                aria-invalid={Boolean(resetPasswordErrors.confirmNewPassword)}
+              <PasswordStrengthIndicator
+                password={resetPasswordValues.newPassword}
+                onStrengthChange={setPasswordStrength}
+                showSuggestions
               />
-              {resetPasswordErrors.confirmNewPassword ? <p className="text-xs text-destructive">{resetPasswordErrors.confirmNewPassword}</p> : null}
-            </div>
+
+              <Field data-invalid={Boolean(resetPasswordErrors.confirmNewPassword)}>
+                <FieldLabel htmlFor="reset-confirm-password" required>确认新密码</FieldLabel>
+                <Input
+                  id="reset-confirm-password"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={resetPasswordValues.confirmNewPassword}
+                  onChange={(event) => updateResetPasswordField('confirmNewPassword', event.target.value)}
+                  aria-invalid={Boolean(resetPasswordErrors.confirmNewPassword)}
+                />
+                <FieldError>{resetPasswordErrors.confirmNewPassword}</FieldError>
+              </Field>
+            </FieldGroup>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => closeResetPassword(false)}>
@@ -806,17 +804,27 @@ const UserManagement = () => {
           <CardDescription>按用户名和昵称筛选用户</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_auto] xl:items-end" onSubmit={handleSearch}>
-            <Input
-              placeholder="用户名"
-              value={searchValues.username}
-              onChange={(event) => setSearchValues((current) => ({ ...current, username: event.target.value }))}
-            />
-            <Input
-              placeholder="昵称"
-              value={searchValues.nickname}
-              onChange={(event) => setSearchValues((current) => ({ ...current, nickname: event.target.value }))}
-            />
+          <form className="flex flex-col gap-4" onSubmit={handleSearch}>
+            <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_auto] xl:items-end">
+              <Field>
+                <FieldLabel htmlFor="user-search-username">用户名</FieldLabel>
+                <Input
+                  id="user-search-username"
+                  placeholder="例如 admin"
+                  value={searchValues.username}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, username: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="user-search-nickname">昵称</FieldLabel>
+                <Input
+                  id="user-search-nickname"
+                  placeholder="例如 管理员"
+                  value={searchValues.nickname}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, nickname: event.target.value }))}
+                />
+              </Field>
+            </FieldGroup>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={loading}>
                 <SearchIcon data-icon="inline-start" />
@@ -825,10 +833,6 @@ const UserManagement = () => {
               <Button type="button" variant="outline" onClick={handleClearSearch}>
                 <XIcon data-icon="inline-start" />
                 清空
-              </Button>
-              <Button type="button" variant="outline" onClick={() => void refreshUsers()} disabled={loading}>
-                <RefreshCcwIcon data-icon="inline-start" />
-                刷新
               </Button>
             </div>
           </form>

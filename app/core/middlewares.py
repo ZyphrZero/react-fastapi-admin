@@ -161,6 +161,21 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         if content_length and int(content_length) > self.max_body_size:
             return {"truncated": True, "message": "Response too large to log"}
 
+        content_type = (response.headers.get("content-type") or "").lower()
+        if content_type.startswith(("image/", "audio/", "video/", "font/")):
+            return {"truncated": True, "message": f"Binary response skipped: {content_type}"}
+        if any(
+            marker in content_type
+            for marker in (
+                "application/octet-stream",
+                "application/pdf",
+                "application/zip",
+                "application/vnd",
+                "multipart/",
+            )
+        ):
+            return {"truncated": True, "message": f"Binary response skipped: {content_type}"}
+
         try:
             # 获取响应体
             if hasattr(response, "body"):

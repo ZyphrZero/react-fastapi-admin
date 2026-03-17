@@ -24,8 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 
@@ -55,28 +55,16 @@ const validateApiForm = (values) => {
 }
 
 const normalizeTagOption = (tag) => {
-  if (typeof tag === 'string') {
-    return {
-      key: tag,
-      label: tag,
-      value: tag,
-      count: null,
-    }
+  if (!tag || typeof tag !== 'object') {
+    return null
   }
 
-  if (tag && typeof tag === 'object') {
-    const fallbackValue = String(tag.value ?? tag.label ?? '')
-    const displayLabel = tag.label ?? (fallbackValue || '未分类')
-
-    return {
-      key: fallbackValue || JSON.stringify(tag),
-      label: String(displayLabel),
-      value: fallbackValue,
-      count: typeof tag.count === 'number' ? tag.count : null,
-    }
+  return {
+    key: String(tag.value),
+    label: String(tag.label),
+    value: String(tag.value),
+    count: typeof tag.count === 'number' ? tag.count : null,
   }
-
-  return null
 }
 
 const ApiManagement = () => {
@@ -141,10 +129,6 @@ const ApiManagement = () => {
     void fetchApis(1, 10, {})
     void fetchAllTags()
   }, [fetchAllTags, fetchApis])
-
-  const refreshApis = async () => {
-    await fetchApis(currentPage, pageSize, searchParams)
-  }
 
   const handleSearch = async (event) => {
     event.preventDefault()
@@ -270,53 +254,66 @@ const ApiManagement = () => {
           <CardDescription>按路径、描述和标签筛选接口</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_auto] xl:items-end" onSubmit={handleSearch}>
-            <Input
-              placeholder="API 路径"
-              value={searchValues.path}
-              onChange={(event) => setSearchValues((current) => ({ ...current, path: event.target.value }))}
-            />
-            <Input
-              placeholder="API 描述"
-              value={searchValues.summary}
-              onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="w-full justify-between font-normal">
-                  <span className="truncate text-left">
-                    {selectedTags.length > 0
-                      ? selectedTags.map((tag) => tag.label).join('、')
-                      : '选择标签'}
-                  </span>
-                  <ChevronsUpDownIcon data-icon="inline-end" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                <DropdownMenuLabel>标签筛选</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  {availableTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag.key}
-                      checked={searchValues.tags.includes(tag.value)}
-                      onSelect={(event) => event.preventDefault()}
-                      onCheckedChange={(checked) =>
-                        setSearchValues((current) => ({
-                          ...current,
-                          tags: checked
-                            ? [...current.tags, tag.value]
-                            : current.tags.filter((value) => value !== tag.value),
-                        }))
-                      }
-                    >
-                      <span className="flex-1">{tag.label}</span>
-                      {tag.count ? <span className="text-xs text-muted-foreground">{tag.count}</span> : null}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <form className="flex flex-col gap-4" onSubmit={handleSearch}>
+            <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_auto] xl:items-end">
+              <Field>
+                <FieldLabel htmlFor="api-search-path">API 路径</FieldLabel>
+                <Input
+                  id="api-search-path"
+                  placeholder="例如 /api/v1/user/list"
+                  value={searchValues.path}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, path: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="api-search-summary">API 描述</FieldLabel>
+                <Input
+                  id="api-search-summary"
+                  placeholder="例如 查看用户列表"
+                  value={searchValues.summary}
+                  onChange={(event) => setSearchValues((current) => ({ ...current, summary: event.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>API 标签</FieldLabel>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                      <span className="truncate text-left">
+                        {selectedTags.length > 0
+                          ? selectedTags.map((tag) => tag.label).join('、')
+                          : '选择标签'}
+                      </span>
+                      <ChevronsUpDownIcon data-icon="inline-end" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                    <DropdownMenuLabel>标签筛选</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      {availableTags.map((tag) => (
+                        <DropdownMenuCheckboxItem
+                          key={tag.key}
+                          checked={searchValues.tags.includes(tag.value)}
+                          onSelect={(event) => event.preventDefault()}
+                          onCheckedChange={(checked) =>
+                            setSearchValues((current) => ({
+                              ...current,
+                              tags: checked
+                                ? [...current.tags, tag.value]
+                                : current.tags.filter((value) => value !== tag.value),
+                            }))
+                          }
+                        >
+                          <span className="flex-1">{tag.label}</span>
+                          {tag.count ? <span className="text-xs text-muted-foreground">{tag.count}</span> : null}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </Field>
+            </FieldGroup>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={loading}>
                 <SearchIcon data-icon="inline-start" />
@@ -325,10 +322,6 @@ const ApiManagement = () => {
               <Button type="button" variant="outline" onClick={handleClearSearch}>
                 <XIcon data-icon="inline-start" />
                 清空
-              </Button>
-              <Button type="button" variant="outline" onClick={() => void refreshApis()} disabled={loading}>
-                <RefreshCcwIcon data-icon="inline-start" />
-                刷新
               </Button>
             </div>
           </form>
@@ -435,42 +428,44 @@ const ApiManagement = () => {
             <DialogDescription>路径和方法由系统自动扫描生成，只允许修改描述和标签。</DialogDescription>
           </DialogHeader>
           <form className="flex flex-col gap-4" onSubmit={handleSaveApi}>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="api-path">API 路径</Label>
-              <Input id="api-path" value={modalValues.path} disabled />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="api-method">请求方法</Label>
-              <Input id="api-method" value={modalValues.method} disabled />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="api-summary" required invalid={Boolean(modalErrors.summary)}>API 描述</Label>
-              <Input
-                id="api-summary"
-                required
-                value={modalValues.summary}
-                onChange={(event) => {
-                  setModalValues((current) => ({ ...current, summary: event.target.value }))
-                  setModalErrors((current) => ({ ...current, summary: undefined }))
-                }}
-                aria-invalid={Boolean(modalErrors.summary)}
-              />
-              {modalErrors.summary ? <p className="text-xs text-destructive">{modalErrors.summary}</p> : null}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="api-tags" required invalid={Boolean(modalErrors.tags)}>API 标签</Label>
-              <Input
-                id="api-tags"
-                required
-                value={modalValues.tags}
-                onChange={(event) => {
-                  setModalValues((current) => ({ ...current, tags: event.target.value }))
-                  setModalErrors((current) => ({ ...current, tags: undefined }))
-                }}
-                aria-invalid={Boolean(modalErrors.tags)}
-              />
-              {modalErrors.tags ? <p className="text-xs text-destructive">{modalErrors.tags}</p> : null}
-            </div>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="api-path">API 路径</FieldLabel>
+                <Input id="api-path" value={modalValues.path} disabled />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="api-method">请求方法</FieldLabel>
+                <Input id="api-method" value={modalValues.method} disabled />
+              </Field>
+              <Field data-invalid={Boolean(modalErrors.summary)}>
+                <FieldLabel htmlFor="api-summary" required>API 描述</FieldLabel>
+                <Input
+                  id="api-summary"
+                  required
+                  value={modalValues.summary}
+                  onChange={(event) => {
+                    setModalValues((current) => ({ ...current, summary: event.target.value }))
+                    setModalErrors((current) => ({ ...current, summary: undefined }))
+                  }}
+                  aria-invalid={Boolean(modalErrors.summary)}
+                />
+                <FieldError>{modalErrors.summary}</FieldError>
+              </Field>
+              <Field data-invalid={Boolean(modalErrors.tags)}>
+                <FieldLabel htmlFor="api-tags" required>API 标签</FieldLabel>
+                <Input
+                  id="api-tags"
+                  required
+                  value={modalValues.tags}
+                  onChange={(event) => {
+                    setModalValues((current) => ({ ...current, tags: event.target.value }))
+                    setModalErrors((current) => ({ ...current, tags: undefined }))
+                  }}
+                  aria-invalid={Boolean(modalErrors.tags)}
+                />
+                <FieldError>{modalErrors.tags}</FieldError>
+              </Field>
+            </FieldGroup>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => closeModal(false)}>
                 取消

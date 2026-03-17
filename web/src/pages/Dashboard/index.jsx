@@ -2,16 +2,26 @@ import { useEffect, useState } from 'react'
 import {
   ActivityIcon,
   DatabaseIcon,
-  RefreshCcwIcon,
   ShieldCheckIcon,
   UsersIcon,
   WaypointsIcon,
   WebhookIcon,
 } from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 import api from '@/api'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -27,6 +37,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import {
   Table,
   TableBody,
@@ -35,35 +46,53 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { cn } from '@/lib/utils'
-
-const statusVariantMap = {
-  online: 'secondary',
-  offline: 'outline',
-  production: 'destructive',
-  default: 'outline',
-}
 
 const statusDistributionStyleMap = {
   '2xx': {
     badgeVariant: 'secondary',
-    barClassName: 'bg-emerald-500/80',
+    color: 'var(--color-chart-2)',
   },
   '3xx': {
     badgeVariant: 'outline',
-    barClassName: 'bg-sky-500/80',
+    color: 'var(--color-chart-4)',
   },
   '4xx': {
     badgeVariant: 'outline',
-    barClassName: 'bg-amber-500/80',
+    color: 'var(--color-chart-5)',
   },
   '5xx': {
     badgeVariant: 'destructive',
-    barClassName: 'bg-rose-500/80',
+    color: 'var(--destructive)',
   },
   other: {
     badgeVariant: 'outline',
-    barClassName: 'bg-slate-500/80',
+    color: 'var(--color-chart-3)',
+  },
+}
+
+const moduleActivityPalette = [
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)',
+]
+
+const readinessToneMap = {
+  success: {
+    badgeVariant: 'secondary',
+    accentClassName: 'bg-emerald-500/14 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300',
+    dotClassName: 'bg-emerald-500',
+  },
+  warn: {
+    badgeVariant: 'outline',
+    accentClassName: 'bg-amber-500/12 text-amber-700 ring-amber-500/20 dark:text-amber-300',
+    dotClassName: 'bg-amber-500',
+  },
+  info: {
+    badgeVariant: 'outline',
+    accentClassName: 'bg-sky-500/12 text-sky-700 ring-sky-500/20 dark:text-sky-300',
+    dotClassName: 'bg-sky-500',
   },
 }
 
@@ -79,11 +108,6 @@ const resolveHttpStatusVariant = (status) => {
   return 'secondary'
 }
 
-const formatBooleanBadge = (value, truthyText, falsyText) => ({
-  label: value ? truthyText : falsyText,
-  variant: value ? 'secondary' : 'outline',
-})
-
 const formatShortDateLabel = (value) => {
   if (!value) {
     return '--'
@@ -97,55 +121,98 @@ const formatShortDateLabel = (value) => {
   return value
 }
 
-const buildTrendPoints = (items, width, height, paddingX, paddingTop, paddingBottom) => {
-  if (!items.length) {
-    return []
-  }
-
-  const baselineY = height - paddingBottom
-  const maxCount = Math.max(...items.map((item) => item.count), 0)
-
-  return items.map((item, index) => {
-    const x = items.length === 1
-      ? width / 2
-      : paddingX + (index * (width - paddingX * 2)) / (items.length - 1)
-    const y = maxCount > 0
-      ? baselineY - (item.count / maxCount) * (baselineY - paddingTop)
-      : baselineY
-
-    return {
-      ...item,
-      x,
-      y,
-    }
-  })
+const trendChartConfig = {
+  count: {
+    label: '操作量',
+    color: 'var(--color-chart-1)',
+  },
+  average: {
+    label: '日均基线',
+    color: 'var(--color-chart-4)',
+  },
 }
 
-const buildSmoothSegments = (points) =>
-  points.slice(1).map((point, index) => {
-    const previous = points[index]
-    const controlX = (previous.x + point.x) / 2
-
-    return ` C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`
-  }).join('')
-
-const buildSmoothLinePath = (points) => {
-  if (!points.length) {
-    return ''
-  }
-
-  return `M ${points[0].x} ${points[0].y}${buildSmoothSegments(points)}`
+const distributionChartConfig = {
+  count: {
+    label: '记录数',
+    color: 'var(--color-chart-2)',
+  },
 }
 
-const buildSmoothAreaPath = (points, baselineY) => {
-  if (!points.length) {
-    return ''
+const truncateAxisLabel = (value, maxLength = 10) => {
+  if (!value) {
+    return '--'
   }
 
-  const segments = buildSmoothSegments(points)
-  const lastPoint = points[points.length - 1]
+  const text = String(value)
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
+}
 
-  return `M ${points[0].x} ${baselineY} L ${points[0].x} ${points[0].y}${segments} L ${lastPoint.x} ${baselineY} Z`
+const FrameworkStatusPanel = ({ items, environment }) => {
+  const completedCount = items.filter((item) => item.valueTone === 'success').length
+  const warnCount = items.filter((item) => item.valueTone === 'warn').length
+  const readinessValue = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0
+  const readinessTone = warnCount > 0 ? 'warn' : 'success'
+  const readinessMeta = readinessToneMap[readinessTone]
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+        <div className={`rounded-2xl border p-4 ring-1 ${readinessMeta.accentClassName}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <div className="text-xs font-medium uppercase tracking-[0.18em] opacity-80">系统就绪度</div>
+              <div className="text-3xl font-semibold tabular-nums">{readinessValue}%</div>
+            </div>
+            <Badge variant={readinessMeta.badgeVariant}>{environment}</Badge>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-background/60">
+            <div className="h-full rounded-full bg-current transition-[width]" style={{ width: `${readinessValue}%` }} />
+          </div>
+          <div className="mt-3 text-sm opacity-85">
+            {warnCount > 0 ? `存在 ${warnCount} 项需要留意` : '当前核心能力均处于可用状态'}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-muted/20 p-4">
+          <div className="text-xs text-muted-foreground">配置摘要</div>
+          <div className="mt-3 grid gap-3">
+            <div>
+              <div className="text-2xl font-semibold tabular-nums">{completedCount}</div>
+              <div className="text-xs text-muted-foreground">正常项</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold tabular-nums">{warnCount}</div>
+              <div className="text-xs text-muted-foreground">关注项</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {items.map((item, index) => {
+          const tone = readinessToneMap[item.valueTone] || readinessToneMap.info
+
+          return (
+            <div
+              key={`${item.label}-${index}`}
+              className="grid gap-2 rounded-2xl border bg-card/80 p-4 sm:grid-cols-[10rem_minmax(0,1fr)_auto] sm:items-center"
+            >
+              <div className="text-sm text-muted-foreground">{item.label}</div>
+              <div className="flex items-center gap-3">
+                <span className={`size-2.5 rounded-full ${tone.dotClassName}`} />
+                <div className="min-w-0">
+                  <div className="font-medium">{item.value}</div>
+                  <div className="text-xs text-muted-foreground">{item.description}</div>
+                </div>
+              </div>
+              <Badge variant={tone.badgeVariant}>{item.badgeText}</Badge>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 const DashboardSkeleton = () => (
@@ -272,23 +339,18 @@ const TrendLineChart = ({ items }) => {
     )
   }
 
-  const chartWidth = 100
-  const chartHeight = 52
-  const paddingX = 6
-  const paddingTop = 6
-  const paddingBottom = 10
-  const baselineY = chartHeight - paddingBottom
-  const points = buildTrendPoints(items, chartWidth, chartHeight, paddingX, paddingTop, paddingBottom)
-  const linePath = buildSmoothLinePath(points)
-  const areaPath = buildSmoothAreaPath(points, baselineY)
   const totalCount = items.reduce((sum, item) => sum + item.count, 0)
   const averageCount = items.length ? Math.round(totalCount / items.length) : 0
   const peakItem = items.reduce((currentPeak, item) => {
     if (!currentPeak || item.count > currentPeak.count) {
       return item
-    }
-    return currentPeak
+      }
+      return currentPeak
   }, null)
+  const chartData = items.map((item) => ({
+    ...item,
+    average: averageCount,
+  }))
 
   return (
     <div className="flex flex-col gap-4">
@@ -310,81 +372,52 @@ const TrendLineChart = ({ items }) => {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-muted/10 p-4">
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-56 w-full">
+      <ChartContainer config={trendChartConfig} className="h-64 w-full rounded-xl border bg-muted/10 p-4">
+        <AreaChart data={chartData} margin={{ left: 8, right: 8, top: 12, bottom: 8 }}>
           <defs>
-            <linearGradient id="dashboard-trend-area" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+            <linearGradient id="dashboard-audit-trend-fill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-count)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--color-count)" stopOpacity="0.04" />
             </linearGradient>
           </defs>
-
-          {Array.from({ length: 4 }).map((_, index) => {
-            const y = paddingTop + ((baselineY - paddingTop) * index) / 3
-
-            return (
-              <line
-                key={`trend-grid-${index}`}
-                x1={paddingX}
-                x2={chartWidth - paddingX}
-                y1={y}
-                y2={y}
-                stroke="currentColor"
-                strokeOpacity="0.08"
-                strokeDasharray="1.5 2.5"
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            minTickGap={18}
+            tickFormatter={formatShortDateLabel}
+          />
+          <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                indicator="line"
+                labelFormatter={(_, payload) => formatShortDateLabel(payload?.[0]?.payload?.date)}
+                formatter={(value) => `${value} 次`}
               />
-            )
-          })}
-
-          {areaPath ? (
-            <path
-              d={areaPath}
-              fill="url(#dashboard-trend-area)"
-              className="text-primary"
+            }
+          />
+          {averageCount > 0 ? (
+            <ReferenceLine
+              y={averageCount}
+              stroke="var(--color-average)"
+              strokeDasharray="4 4"
+              ifOverflow="extendDomain"
             />
           ) : null}
-
-          {linePath ? (
-            <path
-              d={linePath}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-primary"
-            />
-          ) : null}
-
-          {points.map((point) => (
-            <g key={point.date}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="2.6"
-                fill="currentColor"
-                className="text-primary"
-              />
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="1.2"
-                fill="currentColor"
-                className="text-background"
-              />
-            </g>
-          ))}
-        </svg>
-
-        <div className="mt-4 grid grid-cols-7 gap-2">
-          {items.map((item) => (
-            <div key={item.date} className="min-w-0 rounded-lg bg-background/60 px-2 py-2 text-center">
-              <div className="truncate text-[11px] text-muted-foreground">{formatShortDateLabel(item.date)}</div>
-              <div className="text-sm font-medium">{item.count}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+          <Area
+            type="monotone"
+            dataKey="count"
+            stroke="var(--color-count)"
+            fill="url(#dashboard-audit-trend-fill)"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: 'var(--color-count)' }}
+            activeDot={{ r: 5 }}
+          />
+        </AreaChart>
+      </ChartContainer>
     </div>
   )
 }
@@ -394,7 +427,7 @@ const DistributionChart = ({
   emptyIcon: EmptyIcon,
   emptyTitle,
   emptyDescription,
-  renderLeading,
+  colorResolver,
   countSuffix = '次',
 }) => {
   if (!items.length) {
@@ -411,40 +444,54 @@ const DistributionChart = ({
     )
   }
 
-  const maxCount = Math.max(...items.map((item) => item.count), 0)
+  const chartData = items.map((item, index) => ({
+    ...item,
+    fill: colorResolver?.(item, index) || moduleActivityPalette[index % moduleActivityPalette.length],
+    shortLabel: truncateAxisLabel(item.label),
+  }))
 
   return (
-    <div className="flex flex-col gap-4">
-      {items.map((item) => {
-        const width = maxCount > 0 ? Math.max(Math.round((item.count / maxCount) * 100), 8) : 0
-
-        return (
-          <div key={item.key || item.label} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                {renderLeading ? renderLeading(item) : null}
-                <span className="truncate text-sm font-medium">{item.label}</span>
-              </div>
-              <div className="shrink-0 text-sm text-muted-foreground">{item.count} {countSuffix}</div>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn('h-full rounded-full bg-primary/80 transition-[width]', item.barClassName)}
-                style={{ width: `${width}%` }}
-              />
-            </div>
-            <div className="text-xs text-muted-foreground">占比 {item.share}%</div>
-          </div>
-        )
-      })}
-    </div>
+    <ChartContainer config={distributionChartConfig} className="h-80 w-full">
+      <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 32, top: 4, bottom: 4 }} barCategoryGap={14}>
+        <CartesianGrid horizontal={false} />
+        <XAxis type="number" hide />
+        <YAxis
+          type="category"
+          dataKey="shortLabel"
+          tickLine={false}
+          axisLine={false}
+          width={94}
+        />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              hideIndicator
+              labelFormatter={(_, payload) => payload?.[0]?.payload?.label || '--'}
+              formatter={(value, _, item) => `${value} ${countSuffix} · 占比 ${item.payload.share}%`}
+            />
+          }
+        />
+        <Bar dataKey="count" radius={8} barSize={22}>
+          {chartData.map((item) => (
+            <Cell key={item.key || item.label} fill={item.fill} />
+          ))}
+          <LabelList
+            dataKey="count"
+            position="right"
+            offset={10}
+            className="fill-foreground text-xs font-medium"
+            formatter={(value) => `${value}`}
+          />
+        </Bar>
+      </BarChart>
+    </ChartContainer>
   )
 }
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(false)
   const [overview, setOverview] = useState(null)
-  const [refreshTick, setRefreshTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -476,24 +523,27 @@ const Dashboard = () => {
     return () => {
       cancelled = true
     }
-  }, [refreshTick])
+  }, [])
 
   const summary = overview?.summary || {}
   const system = overview?.system || {}
   const charts = overview?.charts || {}
   const auditTrend = overview?.audit_trend || []
   const recentActivities = overview?.recent_activities || []
-  const moduleActivity = charts.module_activity || []
+  const moduleActivity = (charts.module_activity || []).map((item, index) => ({
+    ...item,
+    color: moduleActivityPalette[index % moduleActivityPalette.length],
+  }))
   const statusDistribution = (charts.status_distribution || []).map((item) => ({
     ...item,
     badgeVariant: statusDistributionStyleMap[item.key]?.badgeVariant || 'outline',
-    barClassName: statusDistributionStyleMap[item.key]?.barClassName || 'bg-primary/80',
+    color: statusDistributionStyleMap[item.key]?.color || 'var(--color-chart-2)',
   }))
   const environment = system.environment || 'unknown'
   const environmentVariant = String(environment).toLowerCase() === 'production' ? 'destructive' : 'secondary'
-  const runMigrationsOnStartup = system.run_migrations_on_startup ?? system.auto_migration ?? false
-  const seedBaseDataOnStartup = system.seed_base_data_on_startup ?? system.auto_seed_data ?? false
-  const refreshApiMetadataOnStartup = system.refresh_api_metadata_on_startup ?? system.auto_refresh_api ?? false
+  const runMigrationsOnStartup = system.run_migrations_on_startup ?? false
+  const seedBaseDataOnStartup = system.seed_base_data_on_startup ?? false
+  const refreshApiMetadataOnStartup = system.refresh_api_metadata_on_startup ?? false
   const chartActivityTotal = moduleActivity.reduce((sum, item) => sum + item.count, 0)
 
   const statistics = [
@@ -531,33 +581,51 @@ const Dashboard = () => {
     {
       label: '运行环境',
       value: environment,
-      variant: environmentVariant,
+      description: environmentVariant === 'destructive' ? '生产环境，建议关注稳定性与审计数据' : '开发环境，适合快速验证与调试',
+      badgeText: environmentVariant === 'destructive' ? '严格模式' : '调试模式',
+      valueTone: environmentVariant === 'destructive' ? 'warn' : 'info',
     },
     {
-      label: '数据库',
+      label: '数据库引擎',
       value: system.database || 'sqlite',
-      variant: statusVariantMap.default,
+      description: '当前工作台概览与审计数据都依赖此连接提供。',
+      badgeText: '核心依赖',
+      valueTone: 'info',
     },
     {
       label: '访问日志',
-      ...formatBooleanBadge(system.access_log_enabled, '已启用', '已关闭'),
+      value: system.access_log_enabled ? '已启用' : '已关闭',
+      description: system.access_log_enabled ? '每个请求都会保留访问轨迹。' : '请求轨迹不会写入访问日志。',
+      badgeText: system.access_log_enabled ? '观测开启' : '观测关闭',
+      valueTone: system.access_log_enabled ? 'success' : 'warn',
     },
     {
       label: '自动引导',
-      ...formatBooleanBadge(system.auto_bootstrap, '已启用', '已关闭'),
+      value: system.auto_bootstrap ? '已启用' : '已关闭',
+      description: system.auto_bootstrap ? '启动时会自动执行基础准备流程。' : '基础准备需要人工执行。',
+      badgeText: system.auto_bootstrap ? '启动增强' : '手动模式',
+      valueTone: system.auto_bootstrap ? 'success' : 'warn',
     },
     {
       label: '启动迁移',
       value: runMigrationsOnStartup ? '自动升级' : '显式迁移',
-      variant: runMigrationsOnStartup ? 'secondary' : 'outline',
+      description: runMigrationsOnStartup ? '实例启动时会自动应用数据库迁移。' : '数据库迁移需要显式执行。',
+      badgeText: runMigrationsOnStartup ? '自动同步' : '谨慎控制',
+      valueTone: runMigrationsOnStartup ? 'success' : 'warn',
     },
     {
       label: '基础数据初始化',
-      ...formatBooleanBadge(seedBaseDataOnStartup, '自动初始化', '手动初始化'),
+      value: seedBaseDataOnStartup ? '自动初始化' : '手动初始化',
+      description: seedBaseDataOnStartup ? '默认角色和基础数据会在启动时补齐。' : '基础数据不会自动注入。',
+      badgeText: seedBaseDataOnStartup ? '种子开启' : '种子关闭',
+      valueTone: seedBaseDataOnStartup ? 'success' : 'warn',
     },
     {
       label: 'API 元数据刷新',
-      ...formatBooleanBadge(refreshApiMetadataOnStartup, '自动刷新', '按需刷新'),
+      value: refreshApiMetadataOnStartup ? '自动刷新' : '按需刷新',
+      description: refreshApiMetadataOnStartup ? 'API 目录会在启动时自动同步。' : '接口目录依赖手动扫描更新。',
+      badgeText: refreshApiMetadataOnStartup ? '目录同步' : '手动扫描',
+      valueTone: refreshApiMetadataOnStartup ? 'success' : 'warn',
     },
   ]
 
@@ -569,7 +637,7 @@ const Dashboard = () => {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{system.app_title || system.title || 'React FastAPI Admin'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{system.app_title || 'React FastAPI Admin'}</h1>
           <p className="text-sm text-muted-foreground">
             系统概览、运行状态、分布图表和最近操作都集中在这里，便于快速判断当前活跃度。
           </p>
@@ -579,10 +647,6 @@ const Dashboard = () => {
           <Badge variant={environmentVariant}>环境 {environment}</Badge>
           <Badge variant="outline">版本 {system.version || '0.0.0'}</Badge>
           <Badge variant="outline">数据库 {system.database || 'sqlite'}</Badge>
-          <Button variant="outline" onClick={() => setRefreshTick((currentTick) => currentTick + 1)}>
-            <RefreshCcwIcon data-icon="inline-start" className={cn(loading && 'animate-spin')} />
-            刷新数据
-          </Button>
         </div>
       </section>
 
@@ -624,16 +688,8 @@ const Dashboard = () => {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3 pt-0">
-            {systemStatusItems.map((item, index) => (
-              <div
-                key={`${item.label}-${index}`}
-                className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"
-              >
-                <span className="text-sm text-muted-foreground">{item.label}</span>
-                <Badge variant={item.variant}>{item.value}</Badge>
-              </div>
-            ))}
+          <CardContent className="pt-0">
+            <FrameworkStatusPanel items={systemStatusItems} environment={environment} />
           </CardContent>
         </Card>
 
@@ -674,6 +730,7 @@ const Dashboard = () => {
               emptyIcon={WebhookIcon}
               emptyTitle="暂无模块分布"
               emptyDescription="最近一周还没有可用于统计的模块活跃数据。"
+              colorResolver={(item) => item.color}
             />
           </CardContent>
         </Card>
@@ -696,9 +753,7 @@ const Dashboard = () => {
               emptyIcon={ShieldCheckIcon}
               emptyTitle="暂无状态分布"
               emptyDescription="最近一周还没有可展示的状态码统计。"
-              renderLeading={(item) => (
-                <Badge variant={item.badgeVariant}>{item.key}</Badge>
-              )}
+              colorResolver={(item) => item.color}
             />
           </CardContent>
         </Card>
@@ -741,7 +796,7 @@ const Dashboard = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>{activity.response_time || 0} ms</TableCell>
-                    <TableCell className="text-muted-foreground">{activity.created_at || activity.time || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{activity.created_at || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

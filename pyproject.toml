@@ -19,6 +19,7 @@ dependencies = [
     "python-multipart==0.0.22",
     "starlette==0.52.1",
     "tortoise-orm==1.1.6",
+    "pillow==11.1.0",
 ]
 
 [build-system]

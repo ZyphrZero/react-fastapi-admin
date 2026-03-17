@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CloudIcon, FolderIcon, HardDriveUploadIcon, SaveIcon, ServerCogIcon } from 'lucide-react'
+import { CloudIcon, FolderIcon, SaveIcon, ServerCogIcon } from 'lucide-react'
 
 import api from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -219,27 +219,25 @@ const SystemSettings = () => {
                         </CardTitle>
                         <CardDescription>本地磁盘目录与访问地址</CardDescription>
                       </CardHeader>
-                      <CardContent className="flex flex-col gap-4">
-                        {fieldConfig.map((field) => (
-                          <div key={field.key} className="flex flex-col gap-2">
-                            <Label
-                              htmlFor={field.key}
-                              required={field.key === 'local_upload_dir'}
-                              invalid={Boolean(errors[field.key])}
-                            >
-                              {field.label}
-                            </Label>
-                            <Input
-                              id={field.key}
-                              required={field.key === 'local_upload_dir'}
-                              value={values[field.key]}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateField(field.key, event.target.value)}
-                              aria-invalid={Boolean(errors[field.key])}
-                            />
-                            {errors[field.key] ? <p className="text-xs text-destructive">{errors[field.key]}</p> : null}
-                          </div>
-                        ))}
+                      <CardContent>
+                        <FieldGroup>
+                          {fieldConfig.map((field) => (
+                            <Field key={field.key} data-invalid={Boolean(errors[field.key])}>
+                              <FieldLabel htmlFor={field.key} required={field.key === 'local_upload_dir'}>
+                                {field.label}
+                              </FieldLabel>
+                              <Input
+                                id={field.key}
+                                required={field.key === 'local_upload_dir'}
+                                value={values[field.key]}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateField(field.key, event.target.value)}
+                                aria-invalid={Boolean(errors[field.key])}
+                              />
+                              <FieldError>{errors[field.key]}</FieldError>
+                            </Field>
+                          ))}
+                        </FieldGroup>
                       </CardContent>
                     </Card>
 
@@ -251,40 +249,43 @@ const SystemSettings = () => {
                         </CardTitle>
                         <CardDescription>启用对象存储时必须完成以下配置</CardDescription>
                       </CardHeader>
-                      <CardContent className="grid gap-4 md:grid-cols-2">
-                        {ossFieldConfig.map((field) => (
-                          <div
-                            key={field.key}
-                            className={`flex flex-col gap-2 ${field.key === 'oss_bucket_domain' ? 'md:col-span-2' : ''}`}
-                          >
-                            <Label
-                              htmlFor={field.key}
-                              required={
-                                field.key === 'oss_upload_dir' ||
-                                (provider === 'oss' &&
-                                  ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
-                              }
-                              invalid={Boolean(errors[field.key])}
+                      <CardContent>
+                        <FieldGroup className="grid gap-4 md:grid-cols-2">
+                          {ossFieldConfig.map((field) => (
+                            <Field
+                              key={field.key}
+                              data-disabled={provider !== 'oss'}
+                              data-invalid={Boolean(errors[field.key])}
+                              className={field.key === 'oss_bucket_domain' ? 'md:col-span-2' : undefined}
                             >
-                              {field.label}
-                            </Label>
-                            <Input
-                              id={field.key}
-                              type={field.type || 'text'}
-                              required={
-                                field.key === 'oss_upload_dir' ||
-                                (provider === 'oss' &&
-                                  ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
-                              }
-                              disabled={provider !== 'oss'}
-                              value={values[field.key]}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateField(field.key, event.target.value)}
-                              aria-invalid={Boolean(errors[field.key])}
-                            />
-                            {errors[field.key] ? <p className="text-xs text-destructive">{errors[field.key]}</p> : null}
-                          </div>
-                        ))}
+                              <FieldLabel
+                                htmlFor={field.key}
+                                required={
+                                  field.key === 'oss_upload_dir' ||
+                                  (provider === 'oss' &&
+                                    ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
+                                }
+                              >
+                                {field.label}
+                              </FieldLabel>
+                              <Input
+                                id={field.key}
+                                type={field.type || 'text'}
+                                required={
+                                  field.key === 'oss_upload_dir' ||
+                                  (provider === 'oss' &&
+                                    ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket_name', 'oss_endpoint'].includes(field.key))
+                                }
+                                disabled={provider !== 'oss'}
+                                value={values[field.key]}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateField(field.key, event.target.value)}
+                                aria-invalid={Boolean(errors[field.key])}
+                              />
+                              <FieldError>{errors[field.key]}</FieldError>
+                            </Field>
+                          ))}
+                        </FieldGroup>
                       </CardContent>
                     </Card>
                   </div>

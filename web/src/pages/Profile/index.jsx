@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BadgeCheckIcon,
   KeyRoundIcon,
@@ -6,24 +6,29 @@ import {
   PhoneIcon,
   SaveIcon,
   ShieldIcon,
+  Trash2Icon,
+  UploadIcon,
   UserIcon,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import api from '@/api'
+import AvatarEditorDialog from '@/components/AvatarEditorDialog'
 import PasswordStrengthIndicator from '@/components/PasswordStrengthIndicator'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { resolveAvatarUrl } from '@/utils/avatar'
 import { clearSession, setStoredUserInfo } from '@/utils/session'
 
 const phonePattern = /^1[3-9]\d{9}$/
 const specialCharPattern = /[!@#$%^&*(),.?":{}|<>]/
+const maxAvatarFileSize = 10 * 1024 * 1024
 
 const formatDate = (dateString) => {
   if (!dateString) return '暂无数据'
@@ -88,9 +93,14 @@ const validatePasswordForm = (values) => {
 const Profile = () => {
   const [userInfo, setUserInfo] = useState({})
   const [loading, setLoading] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false)
+  const [avatarEditorSrc, setAvatarEditorSrc] = useState('')
+  const [avatarEditorFileName, setAvatarEditorFileName] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(null)
   const [profileValues, setProfileValues] = useState({
+    avatar: '',
     nickname: '',
     email: '',
     phone: '',
@@ -102,6 +112,7 @@ const Profile = () => {
   })
   const [profileErrors, setProfileErrors] = useState({})
   const [passwordErrors, setPasswordErrors] = useState({})
+  const avatarInputRef = useRef(null)
 
   const navigate = useNavigate()
   const { handleError, handleBusinessError, showSuccess, showWarning, message } = useErrorHandler()
@@ -112,7 +123,9 @@ const Profile = () => {
       const nextUserInfo = response.data || {}
 
       setUserInfo(nextUserInfo)
+      setStoredUserInfo(nextUserInfo)
       setProfileValues({
+        avatar: nextUserInfo.avatar || '',
         nickname: nextUserInfo.nickname || '',
         email: nextUserInfo.email || '',
         phone: nextUserInfo.phone || '',
@@ -165,6 +178,86 @@ const Profile = () => {
     setProfileErrors((current) => ({ ...current, [field]: undefined }))
   }
 
+  useEffect(
+    () => () => {
+      if (avatarEditorSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarEditorSrc)
+      }
+    },
+    [avatarEditorSrc],
+  )
+
+  const avatarPreviewUrl = resolveAvatarUrl(profileValues.avatar)
+
+  const triggerAvatarUpload = () => {
+    avatarInputRef.current?.click()
+  }
+
+  const closeAvatarEditor = () => {
+    setAvatarEditorOpen(false)
+    if (avatarEditorSrc.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarEditorSrc)
+    }
+    setAvatarEditorSrc('')
+    setAvatarEditorFileName('')
+  }
+
+  const handleRemoveAvatar = () => {
+    updateProfileValue('avatar', '')
+  }
+
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showWarning('请选择图片文件')
+      return
+    }
+
+    if (file.size > maxAvatarFileSize) {
+      showWarning('头像图片不能超过 10MB')
+      return
+    }
+
+    setAvatarEditorSrc((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
+      }
+      return URL.createObjectURL(file)
+    })
+    setAvatarEditorFileName(file.name)
+    setAvatarEditorOpen(true)
+  }
+
+  const handleConfirmAvatar = async (blob) => {
+    const baseName = avatarEditorFileName.replace(/\.[^.]+$/, '') || 'avatar'
+    const avatarFile = new File([blob], `${baseName}.webp`, { type: 'image/webp' })
+
+    setAvatarUploading(true)
+    try {
+      const response = await api.auth.uploadAvatar(avatarFile)
+      const avatarUrl = response.data?.url || ''
+
+      if (!avatarUrl) {
+        showWarning('头像上传成功，但没有返回可用地址')
+        return
+      }
+
+      updateProfileValue('avatar', avatarUrl)
+      closeAvatarEditor()
+      showSuccess('头像上传成功，保存后生效')
+    } catch (error) {
+      handleBusinessError(error, '头像上传失败')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   const updatePasswordValue = (field, value) => {
     setPasswordValues((current) => ({ ...current, [field]: value }))
     setPasswordErrors((current) => ({ ...current, [field]: undefined }))
@@ -182,6 +275,7 @@ const Profile = () => {
     setLoading(true)
     try {
       const processedValues = {
+        avatar: profileValues.avatar.trim() || null,
         nickname: profileValues.nickname.trim() || undefined,
         email: profileValues.email.trim() || undefined,
         phone: profileValues.phone.trim() || undefined,
@@ -196,6 +290,7 @@ const Profile = () => {
       setUserInfo(nextUserInfo)
       setStoredUserInfo(nextUserInfo)
       setProfileValues({
+        avatar: nextUserInfo.avatar || '',
         nickname: nextUserInfo.nickname || '',
         email: nextUserInfo.email || '',
         phone: nextUserInfo.phone || '',
@@ -259,6 +354,7 @@ const Profile = () => {
       <section className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <Avatar size="lg" className="size-14">
+            <AvatarImage src={avatarPreviewUrl} alt={userInfo.nickname || userInfo.username || '用户头像'} />
             <AvatarFallback>{getUserInitials(userInfo)}</AvatarFallback>
           </Avatar>
           <div>
@@ -309,6 +405,7 @@ const Profile = () => {
           <CardContent className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <Avatar size="lg" className="size-16">
+                <AvatarImage src={avatarPreviewUrl} alt={userInfo.nickname || userInfo.username || '用户头像'} />
                 <AvatarFallback>{getUserInitials(userInfo)}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col gap-1">
@@ -352,30 +449,67 @@ const Profile = () => {
             <Card>
               <CardHeader>
                 <CardTitle>修改信息</CardTitle>
-                <CardDescription>更新昵称、邮箱和手机号</CardDescription>
+                <CardDescription>更新头像、昵称、邮箱和手机号</CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="flex flex-col gap-4" onSubmit={handleUpdateProfile}>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="profile-username">用户名</Label>
-                      <Input id="profile-username" value={userInfo.username || ''} disabled />
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                    className="hidden"
+                    onChange={(event) => void handleAvatarChange(event)}
+                  />
+
+                  <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <Avatar size="lg" className="size-20">
+                        <AvatarImage src={avatarPreviewUrl} alt={userInfo.nickname || userInfo.username || '用户头像'} />
+                        <AvatarFallback>{getUserInitials(userInfo)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col gap-1">
+                        <div className="text-sm font-medium">头像设置</div>
+                        <div className="text-sm text-muted-foreground">支持 JPG、PNG、GIF、WebP，大小不超过 10MB</div>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="profile-nickname" invalid={Boolean(profileErrors.nickname)}>昵称</Label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" disabled={avatarUploading || loading} onClick={triggerAvatarUpload}>
+                        <UploadIcon data-icon="inline-start" />
+                        {avatarUploading ? '上传中...' : '上传头像'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={avatarUploading || loading || !profileValues.avatar}
+                        onClick={handleRemoveAvatar}
+                      >
+                        <Trash2Icon data-icon="inline-start" />
+                        移除头像
+                      </Button>
+                    </div>
+                  </div>
+
+                  <FieldGroup className="grid gap-4 md:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="profile-username">用户名</FieldLabel>
+                      <Input id="profile-username" value={userInfo.username || ''} disabled />
+                    </Field>
+                    <Field data-invalid={Boolean(profileErrors.nickname)}>
+                      <FieldLabel htmlFor="profile-nickname">昵称</FieldLabel>
                       <Input
                         id="profile-nickname"
                         value={profileValues.nickname}
                         onChange={(event) => updateProfileValue('nickname', event.target.value)}
                         aria-invalid={Boolean(profileErrors.nickname)}
                       />
-                      {profileErrors.nickname ? <p className="text-xs text-destructive">{profileErrors.nickname}</p> : null}
-                    </div>
-                  </div>
+                      <FieldError>{profileErrors.nickname}</FieldError>
+                    </Field>
+                  </FieldGroup>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="profile-email" invalid={Boolean(profileErrors.email)}>邮箱地址</Label>
+                  <FieldGroup className="grid gap-4 md:grid-cols-2">
+                    <Field data-invalid={Boolean(profileErrors.email)}>
+                      <FieldLabel htmlFor="profile-email">邮箱地址</FieldLabel>
                       <Input
                         id="profile-email"
                         type="email"
@@ -384,10 +518,10 @@ const Profile = () => {
                         onChange={(event) => updateProfileValue('email', event.target.value)}
                         aria-invalid={Boolean(profileErrors.email)}
                       />
-                      {profileErrors.email ? <p className="text-xs text-destructive">{profileErrors.email}</p> : null}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="profile-phone" invalid={Boolean(profileErrors.phone)}>手机号码</Label>
+                      <FieldError>{profileErrors.email}</FieldError>
+                    </Field>
+                    <Field data-invalid={Boolean(profileErrors.phone)}>
+                      <FieldLabel htmlFor="profile-phone">手机号码</FieldLabel>
                       <Input
                         id="profile-phone"
                         autoComplete="tel"
@@ -396,9 +530,9 @@ const Profile = () => {
                         onChange={(event) => updateProfileValue('phone', event.target.value.replace(/[^\d]/g, ''))}
                         aria-invalid={Boolean(profileErrors.phone)}
                       />
-                      {profileErrors.phone ? <p className="text-xs text-destructive">{profileErrors.phone}</p> : null}
-                    </div>
-                  </div>
+                      <FieldError>{profileErrors.phone}</FieldError>
+                    </Field>
+                  </FieldGroup>
 
                   <div className="flex justify-end">
                     <Button type="submit" disabled={loading}>
@@ -419,53 +553,55 @@ const Profile = () => {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <form className="flex flex-col gap-4" onSubmit={handleUpdatePassword}>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="old-password" required invalid={Boolean(passwordErrors.oldPassword)}>当前密码</Label>
-                    <Input
-                      id="old-password"
-                      type="password"
-                      required
-                      autoComplete="current-password"
-                      value={passwordValues.oldPassword}
-                      onChange={(event) => updatePasswordValue('oldPassword', event.target.value)}
-                      aria-invalid={Boolean(passwordErrors.oldPassword)}
-                    />
-                    {passwordErrors.oldPassword ? <p className="text-xs text-destructive">{passwordErrors.oldPassword}</p> : null}
-                  </div>
+                  <FieldGroup>
+                    <Field data-invalid={Boolean(passwordErrors.oldPassword)}>
+                      <FieldLabel htmlFor="old-password" required>当前密码</FieldLabel>
+                      <Input
+                        id="old-password"
+                        type="password"
+                        required
+                        autoComplete="current-password"
+                        value={passwordValues.oldPassword}
+                        onChange={(event) => updatePasswordValue('oldPassword', event.target.value)}
+                        aria-invalid={Boolean(passwordErrors.oldPassword)}
+                      />
+                      <FieldError>{passwordErrors.oldPassword}</FieldError>
+                    </Field>
 
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-password" required invalid={Boolean(passwordErrors.newPassword)}>新密码</Label>
-                    <Input
-                      id="new-password"
-                      type="password"
-                      required
-                      autoComplete="new-password"
-                      value={passwordValues.newPassword}
-                      onChange={(event) => updatePasswordValue('newPassword', event.target.value)}
-                      aria-invalid={Boolean(passwordErrors.newPassword)}
-                    />
-                    {passwordErrors.newPassword ? <p className="text-xs text-destructive">{passwordErrors.newPassword}</p> : null}
-                  </div>
+                    <Field data-invalid={Boolean(passwordErrors.newPassword)}>
+                      <FieldLabel htmlFor="new-password" required>新密码</FieldLabel>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        required
+                        autoComplete="new-password"
+                        value={passwordValues.newPassword}
+                        onChange={(event) => updatePasswordValue('newPassword', event.target.value)}
+                        aria-invalid={Boolean(passwordErrors.newPassword)}
+                      />
+                      <FieldError>{passwordErrors.newPassword}</FieldError>
+                    </Field>
 
-                  <PasswordStrengthIndicator
-                    password={passwordValues.newPassword}
-                    onStrengthChange={setPasswordStrength}
-                    showSuggestions
-                  />
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="confirm-password" required invalid={Boolean(passwordErrors.confirmPassword)}>确认新密码</Label>
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      required
-                      autoComplete="new-password"
-                      value={passwordValues.confirmPassword}
-                      onChange={(event) => updatePasswordValue('confirmPassword', event.target.value)}
-                      aria-invalid={Boolean(passwordErrors.confirmPassword)}
+                    <PasswordStrengthIndicator
+                      password={passwordValues.newPassword}
+                      onStrengthChange={setPasswordStrength}
+                      showSuggestions
                     />
-                    {passwordErrors.confirmPassword ? <p className="text-xs text-destructive">{passwordErrors.confirmPassword}</p> : null}
-                  </div>
+
+                    <Field data-invalid={Boolean(passwordErrors.confirmPassword)}>
+                      <FieldLabel htmlFor="confirm-password" required>确认新密码</FieldLabel>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        required
+                        autoComplete="new-password"
+                        value={passwordValues.confirmPassword}
+                        onChange={(event) => updatePasswordValue('confirmPassword', event.target.value)}
+                        aria-invalid={Boolean(passwordErrors.confirmPassword)}
+                      />
+                      <FieldError>{passwordErrors.confirmPassword}</FieldError>
+                    </Field>
+                  </FieldGroup>
 
                   <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
                     <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
@@ -491,6 +627,20 @@ const Profile = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <AvatarEditorDialog
+        key={avatarEditorSrc || 'avatar-editor'}
+        open={avatarEditorOpen}
+        imageSrc={avatarEditorSrc}
+        fallback={getUserInitials(userInfo)}
+        submitting={avatarUploading}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeAvatarEditor()
+          }
+        }}
+        onConfirm={handleConfirmAvatar}
+      />
     </div>
   )
 }

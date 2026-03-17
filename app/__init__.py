@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import mimetypes
 import os
 
 from fastapi import FastAPI
@@ -32,6 +33,7 @@ def load_environment():
 
 # 在导入settings之前加载环境变量
 load_environment()
+mimetypes.add_type("image/webp", ".webp")
 
 try:
     from app.settings.config import settings

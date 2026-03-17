@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Edit3Icon, MenuIcon, PlusIcon, RefreshCcwIcon, SearchIcon, ShieldIcon, Trash2Icon, WaypointsIcon, XIcon } from 'lucide-react'
+import { Edit3Icon, MenuIcon, PlusIcon, SearchIcon, ShieldIcon, Trash2Icon, WaypointsIcon, XIcon } from 'lucide-react'
 
 import api from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -39,8 +40,8 @@ const validateRoleForm = (values) => {
 }
 
 const getMenuNodeMeta = (menu) => {
-  const path = menu.path ?? menu.key ?? ''
-  const title = menu.name ?? menu.title ?? (path || '未命名菜单')
+  const path = menu.path ?? ''
+  const title = menu.name ?? (path || '未命名菜单')
 
   return {
     path,
@@ -166,10 +167,6 @@ const RoleManagement = () => {
     void fetchRoles(1, 10, {})
     void fetchPermissionOptions()
   }, [fetchPermissionOptions, fetchRoles])
-
-  const refreshRoles = async () => {
-    await fetchRoles(currentPage, pageSize, searchParams)
-  }
 
   const handleSearch = async (event) => {
     event.preventDefault()
@@ -335,10 +332,6 @@ const RoleManagement = () => {
                 <XIcon data-icon="inline-start" />
                 清空
               </Button>
-              <Button type="button" variant="outline" onClick={() => void refreshRoles()} disabled={loading}>
-                <RefreshCcwIcon data-icon="inline-start" />
-                刷新
-              </Button>
             </div>
           </form>
         </CardContent>
@@ -434,36 +427,37 @@ const RoleManagement = () => {
             <div className="py-12 text-sm text-muted-foreground">加载角色详情中...</div>
           ) : (
             <form className="flex flex-col gap-4" onSubmit={handleSaveRole}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="role-name" required invalid={Boolean(modalErrors.name)}>角色名称</Label>
+              <FieldGroup className="grid gap-4 md:grid-cols-2">
+                <Field data-invalid={Boolean(modalErrors.name)}>
+                  <FieldLabel htmlFor="role-name" required>角色名称</FieldLabel>
                   <Input
                     id="role-name"
                     required
                     value={modalValues.name}
+                    className="min-h-12"
                     onChange={(event) => {
                       setModalValues((current) => ({ ...current, name: event.target.value }))
                       setModalErrors((current) => ({ ...current, name: undefined }))
                     }}
                     aria-invalid={Boolean(modalErrors.name)}
                   />
-                  {modalErrors.name ? <p className="text-xs text-destructive">{modalErrors.name}</p> : null}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="role-desc" invalid={Boolean(modalErrors.desc)}>角色描述</Label>
+                  <FieldError>{modalErrors.name}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(modalErrors.desc)}>
+                  <FieldLabel htmlFor="role-desc">角色描述</FieldLabel>
                   <Textarea
                     id="role-desc"
                     value={modalValues.desc}
-                    className="min-h-24"
+                    className="min-h-12"
                     onChange={(event) => {
                       setModalValues((current) => ({ ...current, desc: event.target.value }))
                       setModalErrors((current) => ({ ...current, desc: undefined }))
                     }}
                     aria-invalid={Boolean(modalErrors.desc)}
                   />
-                  {modalErrors.desc ? <p className="text-xs text-destructive">{modalErrors.desc}</p> : null}
-                </div>
-              </div>
+                  <FieldError>{modalErrors.desc}</FieldError>
+                </Field>
+              </FieldGroup>
 
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card size="sm">

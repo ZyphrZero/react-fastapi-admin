@@ -7,7 +7,7 @@ const messageShownAt = new Map()
 
 /**
  * 错误处理Hook
- * 使用Ant Design的App组件提供的message API，避免静态函数警告
+ * 基于 sonner 封装统一消息提示与错误处理
  * 支持自定义错误处理器和全局错误处理
  */
 export const useErrorHandler = () => {

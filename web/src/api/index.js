@@ -11,6 +11,15 @@ export default {
         getUserApi: () => request.get('/base/userapi'),
         updatePassword: (data = {}) => request.post('/base/update_password', data),
         updateProfile: (data = {}) => request.post('/base/update_profile', data),
+        uploadAvatar: (file) => {
+            const formData = new FormData()
+            formData.append('file', file)
+            return request.post('/base/upload_avatar', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            })
+        },
         logout: () => request.post('/base/logout'),
     },
 

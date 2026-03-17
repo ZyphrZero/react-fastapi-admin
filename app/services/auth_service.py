@@ -71,9 +71,7 @@ class AuthService:
 
     async def get_current_user_info(self, user_id: int) -> dict:
         user = await self.get_current_user(user_id)
-        data = await user.to_dict(exclude_fields=["password"])
-        data["avatar"] = "https://avatars.githubusercontent.com/u/54677442?v=4"
-        return data
+        return await user.to_dict(exclude_fields=["password"])
 
     async def get_current_user_menu(self, user_id: int) -> list[dict]:
         user = await self.get_current_user(user_id)
