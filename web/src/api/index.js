@@ -14,6 +14,12 @@ export default {
         logout: () => request.post('/base/logout'),
     },
 
+    // 系统设置
+    systemSettings: {
+        getStorageSettings: () => request.get('/system_settings/storage'),
+        updateStorageSettings: (data = {}) => request.post('/system_settings/storage', data),
+    },
+
     // 用户管理
     users: {
         getList: (params = {}) => request.get('/user/list', { params }),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Avatar, Breadcrumb, Button, Dropdown, Layout, Menu, Space, Spin, Tabs, theme } from 'antd'
-import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
 import { Icon } from '@iconify/react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
@@ -99,6 +99,7 @@ const AppLayout = () => {
 
   const breadcrumbNameMap = {
     '/profile': '个人中心',
+    '/system/settings': '系统设置',
     ...buildLabelMap(menuItems),
   }
 
@@ -201,6 +202,7 @@ const AppLayout = () => {
     const currentPath = location.pathname
     const currentLabelMap = {
       '/profile': '个人中心',
+      '/system/settings': '系统设置',
       ...buildLabelMap(menuItems),
     }
     const label = currentLabelMap[currentPath] || currentPath
@@ -237,6 +239,21 @@ const AppLayout = () => {
       ),
       onClick: () => addTab('/profile', '个人中心'),
     },
+    ...(userInfo?.is_superuser
+      ? [
+          {
+            key: 'system-settings',
+            icon: <SettingOutlined className="text-slate-500" />,
+            label: (
+              <div className="flex flex-col">
+                <span className="font-medium">系统设置</span>
+                <span className="text-xs text-gray-500">配置对象存储等全局选项</span>
+              </div>
+            ),
+            onClick: () => addTab('/system/settings', '系统设置'),
+          },
+        ]
+      : []),
     {
       type: 'divider',
     },

@@ -1,12 +1,13 @@
 import os
-import uuid
 import shutil
+import uuid
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List
 
 from fastapi import HTTPException, UploadFile, status
 
 from app.settings.config import settings
+from app.services.system_setting_service import system_setting_service
 
 # 条件导入 oss2，如果不存在则设为 None
 try:
@@ -33,37 +34,49 @@ class UploadController:
         """获取文件扩展名"""
         return os.path.splitext(filename)[1] if "." in filename else ""
 
+    async def get_storage_settings(self) -> dict:
+        return await system_setting_service.get_runtime_storage_settings()
+
+    @staticmethod
+    def is_object_storage_enabled(storage_settings: dict) -> bool:
+        return storage_settings.get("provider") == "oss"
+
+    @staticmethod
+    def is_local_file_key(file_key: str, storage_settings: dict) -> bool:
+        local_full_url = storage_settings.get("local_full_url", "").rstrip("/")
+        return file_key.startswith("/static/") or (local_full_url and file_key.startswith(local_full_url))
+
     def generate_oss_file_name(self, original_filename: str) -> str:
-        """生成OSS中的文件名，基于时间和UUID"""
+        """生成对象存储中的文件名，基于时间和UUID"""
         ext = self.get_file_extension(original_filename)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         random_uuid = str(uuid.uuid4()).replace("-", "")[:8]
         return f"{timestamp}_{random_uuid}{ext}"
 
-    def generate_oss_path(self, file_type: str = "common") -> str:
+    def generate_oss_path(self, upload_dir: str, file_type: str = "common") -> str:
         """
-        根据文件类型和当前日期生成OSS存储路径
+        根据文件类型和当前日期生成对象存储路径
 
         Args:
+            upload_dir: 对象存储上传目录
             file_type: 文件类型，用于分类存储，如image、document等
 
         Returns:
-            str: OSS存储路径
+            str: 对象存储路径
         """
         today = datetime.now()
         date_str = today.strftime("%Y%m%d")  # 使用连续的年月日格式
 
-        # 使用os.path.join正确处理路径连接，防止双斜杠问题
-        # 注意：OSS使用正斜杠，Windows下os.path.join使用反斜杠，需要转换
-        path = os.path.join(settings.OSS_UPLOAD_DIR, file_type, date_str)
-        # 转换为OSS路径格式（使用正斜杠）
+        # 对象存储使用正斜杠，Windows 下 os.path.join 会生成反斜杠，因此统一替换。
+        path = os.path.join(upload_dir, file_type, date_str)
         return path.replace("\\", "/")
 
-    def generate_local_path(self, file_type: str = "common") -> str:
+    def generate_local_path(self, storage_settings: dict, file_type: str = "common") -> str:
         """
         根据文件类型和当前日期生成本地存储路径
 
         Args:
+            storage_settings: 当前存储配置
             file_type: 文件类型，用于分类存储，如image、document等
 
         Returns:
@@ -71,11 +84,13 @@ class UploadController:
         """
         today = datetime.now()
         date_str = today.strftime("%Y%m%d")  # 使用连续的年月日格式
+        local_upload_dir = storage_settings["local_upload_dir"]
+        local_url_prefix = storage_settings["local_url_prefix"]
 
         # 本地文件系统路径
-        fs_path = os.path.join(settings.local_storage_path, file_type, date_str)
+        fs_path = os.path.join(settings.storage_root_path, local_upload_dir, file_type, date_str)
         # URL路径
-        url_path = os.path.join(settings.LOCAL_STORAGE_URL_PREFIX, file_type, date_str).replace("\\", "/")
+        url_path = os.path.join(local_url_prefix, file_type, date_str).replace("\\", "/")
 
         # 仅在实际需要时确保目录存在
         self.ensure_storage_directory(fs_path)
@@ -138,13 +153,52 @@ class UploadController:
 
         return file_content
 
-    async def upload_to_local(self, file_content: bytes, filename: str, file_type: str = "common") -> str:
+    def validate_object_storage_config(self, storage_settings: dict) -> None:
+        if not OSS_AVAILABLE:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="对象存储 SDK 不可用，请安装 oss2 或切换为本地存储",
+            )
+
+        required_fields = {
+            "oss_access_key_id": "AccessKey ID",
+            "oss_access_key_secret": "AccessKey Secret",
+            "oss_bucket_name": "Bucket 名称",
+            "oss_endpoint": "Endpoint",
+        }
+        missing_fields = [label for field, label in required_fields.items() if not storage_settings.get(field)]
+        if missing_fields:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"对象存储配置不完整，缺少: {', '.join(missing_fields)}",
+            )
+
+    def build_oss_bucket(self, storage_settings: dict):
+        self.validate_object_storage_config(storage_settings)
+        auth = oss2.Auth(storage_settings["oss_access_key_id"], storage_settings["oss_access_key_secret"])
+        return oss2.Bucket(auth, storage_settings["oss_endpoint"], storage_settings["oss_bucket_name"])
+
+    @staticmethod
+    def build_oss_file_url(storage_settings: dict, object_key: str) -> str:
+        bucket_domain = storage_settings.get("oss_bucket_domain", "")
+        if bucket_domain:
+            return f"https://{bucket_domain}/{object_key}"
+        return f"https://{storage_settings['oss_bucket_name']}.{storage_settings['oss_endpoint']}/{object_key}"
+
+    async def upload_to_local(
+        self,
+        file_content: bytes,
+        filename: str,
+        storage_settings: dict,
+        file_type: str = "common",
+    ) -> str:
         """
         上传文件到本地存储
 
         Args:
             file_content: 文件内容
             filename: 文件名
+            storage_settings: 当前存储配置
             file_type: 文件类型，如image、document等
 
         Returns:
@@ -155,7 +209,9 @@ class UploadController:
         """
         try:
             # 获取本地存储路径
-            fs_path, url_path = self.generate_local_path(file_type)
+            local_storage_full_url = storage_settings["local_full_url"]
+            local_upload_dir = storage_settings["local_upload_dir"]
+            fs_path, url_path = self.generate_local_path(storage_settings, file_type)
 
             # 文件完整路径
             file_path = os.path.join(fs_path, filename)
@@ -165,13 +221,9 @@ class UploadController:
                 f.write(file_content)
 
             # 返回文件URL
-            if settings.LOCAL_STORAGE_FULL_URL:
-                # 如果配置了完整URL，使用完整URL (去掉前导的/static/uploads)
-                if url_path.startswith(settings.LOCAL_STORAGE_URL_PREFIX):
-                    rel_path = url_path[len(settings.LOCAL_STORAGE_URL_PREFIX) :].lstrip("/")
-                    file_url = f"{settings.LOCAL_STORAGE_FULL_URL.rstrip('/')}/{rel_path}/{filename}"
-                else:
-                    file_url = f"{settings.LOCAL_STORAGE_FULL_URL.rstrip('/')}/{url_path.lstrip('/')}/{filename}"
+            if local_storage_full_url:
+                relative_path = url_path[len("/static/") :].lstrip("/")
+                file_url = f"{local_storage_full_url.rstrip('/')}/{relative_path}/{filename}"
             else:
                 # 否则使用相对路径
                 file_url = f"{url_path}/{filename}"
@@ -185,11 +237,11 @@ class UploadController:
 
     async def upload_to_oss(self, file_content: bytes, oss_file_name: str, file_type: str = "common") -> str:
         """
-        上传文件到阿里云OSS
+        上传文件到对象存储或本地存储
 
         Args:
             file_content: 文件内容
-            oss_file_name: OSS中的文件名
+            oss_file_name: 对象存储中的文件名
             file_type: 文件类型，如image、document等
 
         Returns:
@@ -198,16 +250,15 @@ class UploadController:
         Raises:
             HTTPException: 上传失败时抛出异常
         """
-        # 如果OSS未启用或oss2模块不可用，使用本地存储
-        if not settings.OSS_ENABLED or not OSS_AVAILABLE:
-            return await self.upload_to_local(file_content, oss_file_name, file_type)
+        storage_settings = await self.get_storage_settings()
+        if not self.is_object_storage_enabled(storage_settings):
+            return await self.upload_to_local(file_content, oss_file_name, storage_settings, file_type)
 
-        # 初始化OSS客户端
-        auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
-        bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
+        bucket = self.build_oss_bucket(storage_settings)
 
         # 构建完整的OSS文件路径，增加按日期分类的目录结构
-        oss_path = self.generate_oss_path(file_type)
+        upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
+        oss_path = self.generate_oss_path(upload_dir, file_type)
         # 使用os.path.join连接路径，然后转换为OSS格式
         oss_file_path = os.path.join(oss_path, oss_file_name).replace("\\", "/")
 
@@ -217,22 +268,17 @@ class UploadController:
             headers = {"x-oss-object-acl": "public-read"}
             bucket.put_object(oss_file_path, file_content, headers=headers)
 
-            # 获取文件URL
-            if settings.OSS_BUCKET_DOMAIN:
-                # 如果有自定义域名
-                file_url = f"https://{settings.OSS_BUCKET_DOMAIN}/{oss_file_path}"
-            else:
-                # 使用OSS默认域名
-                file_url = f"https://{settings.OSS_BUCKET_NAME}.{settings.OSS_ENDPOINT}/{oss_file_path}"
-
-            return file_url
+            return self.build_oss_file_url(storage_settings, oss_file_path)
 
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"上传到OSS失败: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"上传到对象存储失败: {str(e)}",
+            )
 
     async def upload_image(self, file: UploadFile) -> Dict:
         """
-        上传单个图片到OSS或本地存储
+        上传单个图片到对象存储或本地存储
 
         Args:
             file: 上传的图片文件
@@ -246,7 +292,7 @@ class UploadController:
         # 生成文件名
         file_name = self.generate_oss_file_name(file.filename)
 
-        # 上传文件，根据配置选择OSS或本地存储
+        # 上传文件，根据配置选择对象存储或本地存储
         file_url = await self.upload_to_oss(file_content, file_name, file_type="image")
 
         # 返回结果
@@ -254,7 +300,7 @@ class UploadController:
 
     async def upload_files(self, files: List[UploadFile]) -> List[Dict]:
         """
-        批量上传文件到OSS或本地存储
+        批量上传文件到对象存储或本地存储
 
         Args:
             files: 上传的文件列表
@@ -291,7 +337,7 @@ class UploadController:
             elif file_extension in [".mp4", ".avi", ".mov", ".wmv"]:
                 file_type = "video"
 
-            # 上传文件，根据配置选择OSS或本地存储
+            # 上传文件，根据配置选择对象存储或本地存储
             file_url = await self.upload_to_oss(file_content, file_name, file_type=file_type)
 
             result.append({"url": file_url, "name": file.filename, "size": len(file_content)})
@@ -300,7 +346,7 @@ class UploadController:
 
     async def list_files(self, prefix: str = None, max_keys: int = 100) -> List[Dict]:
         """
-        获取OSS中的文件列表
+        获取对象存储中的文件列表
 
         Args:
             prefix: 路径前缀，例如 "image/"
@@ -309,20 +355,19 @@ class UploadController:
         Returns:
             List[Dict]: 文件信息列表
         """
-        # 如果OSS未启用或oss2模块不可用，返回空列表
-        if not settings.OSS_ENABLED or not OSS_AVAILABLE:
+        storage_settings = await self.get_storage_settings()
+        if not self.is_object_storage_enabled(storage_settings):
             return []
 
         try:
-            # 初始化OSS客户端
-            auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
-            bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
+            bucket = self.build_oss_bucket(storage_settings)
 
             # 构建完整的前缀，使用os.path.join处理路径
+            upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
             if prefix:
-                full_prefix = os.path.join(settings.OSS_UPLOAD_DIR, prefix).replace("\\", "/")
+                full_prefix = os.path.join(upload_dir, prefix).replace("\\", "/")
             else:
-                full_prefix = settings.OSS_UPLOAD_DIR
+                full_prefix = upload_dir
 
             # 列举文件
             result = []
@@ -330,16 +375,10 @@ class UploadController:
                 if not obj.key.endswith("/"):  # 排除目录
                     file_name = os.path.basename(obj.key)
 
-                    # 构建URL
-                    if settings.OSS_BUCKET_DOMAIN:
-                        file_url = f"https://{settings.OSS_BUCKET_DOMAIN}/{obj.key}"
-                    else:
-                        file_url = f"https://{settings.OSS_BUCKET_NAME}.{settings.OSS_ENDPOINT}/{obj.key}"
-
                     result.append(
                         {
                             "name": file_name,
-                            "url": file_url,
+                            "url": self.build_oss_file_url(storage_settings, obj.key),
                             "key": obj.key,
                             "size": obj.size,
                             "last_modified": obj.last_modified.strftime("%Y-%m-%d %H:%M:%S"),
@@ -351,41 +390,29 @@ class UploadController:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取文件列表失败: {str(e)}")
 
-    async def delete_local_file(self, file_path: str) -> bool:
+    async def delete_local_file(self, file_path: str, storage_settings: dict) -> bool:
         """
         删除本地存储中的文件
 
         Args:
             file_path: 文件的相对路径或完整URL
+            storage_settings: 当前存储配置
 
         Returns:
             bool: 是否删除成功
         """
         try:
             print(f"尝试删除本地文件: {file_path}")
+            local_storage_full_url = storage_settings["local_full_url"].rstrip("/")
 
-            # 处理以 'static/uploads/' 开头的路径 (前端传递的格式)
-            if file_path.startswith("static/uploads/"):
-                # 直接构建到本地存储路径，不要再添加"uploads"
-                relative_path = file_path.replace("static/uploads/", "")
-                full_path = os.path.join(settings.local_storage_path, relative_path)
-
-            # 如果是完整URL，提取相对路径
-            elif settings.LOCAL_STORAGE_FULL_URL and file_path.startswith(settings.LOCAL_STORAGE_FULL_URL):
-                # 从完整URL中提取相对路径
-                relative_path = file_path[len(settings.LOCAL_STORAGE_FULL_URL) :].lstrip("/")
-                full_path = os.path.join(settings.local_storage_path, relative_path)
-
-            # 如果是以URL前缀开头
-            elif file_path.startswith(settings.LOCAL_STORAGE_URL_PREFIX):
-                # 移除URL前缀
-                relative_path = file_path[len(settings.LOCAL_STORAGE_URL_PREFIX) :].lstrip("/")
-                # 构建完整路径
-                full_path = os.path.join(settings.local_storage_path, relative_path)
-
+            if local_storage_full_url and file_path.startswith(local_storage_full_url):
+                relative_path = file_path[len(local_storage_full_url) :].lstrip("/")
+            elif file_path.startswith("/static/"):
+                relative_path = file_path[len("/static/") :].lstrip("/")
             else:
-                # 如果路径不以URL前缀开头，假设它是相对于存储根目录的路径
-                full_path = os.path.join(settings.local_storage_path, file_path.lstrip("/"))
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的本地文件路径")
+
+            full_path = os.path.join(settings.storage_root_path, relative_path)
 
             print(f"解析后的完整路径: {full_path}")
 
@@ -399,6 +426,8 @@ class UploadController:
             print(f"文件不存在: {full_path}")
             return False
 
+        except HTTPException:
+            raise
         except Exception as e:
             print(f"删除本地文件失败: {str(e)}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除本地文件失败: {str(e)}")
@@ -413,14 +442,12 @@ class UploadController:
         Returns:
             bool: 是否删除成功
         """
-        # 检查是否为本地存储路径或OSS不可用
-        if not settings.OSS_ENABLED or not OSS_AVAILABLE or file_key.startswith(settings.LOCAL_STORAGE_URL_PREFIX):
-            return await self.delete_local_file(file_key)
+        storage_settings = await self.get_storage_settings()
+        if not self.is_object_storage_enabled(storage_settings) or self.is_local_file_key(file_key, storage_settings):
+            return await self.delete_local_file(file_key, storage_settings)
 
         try:
-            # 初始化OSS客户端
-            auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
-            bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
+            bucket = self.build_oss_bucket(storage_settings)
 
             # 删除文件
             bucket.delete_object(file_key)
@@ -439,25 +466,24 @@ class UploadController:
         Returns:
             Dict: 处理结果
         """
-        # 如果OSS未启用或oss2模块不可用，返回错误信息
-        if not settings.OSS_ENABLED or not OSS_AVAILABLE:
+        storage_settings = await self.get_storage_settings()
+        if not self.is_object_storage_enabled(storage_settings):
             return {
                 "success": False,
-                "message": "OSS功能未启用或不可用",
+                "message": "当前未启用对象存储",
                 "count": 0,
                 "error_count": 0,
             }
 
         try:
-            # 初始化OSS客户端
-            auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
-            bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
+            bucket = self.build_oss_bucket(storage_settings)
 
             # 构建完整的前缀
+            upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
             if prefix:
-                full_prefix = os.path.join(settings.OSS_UPLOAD_DIR, prefix).replace("\\", "/")
+                full_prefix = os.path.join(upload_dir, prefix).replace("\\", "/")
             else:
-                full_prefix = settings.OSS_UPLOAD_DIR
+                full_prefix = upload_dir
 
             # 处理计数
             count = 0

@@ -81,20 +81,6 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_DIGITS: bool = Field(default=True, description="是否要求包含数字")
     PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True, description="是否要求包含特殊字符")
 
-    # 阿里云 OSS 配置
-    OSS_ENABLED: bool = Field(default=True, description="是否启用 OSS 存储")
-    OSS_ACCESS_KEY_ID: str = Field(default="your_access_key_id", description="OSS 访问密钥 ID")
-    OSS_ACCESS_KEY_SECRET: str = Field(default="your_access_key_secret", description="OSS 访问密钥")
-    OSS_BUCKET_NAME: str = Field(default="your_bucket_name", description="OSS 存储桶名称")
-    OSS_ENDPOINT: str = Field(default="oss-cn-hangzhou.aliyuncs.com", description="OSS 端点")
-    OSS_BUCKET_DOMAIN: str = Field(default="", description="OSS 自定义域名")
-    OSS_UPLOAD_DIR: str = Field(default="uploads", description="OSS 上传目录")
-    OSS_URL_EXPIRE_SECONDS: int = Field(default=60 * 60 * 24, description="OSS 签名 URL 过期时间（秒）")
-
-    # 本地存储配置
-    LOCAL_STORAGE_URL_PREFIX: str = Field(default="/static/uploads", description="本地存储 URL 前缀")
-    LOCAL_STORAGE_FULL_URL: str = Field(default="", description="本地存储完整 URL")
-
     # 启动引导配置
     AUTO_BOOTSTRAP: bool = Field(default=True, description="是否在启动时执行引导流程")
     RUN_MIGRATIONS_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时应用迁移")
@@ -168,9 +154,9 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
-    def local_storage_path(self) -> Path:
-        """获取本地存储路径（不自动创建目录）"""
-        return ensure_path("storage/uploads", create_parent=False)
+    def storage_root_path(self) -> Path:
+        """获取静态存储根目录（不自动创建目录）"""
+        return ensure_path("storage", create_parent=False)
 
     @computed_field
     @property
@@ -314,7 +300,7 @@ def print_startup_info():
         print(f"📁 SQLite 数据库文件: {settings.DB_FILE}")
     print(f"📂 项目根路径: {settings.BASE_DIR}")
     print(f"📋 日志路径: {settings.logs_path}")
-    print(f"💾 本地存储路径: {settings.local_storage_path}")
+    print(f"💾 静态存储根路径: {settings.storage_root_path}")
     if settings.ip_whitelist:
         print(f"🛡️  IP 白名单: {settings.ip_whitelist}")
     print("=" * 50)

@@ -85,8 +85,7 @@ def create_app() -> FastAPI:
     register_exceptions(app)
     register_routers(app, prefix="/api")
 
-    storage_dir = os.path.join(settings.BASE_DIR, "storage")
-    app.mount("/static", StaticFiles(directory=storage_dir, check_dir=False), name="static")
+    app.mount("/static", StaticFiles(directory=settings.storage_root_path, check_dir=False), name="static")
 
     @app.get("/")
     async def root():

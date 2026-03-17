@@ -52,7 +52,7 @@
     </td>
     <td width="33%">
       <strong>上传能力可切换</strong><br>
-      支持本地存储与阿里云 OSS，两种文件存储方案可通过配置切换。
+      支持本地存储与对象存储，超级管理员可在系统设置页面直接切换与维护。
     </td>
     <td width="33%">
       <strong>开箱即看文档</strong><br>
@@ -72,7 +72,7 @@
 | 角色管理 | 已完成 | 角色维护、权限分配 |
 | API 管理 | 已完成 | API 元数据维护与权限关联 |
 | 审计日志 | 已完成 | 条件检索、游标分页、详情、导出 |
-| 文件上传 | 已完成 | 本地存储与 OSS 上传 |
+| 文件上传 | 已完成 | 本地存储与对象存储上传 |
 | 部门数据接口 | 已完成 | 后端接口已提供 |
 | 部门管理页面 | 占位中 | 前端页面仍为占位内容 |
 | 文件管理页面 | 占位中 | 前端页面仍为占位内容 |
@@ -236,7 +236,7 @@ aerich upgrade
 
 | 配置项 | 说明 | 默认值 |
 | --- | --- | --- |
-| `APP_ENV` | 运行环境 | `development` |
+| `APP_ENV` | 运行环境，支持 `development` / `production` | `development` |
 | `HOST` | 服务监听地址 | `0.0.0.0` |
 | `PORT` | 服务端口 | `9999` |
 | `DB_CONNECTION` | 数据库类型，支持 `sqlite` / `mysql` / `postgres` | `sqlite` |
@@ -248,8 +248,6 @@ aerich upgrade
 | `INITIAL_ADMIN_USERNAME` | 初始管理员用户名 | `admin` |
 | `INITIAL_ADMIN_PASSWORD` | 初始管理员密码，留空则自动生成 | 空 |
 | `SECRET_KEY` | 应用密钥，生产环境必须修改 | 开发环境自动生成 |
-| `OSS_ENABLED` | 是否启用阿里云 OSS | `false`（以 `.env.example` 为准） |
-| `LOCAL_STORAGE_URL_PREFIX` | 本地上传访问前缀 | `/static/uploads` |
 
 ## 开发说明
 

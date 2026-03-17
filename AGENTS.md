@@ -37,4 +37,4 @@ Keep the `type` lowercase, make the `scope` short and lowercase when used, and w
 PRs should explain the change, note any migration or `.env` impact, link related issues, and include screenshots for UI updates. Review generated migrations before committing them.
 
 ## Security & Configuration Tips
-Copy `.env.example` to `.env` for local setup. Do not commit secrets, local database files, or temporary caches. The seeded admin account (`admin` / `123456`) is for local bootstrap only and should be changed outside development.
+Copy `.env.example` to `.env` for local setup. Do not commit secrets, local database files, or temporary caches. The seeded admin account (`admin` / `Admin123!@#`) is for local bootstrap only and should be changed outside development.

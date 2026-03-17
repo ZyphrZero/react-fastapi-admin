@@ -15,6 +15,7 @@ const Profile = lazy(() => import('@/pages/Profile'))
 const UserManagement = lazy(() => import('@/pages/UserManagement'))
 const RoleManagement = lazy(() => import('@/pages/RoleManagement'))
 const ApiManagement = lazy(() => import('@/pages/ApiManagement'))
+const SystemSettings = lazy(() => import('@/pages/SystemSettings'))
 const ForbiddenPage = lazy(() => import('@/pages/ErrorPages').then((module) => ({ default: module.ForbiddenPage })))
 const NotFoundPage = lazy(() => import('@/pages/ErrorPages').then((module) => ({ default: module.NotFoundPage })))
 
@@ -57,6 +58,14 @@ const router = createBrowserRouter([
       {
         path: 'profile',
         element: withSuspense(<Profile />),
+      },
+      {
+        path: 'system/settings',
+        element: (
+          <PermissionRoute requiredPath="/system/settings">
+            {withSuspense(<SystemSettings />)}
+          </PermissionRoute>
+        ),
       },
       {
         path: 'system/users',

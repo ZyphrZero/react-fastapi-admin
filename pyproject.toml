@@ -26,6 +26,7 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv]
+package = false
 override-dependencies = ["tortoise-orm==1.1.6"]
 
 [tool.setuptools.packages.find]

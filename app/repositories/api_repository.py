@@ -93,6 +93,8 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
         for route in routes:
             if not isinstance(route, APIRoute) or not route.dependencies:
                 continue
+            if (route.openapi_extra or {}).get("skip_api_catalog"):
+                continue
 
             methods = [method for method in route.methods if method not in {"HEAD", "OPTIONS"}]
             if not methods:
