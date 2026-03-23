@@ -1,5 +1,5 @@
 const ACCESS_TOKEN_KEY = 'accessToken'
-const REFRESH_TOKEN_KEY = 'refreshToken'
+const REFRESH_SESSION_KEY = 'refreshSession'
 const USER_INFO_KEY = 'userInfo'
 const USER_MENUS_KEY = 'userMenus'
 const USER_API_PERMISSIONS_KEY = 'userApiPermissions'
@@ -21,13 +21,13 @@ export const setAccessToken = (token) => {
   emitSessionUpdated()
 }
 
-export const getRefreshToken = () => storage.getItem(REFRESH_TOKEN_KEY)
+export const hasRefreshSession = () => storage.getItem(REFRESH_SESSION_KEY) === '1'
 
-export const setRefreshToken = (token) => {
-  if (token) {
-    storage.setItem(REFRESH_TOKEN_KEY, token)
+export const markRefreshSession = (enabled) => {
+  if (enabled) {
+    storage.setItem(REFRESH_SESSION_KEY, '1')
   } else {
-    storage.removeItem(REFRESH_TOKEN_KEY)
+    storage.removeItem(REFRESH_SESSION_KEY)
   }
   emitSessionUpdated()
 }
@@ -101,11 +101,11 @@ export const setStoredApiPermissions = (permissions) => {
   emitSessionUpdated()
 }
 
-export const hasSession = () => Boolean(getAccessToken() || getRefreshToken())
+export const hasSession = () => Boolean(getAccessToken() || hasRefreshSession())
 
 export const clearSession = () => {
   storage.removeItem(ACCESS_TOKEN_KEY)
-  storage.removeItem(REFRESH_TOKEN_KEY)
+  storage.removeItem(REFRESH_SESSION_KEY)
   storage.removeItem(USER_INFO_KEY)
   storage.removeItem(USER_MENUS_KEY)
   storage.removeItem(USER_API_PERMISSIONS_KEY)

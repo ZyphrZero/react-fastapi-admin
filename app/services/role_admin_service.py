@@ -10,6 +10,7 @@ from app.core.navigation import (
 from app.core.exceptions import ValidationError
 from app.repositories import api_repository, role_repository
 from app.schemas.roles import RoleCreate, RoleUpdate
+from app.services.admin_permission_service import admin_permission_service
 
 
 class RoleAdminService:
@@ -73,12 +74,18 @@ class RoleAdminService:
 
         return normalized_menu_paths, normalized_api_ids
 
-    async def create_role(self, role_in: RoleCreate) -> None:
+    async def create_role(self, role_in: RoleCreate, *, current_user_id: int) -> None:
+        actor = await admin_permission_service.get_actor(current_user_id)
         if await role_repository.exists_by_name(role_in.name):
             raise ValidationError("该角色名称已存在")
         menu_paths, api_ids = await self._normalize_role_permissions(
             menu_paths=role_in.menu_paths,
             api_ids=role_in.api_ids,
+        )
+        await admin_permission_service.ensure_can_create_role(
+            actor=actor,
+            menu_paths=menu_paths,
+            api_ids=api_ids,
         )
         await role_repository.create(
             {
@@ -89,25 +96,35 @@ class RoleAdminService:
             }
         )
 
-    async def update_role(self, role_in: RoleUpdate) -> None:
-        await role_repository.get_or_raise(role_in.id, "角色不存在")
+    async def update_role(self, role_in: RoleUpdate, *, current_user_id: int) -> None:
+        actor = await admin_permission_service.get_actor(current_user_id)
+        current_role = await role_repository.get_or_raise(role_in.id, "角色不存在")
         if role_in.name and await role_repository.exists_by_name(role_in.name, exclude_id=role_in.id):
             raise ValidationError("该角色名称已存在")
 
         update_data = role_in.model_dump(exclude_unset=True, exclude={"id"})
         if "menu_paths" in update_data or "api_ids" in update_data:
-            current_role = await role_repository.get_or_raise(role_in.id, "角色不存在")
             menu_paths, api_ids = await self._normalize_role_permissions(
                 menu_paths=update_data.get("menu_paths", current_role.menu_paths),
                 api_ids=update_data.get("api_ids", current_role.api_ids),
             )
+            await admin_permission_service.ensure_can_update_role(
+                actor=actor,
+                current_role=current_role,
+                next_menu_paths=menu_paths,
+                next_api_ids=api_ids,
+            )
             update_data["menu_paths"] = menu_paths
             update_data["api_ids"] = api_ids
+        else:
+            await admin_permission_service.ensure_can_manage_role(actor=actor, role=current_role, action="修改")
 
         await role_repository.update(role_in.id, update_data)
 
-    async def delete_role(self, role_id: int) -> None:
-        await role_repository.get_or_raise(role_id, "角色不存在")
+    async def delete_role(self, role_id: int, *, current_user_id: int) -> None:
+        actor = await admin_permission_service.get_actor(current_user_id)
+        role = await role_repository.get_or_raise(role_id, "角色不存在")
+        await admin_permission_service.ensure_can_manage_role(actor=actor, role=role, action="删除")
         await role_repository.remove(role_id)
 
 

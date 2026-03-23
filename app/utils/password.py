@@ -14,6 +14,16 @@ BOOTSTRAP_ADMIN_PASSWORD_SYMBOLS = "!@#$%^&*()-_=+[]{};:,.?/"
 BOOTSTRAP_ADMIN_PASSWORD_CHARACTERS = string.digits + BOOTSTRAP_ADMIN_PASSWORD_SYMBOLS
 
 
+def get_password_policy() -> Dict[str, Union[int, bool]]:
+    return {
+        "password_min_length": settings.PASSWORD_MIN_LENGTH,
+        "password_require_uppercase": settings.PASSWORD_REQUIRE_UPPERCASE,
+        "password_require_lowercase": settings.PASSWORD_REQUIRE_LOWERCASE,
+        "password_require_digits": settings.PASSWORD_REQUIRE_DIGITS,
+        "password_require_special": settings.PASSWORD_REQUIRE_SPECIAL,
+    }
+
+
 def validate_bcrypt_password_length(password: str) -> Tuple[bool, str]:
     """
     验证 bcrypt 支持的密码字节长度上限

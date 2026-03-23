@@ -43,15 +43,15 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         return await self.model.filter(is_superuser=True).count()
 
     async def assign_roles(self, user: User, role_ids: list[int]) -> None:
-        await user.roles.clear()
-        if not role_ids:
-            return
-
         role_objects = await Role.filter(id__in=role_ids).all()
         role_map = {role.id: role for role in role_objects}
         missing_role_ids = [role_id for role_id in role_ids if role_id not in role_map]
         if missing_role_ids:
             raise ValidationError(f"角色不存在: {', '.join(str(role_id) for role_id in missing_role_ids)}")
+
+        await user.roles.clear()
+        if not role_ids:
+            return
 
         for role_id in role_ids:
             await user.roles.add(role_map[role_id])

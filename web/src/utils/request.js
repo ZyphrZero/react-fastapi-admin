@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { isBusinessError, isBusinessSuccess, handleAuthError } from '@/utils/errorHandler'
-import { clearSession, getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from '@/utils/session'
+import { clearSession, getAccessToken, hasRefreshSession, markRefreshSession, setAccessToken } from '@/utils/session'
 
 // 创建axios实例
 const request = axios.create({
@@ -14,6 +14,7 @@ const request = axios.create({
 const refreshClient = axios.create({
     baseURL: '/api',
     timeout: 10000,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -28,23 +29,22 @@ const createBusinessError = (response, message) => {
 }
 
 const refreshAccessToken = async () => {
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
+    if (!hasRefreshSession()) {
         throw new Error('Missing refresh token')
     }
 
-    const response = await refreshClient.post('/base/refresh_token', { refresh_token: refreshToken })
+    const response = await refreshClient.post('/base/refresh_token')
     if (!isBusinessSuccess(response)) {
         throw createBusinessError(response, 'Refresh token rejected')
     }
 
     const payload = response.data?.data
-    if (!payload?.access_token || !payload?.refresh_token) {
+    if (!payload?.access_token) {
         throw new Error('Invalid refresh token response')
     }
 
     setAccessToken(payload.access_token)
-    setRefreshToken(payload.refresh_token)
+    markRefreshSession(true)
     return payload.access_token
 }
 
@@ -66,7 +66,7 @@ request.interceptors.request.use(
         }
 
         let token = getAccessToken()
-        if (!token && getRefreshToken()) {
+        if (!token && hasRefreshSession()) {
             try {
                 token = await getRefreshPromise()
             } catch (error) {
@@ -124,7 +124,7 @@ request.interceptors.response.use(
             !originalRequest.noNeedToken &&
             !originalRequest.noAuthRefresh &&
             !originalRequest._retry &&
-            getRefreshToken()
+            hasRefreshSession()
         ) {
             originalRequest._retry = true
             try {

@@ -57,5 +57,22 @@ class RoleRepository(BaseRepository[Role, RoleCreate, RoleUpdate]):
             "api_ids": sorted(api_ids),
         }
 
+    async def list_permissions_for_role_ids(self, role_ids: list[int]) -> PermissionBundle:
+        if not role_ids:
+            return {"menu_paths": [], "api_ids": []}
+
+        permission_rows = await self.model.filter(id__in=role_ids).all().values("menu_paths", "api_ids")
+        menu_paths: set[str] = set()
+        api_ids: set[int] = set()
+
+        for row in permission_rows:
+            menu_paths.update(row.get("menu_paths") or [])
+            api_ids.update(int(api_id) for api_id in (row.get("api_ids") or []))
+
+        return {
+            "menu_paths": sorted(menu_paths),
+            "api_ids": sorted(api_ids),
+        }
+
 
 role_repository = RoleRepository()

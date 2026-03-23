@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const THEME_VALUES = ['light', 'dark', 'system']
+const THEME_TRANSITION_MAX_ELEMENTS = 2500
+const THEME_TRANSITION_MAX_TABLE_ROWS = 80
 
 const ThemeProviderContext = createContext({
   theme: 'system',
@@ -43,8 +45,19 @@ const applyResolvedThemeToRoot = (nextResolvedTheme) => {
 const supportsThemeViewTransition = () =>
   typeof window !== 'undefined' &&
   typeof document !== 'undefined' &&
-  typeof document.startViewTransition === 'function' &&
-  !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  typeof document.startViewTransition === 'function'
+
+const shouldAnimateThemeTransition = () => {
+  if (!supportsThemeViewTransition()) {
+    return false
+  }
+
+  const root = window.document.getElementById('root')
+  const elementCount = root?.getElementsByTagName('*').length ?? window.document.getElementsByTagName('*').length
+  const tableRowCount = root?.querySelectorAll('[data-slot="table-row"]').length ?? 0
+
+  return elementCount <= THEME_TRANSITION_MAX_ELEMENTS && tableRowCount <= THEME_TRANSITION_MAX_TABLE_ROWS
+}
 
 const getThemeTransitionRadius = (x, y) => {
   const maxHorizontalDistance = Math.max(x, window.innerWidth - x)
@@ -74,7 +87,7 @@ export function ThemeProvider({
 
     const root = window.document.documentElement
 
-    if (transitionOrigin && supportsThemeViewTransition()) {
+    if (transitionOrigin && shouldAnimateThemeTransition()) {
       const { x, y } = transitionOrigin
       const radius = getThemeTransitionRadius(x, y)
 

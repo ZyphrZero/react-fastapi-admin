@@ -2,15 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { CheckCircle2Icon, InfoIcon, XCircleIcon } from 'lucide-react'
 
 import { Progress } from '@/components/ui/progress'
-import { checkPasswordStrength } from '@/utils/passwordStrength'
-
-const passwordChecks = [
-  { key: 'length', text: '长度至少 8 个字符' },
-  { key: 'uppercase', text: '包含大写字母' },
-  { key: 'lowercase', text: '包含小写字母' },
-  { key: 'digits', text: '包含数字' },
-  { key: 'special', text: '包含特殊字符' },
-]
+import { checkPasswordStrength, getPasswordChecks } from '@/utils/passwordStrength'
 
 const indicatorToneMap = {
   strong: 'text-green-600',
@@ -18,8 +10,9 @@ const indicatorToneMap = {
   weak: 'text-red-600',
 }
 
-const PasswordStrengthIndicator = ({ password, onStrengthChange, showSuggestions = true }) => {
-  const strength = useMemo(() => checkPasswordStrength(password || ''), [password])
+const PasswordStrengthIndicator = ({ password, policy, onStrengthChange, showSuggestions = true }) => {
+  const strength = useMemo(() => checkPasswordStrength(password || '', policy), [password, policy])
+  const passwordChecks = useMemo(() => getPasswordChecks(policy), [policy])
 
   useEffect(() => {
     onStrengthChange?.(strength)

@@ -1,12 +1,13 @@
-from typing import Dict, Optional, Set
+from typing import Optional, Set
 import time
 
 import jwt
 from fastapi import Depends, Header, Request, Query
+from tortoise.expressions import F
 
 from app.core.ctx import CTX_USER_ID
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
-from app.models import User
+from app.models import RateLimitBucket, User
 from app.repositories import api_repository, role_repository, user_repository
 from app.settings import settings
 from app.utils.jwt_utils import decode_token
@@ -15,35 +16,27 @@ from app.utils.jwt_utils import decode_token
 class AuthControl:
     """身份验证控制器"""
 
-    # 用于存储用户请求频率限制
-    _rate_limit_data: Dict[str, Dict[str, int]] = {}
-
     # 从配置文件加载IP白名单
     _ip_whitelist: Set[str] = set(settings.ip_whitelist)
+    _trusted_proxy_ips: Set[str] = set(settings.trusted_proxy_ips)
+    _trust_proxy_headers: bool = settings.TRUST_PROXY_HEADERS
 
     @classmethod
     async def initialize(cls):
         """初始化身份验证控制器"""
         # 加载白名单
         cls._ip_whitelist = set(settings.ip_whitelist)
-        # 清空过期数据
-        cls._clear_expired_data()
+        cls._trusted_proxy_ips = set(settings.trusted_proxy_ips)
+        cls._trust_proxy_headers = settings.TRUST_PROXY_HEADERS
+        await RateLimitBucket.all().delete()
 
     @classmethod
-    def _clear_expired_data(cls):
+    async def _clear_expired_data(cls, current_time: int) -> None:
         """清理过期的频率限制数据"""
-        current_time = int(time.time())
-        expired_keys = []
-
-        for key, data in cls._rate_limit_data.items():
-            if current_time - data["timestamp"] > settings.RATE_LIMIT_WINDOW_SECONDS * 2:
-                expired_keys.append(key)
-
-        for key in expired_keys:
-            cls._rate_limit_data.pop(key, None)
+        await RateLimitBucket.filter(expires_at__lt=current_time).delete()
 
     @classmethod
-    def enforce_rate_limit(cls, key: str) -> None:
+    async def enforce_rate_limit(cls, key: str) -> None:
         """
         检查请求频率限制
         :param key: 限流键
@@ -54,19 +47,23 @@ class AuthControl:
         current_time = int(time.time())
         max_requests = settings.RATE_LIMIT_MAX_REQUESTS
         time_window = settings.RATE_LIMIT_WINDOW_SECONDS
+        bucket = current_time // time_window
+        bucket_key = f"{key}:{bucket}"
+        expires_at = (bucket + 2) * time_window
 
-        if key not in cls._rate_limit_data:
-            cls._rate_limit_data[key] = {"count": 1, "timestamp": current_time}
-            return
+        entry, created = await RateLimitBucket.get_or_create(
+            bucket_key=bucket_key,
+            defaults={"count": 1, "expires_at": expires_at},
+        )
+        if not created:
+            await RateLimitBucket.filter(id=entry.id).update(count=F("count") + 1, expires_at=expires_at)
+            entry = await RateLimitBucket.get(id=entry.id)
 
-        data = cls._rate_limit_data[key]
-        if current_time - data["timestamp"] > time_window:
-            cls._rate_limit_data[key] = {"count": 1, "timestamp": current_time}
-            return
-
-        data["count"] += 1
-        if data["count"] > max_requests:
+        if entry.count > max_requests:
             raise RateLimitError("请求过于频繁，请稍后再试")
+
+        if current_time % max(time_window, 30) == 0:
+            await cls._clear_expired_data(current_time)
 
     @classmethod
     def check_ip_whitelist(cls, client_ip: str) -> bool:
@@ -80,7 +77,24 @@ class AuthControl:
         """获取客户端IP地址"""
         if not request or not request.client:
             return "0.0.0.0"
-        return request.client.host
+
+        direct_ip = request.client.host
+        if not cls._trust_proxy_headers:
+            return direct_ip
+        if cls._trusted_proxy_ips and direct_ip not in cls._trusted_proxy_ips:
+            return direct_ip
+
+        x_forwarded_for = request.headers.get("x-forwarded-for", "")
+        if x_forwarded_for:
+            client_ip = x_forwarded_for.split(",")[0].strip()
+            if client_ip:
+                return client_ip
+
+        x_real_ip = request.headers.get("x-real-ip", "").strip()
+        if x_real_ip:
+            return x_real_ip
+
+        return direct_ip
 
     @classmethod
     def get_client_ip(cls, request: Optional[Request]) -> str:
@@ -153,7 +167,7 @@ class AuthControl:
             if user.session_version != session_version:
                 raise AuthenticationError("登录状态已失效，请重新登录")
 
-            cls.enforce_rate_limit(f"{client_ip}:{user_id}")
+            await cls.enforce_rate_limit(f"{client_ip}:{user_id}")
             CTX_USER_ID.set(int(user_id))
             request.state.current_user = user
             return user
@@ -204,7 +218,7 @@ class PermissionControl:
 async def get_page_params(
     page: int = Query(1, description="页码", ge=1),
     page_size: int = Query(10, description="每页数量", ge=1, le=100),
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """
     页码参数依赖，用于分页查询
     :param page: 页码，从1开始

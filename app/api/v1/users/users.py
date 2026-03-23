@@ -33,7 +33,7 @@ async def get_user(user_id: int = Query(..., description="用户ID")):
 
 @router.post("/create", summary="创建用户")
 async def create_user(user_in: UserCreate):
-    await user_admin_service.create_user(user_in)
+    await user_admin_service.create_user(user_in, current_user_id=CTX_USER_ID.get())
     return Success(msg="创建成功")
 
 

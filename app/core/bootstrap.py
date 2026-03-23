@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from aerich import Command
-from tortoise import Tortoise
 from tortoise.context import require_context
 
 from app.core.navigation import get_default_role_menu_paths
@@ -122,43 +121,6 @@ def emit_bootstrap_admin_password(username: str, password: str) -> None:
     )
 
 
-async def ensure_security_schema() -> None:
-    connection = Tortoise.get_connection(settings.DB_CONNECTION)
-
-    if settings.DB_CONNECTION == "sqlite":
-        columns = await connection.execute_query_dict('PRAGMA table_info("user")')
-        if any(column.get("name") == "session_version" for column in columns):
-            return
-        await connection.execute_script('ALTER TABLE "user" ADD "session_version" INT NOT NULL DEFAULT 0;')
-        await connection.execute_script(
-            'CREATE INDEX IF NOT EXISTS "idx_user_session_c59d2d" ON "user" ("session_version");'
-        )
-        logger.info("已补齐用户会话版本字段")
-        return
-
-    if settings.DB_CONNECTION == "mysql":
-        columns = await connection.execute_query_dict("SHOW COLUMNS FROM `user` LIKE 'session_version'")
-        if columns:
-            return
-        await connection.execute_script("ALTER TABLE `user` ADD COLUMN `session_version` INT NOT NULL DEFAULT 0;")
-        await connection.execute_script("CREATE INDEX `idx_user_session_c59d2d` ON `user` (`session_version`);")
-        logger.info("已补齐用户会话版本字段")
-        return
-
-    if settings.DB_CONNECTION == "postgres":
-        columns = await connection.execute_query_dict(
-            "SELECT column_name FROM information_schema.columns WHERE table_name = 'user' AND column_name = 'session_version'"
-        )
-        if columns:
-            return
-        await connection.execute_script('ALTER TABLE "user" ADD COLUMN "session_version" INT NOT NULL DEFAULT 0;')
-        await connection.execute_script(
-            'CREATE INDEX IF NOT EXISTS "idx_user_session_c59d2d" ON "user" ("session_version");'
-        )
-        logger.info("已补齐用户会话版本字段")
-        return
-
-
 async def init_roles() -> tuple[Role | None, Role | None]:
     if await Role.exists():
         return None, None
@@ -255,7 +217,6 @@ async def seed_base_data() -> None:
 
 async def bootstrap_application() -> None:
     await bootstrap_database()
-    await ensure_security_schema()
     await seed_base_data()
     await refresh_api_metadata()
     await sync_default_role_permissions()

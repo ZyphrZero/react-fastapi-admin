@@ -47,15 +47,20 @@ class LogManager:
 
         return config
 
-    def setup_logger(self, **kwargs):
+    def setup_logger(self, force: bool = False, **kwargs):
         """
         设置日志记录器
 
         Args:
+            force: 是否强制重新配置
             **kwargs: 日志配置参数
         """
-        if self._is_configured:
+        if self._is_configured and not force:
             return logger
+
+        if force:
+            logger.remove()
+            self._is_configured = False
 
         config = self.get_log_config()
         config.update(kwargs)

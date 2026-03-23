@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import secrets
+
 import jwt
 
 from app.core.exceptions import AuthenticationError, ValidationError
@@ -12,9 +14,15 @@ from app.schemas.users import ProfileUpdate, UpdatePassword
 from app.utils.jwt_utils import create_access_token, create_refresh_token, decode_token
 from app.utils.password import get_password_hash, validate_password_strength, verify_password
 
+USER_RESPONSE_EXCLUDED_FIELDS = ["password", "session_version", "refresh_token_jti"]
+
 
 class AuthService:
-    def build_token_pair(self, user: User) -> dict:
+    async def build_token_pair(self, user: User) -> dict:
+        refresh_token_jti = secrets.token_hex(16)
+        user.refresh_token_jti = refresh_token_jti
+        await user.save(update_fields=["refresh_token_jti", "updated_at"])
+
         return JWTOut(
             access_token=create_access_token(
                 user_id=user.id,
@@ -22,7 +30,11 @@ class AuthService:
                 is_superuser=user.is_superuser,
                 session_version=user.session_version,
             ),
-            refresh_token=create_refresh_token(user_id=user.id, session_version=user.session_version),
+            refresh_token=create_refresh_token(
+                user_id=user.id,
+                session_version=user.session_version,
+                refresh_token_jti=refresh_token_jti,
+            ),
             username=user.username,
         ).model_dump()
 
@@ -35,7 +47,7 @@ class AuthService:
             raise ValidationError("用户已被禁用")
 
         await user_repository.update_last_login(user.id)
-        return self.build_token_pair(user)
+        return await self.build_token_pair(user)
 
     async def refresh_access_token(self, refresh_token: str) -> dict:
         try:
@@ -51,13 +63,18 @@ class AuthService:
         session_version = decoded.get("session_version")
         if session_version is None:
             raise AuthenticationError("刷新令牌中缺少会话版本")
+        refresh_token_jti = decoded.get("jti")
+        if not refresh_token_jti:
+            raise AuthenticationError("刷新令牌中缺少令牌标识")
 
         user = await self.get_current_user(user_id)
         if not user.is_active:
             raise AuthenticationError("用户已被禁用")
         if user.session_version != int(session_version):
             raise AuthenticationError("登录状态已失效，请重新登录")
-        return self.build_token_pair(user)
+        if user.refresh_token_jti != refresh_token_jti:
+            raise AuthenticationError("刷新令牌已失效，请重新登录")
+        return await self.build_token_pair(user)
 
     async def get_current_user(self, user_id: int) -> User:
         if not user_id:
@@ -71,7 +88,7 @@ class AuthService:
 
     async def get_current_user_info(self, user_id: int) -> dict:
         user = await self.get_current_user(user_id)
-        return await user.to_dict(exclude_fields=["password"])
+        return await user.to_dict(exclude_fields=USER_RESPONSE_EXCLUDED_FIELDS)
 
     async def get_current_user_menu(self, user_id: int) -> list[dict]:
         user = await self.get_current_user(user_id)
@@ -109,7 +126,8 @@ class AuthService:
 
         user.password = get_password_hash(payload.new_password)
         user.session_version += 1
-        await user.save()
+        user.refresh_token_jti = None
+        await user.save(update_fields=["password", "session_version", "refresh_token_jti", "updated_at"])
 
     async def update_current_user_profile(self, user_id: int, payload: ProfileUpdate) -> None:
         user = await self.get_current_user(user_id)
@@ -137,7 +155,8 @@ class AuthService:
     async def logout(self, user_id: int) -> None:
         user = await self.get_current_user(user_id)
         user.session_version += 1
-        await user.save(update_fields=["session_version", "updated_at"])
+        user.refresh_token_jti = None
+        await user.save(update_fields=["session_version", "refresh_token_jti", "updated_at"])
 
 
 auth_service = AuthService()

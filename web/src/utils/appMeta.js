@@ -1,0 +1,11 @@
+export const APP_META_UPDATED_EVENT = 'app:meta-updated'
+
+export const defaultAppMeta = {
+  app_title: 'React FastAPI Admin',
+  project_name: 'React FastAPI Admin',
+  app_description: 'React FastAPI Admin Description',
+}
+
+export const dispatchAppMetaUpdated = (payload = {}) => {
+  window.dispatchEvent(new CustomEvent(APP_META_UPDATED_EVENT, { detail: payload }))
+}

@@ -65,9 +65,14 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="JWT 刷新令牌过期时间（天）")
     JWT_AUDIENCE: str = Field(default="react-fastapi-admin", description="JWT 受众")
     JWT_ISSUER: str = Field(default="react-fastapi-admin", description="JWT 签发者")
+    REFRESH_TOKEN_COOKIE_NAME: str = Field(default="refresh_token", description="刷新令牌 Cookie 名称")
+    REFRESH_TOKEN_COOKIE_SECURE: Optional[bool] = Field(default=None, description="刷新令牌 Cookie 是否仅限 HTTPS")
+    REFRESH_TOKEN_COOKIE_SAMESITE: str = Field(default="lax", description="刷新令牌 Cookie SameSite 策略")
 
     # IP 白名单配置
     IP_WHITELIST: str = Field(default="", description="IP 白名单字符串")
+    TRUST_PROXY_HEADERS: bool = Field(default=False, description="是否信任代理请求头中的客户端 IP")
+    TRUSTED_PROXY_IPS: str = Field(default="", description="可信代理 IP 列表，逗号分隔")
 
     # 请求频率限制
     RATE_LIMIT_ENABLED: bool = Field(default=True, description="是否启用请求频率限制")
@@ -110,6 +115,7 @@ class Settings(BaseSettings):
         "RUN_MIGRATIONS_ON_STARTUP",
         "SEED_BASE_DATA_ON_STARTUP",
         "REFRESH_API_METADATA_ON_STARTUP",
+        "REFRESH_TOKEN_COOKIE_SECURE",
         mode="before",
     )
     @classmethod
@@ -144,6 +150,14 @@ class Settings(BaseSettings):
         if self.JWT_ALGORITHM.lower() == "none":
             raise ValueError("JWT_ALGORITHM 不能为 none")
 
+        allowed_same_site_values = {"lax", "strict", "none"}
+        if self.REFRESH_TOKEN_COOKIE_SAMESITE.lower() not in allowed_same_site_values:
+            raise ValueError("REFRESH_TOKEN_COOKIE_SAMESITE 必须为 lax、strict 或 none")
+        self.REFRESH_TOKEN_COOKIE_SAMESITE = self.REFRESH_TOKEN_COOKIE_SAMESITE.lower()
+
+        if self.TRUST_PROXY_HEADERS and not self.trusted_proxy_ips:
+            raise ValueError("启用 TRUST_PROXY_HEADERS 时必须显式配置 TRUSTED_PROXY_IPS")
+
         return self
 
     @computed_field
@@ -168,6 +182,14 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+    def trusted_proxy_ips(self) -> List[str]:
+        """获取可信代理 IP 列表"""
+        if not self.TRUSTED_PROXY_IPS:
+            return []
+        return [ip.strip() for ip in self.TRUSTED_PROXY_IPS.split(",") if ip.strip()]
+
+    @computed_field
+    @property
     def is_production(self) -> bool:
         """判断是否为生产环境"""
         return self.APP_ENV.lower() == "production"
@@ -185,6 +207,14 @@ class Settings(BaseSettings):
         if self.SERVER_RELOAD is not None:
             return self.SERVER_RELOAD
         return self.is_development
+
+    @computed_field
+    @property
+    def refresh_token_cookie_secure(self) -> bool:
+        """根据环境和配置判断刷新令牌 Cookie 是否仅限 HTTPS"""
+        if self.REFRESH_TOKEN_COOKIE_SECURE is not None:
+            return self.REFRESH_TOKEN_COOKIE_SECURE
+        return self.is_production
 
     @computed_field
     @property

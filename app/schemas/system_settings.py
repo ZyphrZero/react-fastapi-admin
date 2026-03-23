@@ -4,6 +4,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.settings import settings
+
 
 class StorageProvider(str, Enum):
     LOCAL = "local"
@@ -66,3 +68,99 @@ class StorageSettingsUpdate(BaseModel):
 
 class StorageSettingsDetail(StorageSettingsUpdate):
     local_url_prefix: str = Field(..., description="本地存储访问前缀")
+
+
+class ApplicationSettingsUpdate(BaseModel):
+    app_title: str = Field(default="React FastAPI Admin", description="应用标题")
+    project_name: str = Field(default="React FastAPI Admin", description="项目名称")
+    app_description: str = Field(default="React FastAPI Admin Description", description="应用描述")
+    debug: bool = Field(default=False, description="调试模式")
+
+    @field_validator("app_title", "project_name", "app_description", mode="before")
+    @classmethod
+    def normalize_text(cls, value: object) -> str:
+        if value is None:
+            return ""
+        text = str(value).strip()
+        return text
+
+    @model_validator(mode="after")
+    def validate_application_settings(self) -> "ApplicationSettingsUpdate":
+        if not self.app_title:
+            self.app_title = "React FastAPI Admin"
+        if not self.project_name:
+            self.project_name = self.app_title
+        if not self.app_description:
+            self.app_description = "React FastAPI Admin Description"
+        if settings.is_production and self.debug:
+            raise ValueError("生产环境必须关闭 DEBUG")
+        return self
+
+
+class ApplicationSettingsDetail(ApplicationSettingsUpdate):
+    environment: str = Field(..., description="当前运行环境")
+
+
+class SecuritySettingsUpdate(BaseModel):
+    password_min_length: int = Field(default=8, ge=6, le=72, description="密码最小长度")
+    password_require_uppercase: bool = Field(default=True, description="是否要求大写字母")
+    password_require_lowercase: bool = Field(default=True, description="是否要求小写字母")
+    password_require_digits: bool = Field(default=True, description="是否要求数字")
+    password_require_special: bool = Field(default=True, description="是否要求特殊字符")
+    rate_limit_enabled: bool = Field(default=True, description="是否启用请求限流")
+    rate_limit_max_requests: int = Field(default=60, ge=1, le=100000, description="时间窗口内最大请求数")
+    rate_limit_window_seconds: int = Field(default=60, ge=1, le=86400, description="时间窗口秒数")
+    ip_whitelist: str = Field(default="", description="IP 白名单，支持逗号或换行分隔")
+
+    @field_validator("ip_whitelist", mode="before")
+    @classmethod
+    def normalize_ip_whitelist(cls, value: object) -> str:
+        if value is None:
+            return ""
+
+        if isinstance(value, (list, tuple, set)):
+            parts = [str(item).strip() for item in value if str(item).strip()]
+        else:
+            text = str(value).replace("\r\n", "\n").replace(";", ",")
+            parts = []
+            for line in text.split("\n"):
+                for item in line.split(","):
+                    normalized = item.strip()
+                    if normalized:
+                        parts.append(normalized)
+
+        deduplicated_parts = list(dict.fromkeys(parts))
+        return ",".join(deduplicated_parts)
+
+
+class SecuritySettingsDetail(SecuritySettingsUpdate):
+    ip_whitelist_items: list[str] = Field(default_factory=list, description="归一化后的 IP 白名单")
+
+
+class LoggingSettingsUpdate(BaseModel):
+    logs_root: str = Field(default="app/logs", description="日志目录")
+    log_retention_days: int = Field(default=7, ge=1, le=3650, description="日志保留天数")
+    log_rotation: str = Field(default="1 day", description="日志轮转周期")
+    log_max_file_size: str = Field(default="10 MB", description="单个日志文件最大大小")
+    log_enable_access_log: bool = Field(default=True, description="是否启用访问日志")
+
+    @field_validator("logs_root", "log_rotation", "log_max_file_size", mode="before")
+    @classmethod
+    def normalize_text(cls, value: object) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    @model_validator(mode="after")
+    def validate_logging_settings(self) -> "LoggingSettingsUpdate":
+        if not self.logs_root:
+            self.logs_root = "app/logs"
+        if not self.log_rotation:
+            self.log_rotation = "1 day"
+        if not self.log_max_file_size:
+            self.log_max_file_size = "10 MB"
+        return self
+
+
+class LoggingSettingsDetail(LoggingSettingsUpdate):
+    access_log_requires_restart: bool = Field(default=True, description="访问日志开关变更是否需要重启")

@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
+import { validatePasswordAgainstPolicy } from '@/utils/passwordStrength'
 import { clearSession, getStoredUserInfo } from '@/utils/session'
 
 const createEmptyUserForm = () => ({
@@ -58,17 +60,7 @@ const createEmptyResetPasswordForm = () => ({
   confirmNewPassword: '',
 })
 
-const validateStrongPassword = (value) => {
-  if (!value) return '请输入密码'
-  if (value.length < 8) return '密码长度不能少于 8 个字符'
-  if (!/[A-Z]/.test(value)) return '密码必须包含至少一个大写字母'
-  if (!/[a-z]/.test(value)) return '密码必须包含至少一个小写字母'
-  if (!/\d/.test(value)) return '密码必须包含至少一个数字'
-  if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) return '密码必须包含至少一个特殊字符'
-  return ''
-}
-
-const validateUserForm = (values, editingUser) => {
+const validateUserForm = (values, editingUser, passwordPolicy) => {
   const errors = {}
 
   if (!values.username.trim()) {
@@ -94,7 +86,7 @@ const validateUserForm = (values, editingUser) => {
   }
 
   if (!editingUser) {
-    const passwordError = validateStrongPassword(values.password)
+    const passwordError = validatePasswordAgainstPolicy(values.password, passwordPolicy)
     if (passwordError) {
       errors.password = passwordError
     }
@@ -109,9 +101,9 @@ const validateUserForm = (values, editingUser) => {
   return errors
 }
 
-const validateResetPasswordForm = (values) => {
+const validateResetPasswordForm = (values, passwordPolicy) => {
   const errors = {}
-  const passwordError = validateStrongPassword(values.newPassword)
+  const passwordError = validatePasswordAgainstPolicy(values.newPassword, passwordPolicy)
 
   if (passwordError) {
     errors.newPassword = passwordError
@@ -152,6 +144,7 @@ const UserManagement = () => {
   const [roles, setRoles] = useState([])
 
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
+  const passwordPolicy = usePasswordPolicy()
 
   const isEditingCurrentUser = currentUser?.id === editingUser?.id
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -282,7 +275,7 @@ const UserManagement = () => {
   const handleSaveUser = async (event) => {
     event.preventDefault()
 
-    const nextErrors = validateUserForm(modalValues, editingUser)
+    const nextErrors = validateUserForm(modalValues, editingUser, passwordPolicy)
     if (Object.keys(nextErrors).length > 0) {
       setModalErrors(nextErrors)
       return
@@ -347,7 +340,7 @@ const UserManagement = () => {
       return
     }
 
-    const nextErrors = validateResetPasswordForm(resetPasswordValues)
+    const nextErrors = validateResetPasswordForm(resetPasswordValues, passwordPolicy)
     if (Object.keys(nextErrors).length > 0) {
       setResetPasswordErrors(nextErrors)
       return
@@ -516,6 +509,8 @@ const UserManagement = () => {
                 <FieldLabel htmlFor="modal-username" required>用户名</FieldLabel>
                 <Input
                   id="modal-username"
+                  name="username"
+                  autoComplete="username"
                   value={modalValues.username}
                   required
                   disabled={Boolean(editingUser)}
@@ -541,7 +536,9 @@ const UserManagement = () => {
                 <FieldLabel htmlFor="modal-email" required>邮箱</FieldLabel>
                 <Input
                   id="modal-email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={modalValues.email}
                   onChange={(event) => updateModalField('email', event.target.value)}
@@ -553,6 +550,8 @@ const UserManagement = () => {
                 <FieldLabel htmlFor="modal-phone">手机号</FieldLabel>
                 <Input
                   id="modal-phone"
+                  name="tel"
+                  autoComplete="tel"
                   value={modalValues.phone}
                   onChange={(event) => updateModalField('phone', event.target.value.replace(/[^\d]/g, ''))}
                   aria-invalid={Boolean(modalErrors.phone)}
@@ -568,6 +567,7 @@ const UserManagement = () => {
                     <FieldLabel htmlFor="modal-password" required>密码</FieldLabel>
                     <Input
                       id="modal-password"
+                      name="new-password"
                       type="password"
                       required
                       autoComplete="new-password"
@@ -581,6 +581,7 @@ const UserManagement = () => {
                     <FieldLabel htmlFor="modal-confirm-password" required>确认密码</FieldLabel>
                     <Input
                       id="modal-confirm-password"
+                      name="confirm-new-password"
                       type="password"
                       required
                       autoComplete="new-password"
@@ -594,6 +595,7 @@ const UserManagement = () => {
 
                 <PasswordStrengthIndicator
                   password={modalValues.password}
+                  policy={passwordPolicy}
                   onStrengthChange={setPasswordStrength}
                   showSuggestions
                 />
@@ -723,11 +725,21 @@ const UserManagement = () => {
           </DialogHeader>
 
           <form className="flex flex-col gap-4" onSubmit={handleResetPassword}>
+            <Input
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+              name="username"
+              autoComplete="username"
+              value={resetPasswordTarget?.username || ''}
+              readOnly
+            />
             <FieldGroup>
               <Field data-invalid={Boolean(resetPasswordErrors.newPassword)}>
                 <FieldLabel htmlFor="reset-password" required>新密码</FieldLabel>
               <Input
                 id="reset-password"
+                name="new-password"
                 type="password"
                 required
                 autoComplete="new-password"
@@ -740,6 +752,7 @@ const UserManagement = () => {
 
               <PasswordStrengthIndicator
                 password={resetPasswordValues.newPassword}
+                policy={passwordPolicy}
                 onStrengthChange={setPasswordStrength}
                 showSuggestions
               />
@@ -748,6 +761,7 @@ const UserManagement = () => {
                 <FieldLabel htmlFor="reset-confirm-password" required>确认新密码</FieldLabel>
                 <Input
                   id="reset-confirm-password"
+                  name="confirm-new-password"
                   type="password"
                   required
                   autoComplete="new-password"

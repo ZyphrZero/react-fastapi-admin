@@ -20,12 +20,14 @@ class DummyUser:
         session_version: int = 0,
         is_active: bool = True,
         is_superuser: bool = True,
+        refresh_token_jti: str | None = None,
     ) -> None:
         self.id = user_id
         self.username = "admin"
         self.is_superuser = is_superuser
         self.is_active = is_active
         self.session_version = session_version
+        self.refresh_token_jti = refresh_token_jti
 
     async def save(self, *args, **kwargs) -> None:
         return None
@@ -35,7 +37,14 @@ def make_request() -> Request:
     return make_route_request()
 
 
-def make_route_request(*, method: str = "GET", path: str = "/api/v1/base/userinfo", path_format: str | None = None) -> Request:
+def make_route_request(
+    *,
+    method: str = "GET",
+    path: str = "/api/v1/base/userinfo",
+    path_format: str | None = None,
+    headers: list[tuple[bytes, bytes]] | None = None,
+    client: tuple[str, int] = ("127.0.0.1", 12345),
+) -> Request:
     async def receive():
         return {"type": "http.request", "body": b"", "more_body": False}
 
@@ -44,8 +53,8 @@ def make_route_request(*, method: str = "GET", path: str = "/api/v1/base/userinf
         "method": method,
         "path": path,
         "query_string": b"",
-        "headers": [],
-        "client": ("127.0.0.1", 12345),
+        "headers": headers or [],
+        "client": client,
         "route": SimpleNamespace(path_format=path_format or path),
     }
     return Request(scope, receive)
@@ -53,8 +62,12 @@ def make_route_request(*, method: str = "GET", path: str = "/api/v1/base/userinf
 
 class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_refresh_token_round_trip_succeeds(self) -> None:
-        user = DummyUser(session_version=3)
-        refresh_token = create_refresh_token(user_id=user.id, session_version=user.session_version)
+        user = DummyUser(session_version=3, refresh_token_jti="refresh-jti-1")
+        refresh_token = create_refresh_token(
+            user_id=user.id,
+            session_version=user.session_version,
+            refresh_token_jti=user.refresh_token_jti,
+        )
 
         with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
             tokens = await auth_service.refresh_access_token(refresh_token)
@@ -63,11 +76,32 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertIn("refresh_token", tokens)
 
     async def test_refresh_token_rejected_after_session_version_change(self) -> None:
-        user = DummyUser(session_version=4)
-        stale_refresh_token = create_refresh_token(user_id=user.id, session_version=3)
+        user = DummyUser(session_version=4, refresh_token_jti="refresh-jti-2")
+        stale_refresh_token = create_refresh_token(
+            user_id=user.id,
+            session_version=3,
+            refresh_token_jti=user.refresh_token_jti,
+        )
 
         with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
             with self.assertRaisesRegex(AuthenticationError, "登录状态已失效"):
+                await auth_service.refresh_access_token(stale_refresh_token)
+
+    async def test_refresh_token_is_single_use_after_rotation(self) -> None:
+        user = DummyUser(session_version=3, refresh_token_jti="refresh-jti-3")
+        stale_refresh_token = create_refresh_token(
+            user_id=user.id,
+            session_version=user.session_version,
+            refresh_token_jti=user.refresh_token_jti,
+        )
+
+        with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
+            refreshed_tokens = await auth_service.refresh_access_token(stale_refresh_token)
+
+            self.assertNotEqual(user.refresh_token_jti, "refresh-jti-3")
+            self.assertIn("refresh_token", refreshed_tokens)
+
+            with self.assertRaisesRegex(AuthenticationError, "刷新令牌已失效"):
                 await auth_service.refresh_access_token(stale_refresh_token)
 
     async def test_get_current_user_menu_for_normal_user_excludes_admin_pages(self) -> None:
@@ -111,8 +145,37 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(permissions, ["get/api/v1/user/list", "post/api/v1/role/create"])
 
+    async def test_get_current_user_info_hides_session_internal_fields(self) -> None:
+        class DummyUserWithProfile(DummyUser):
+            async def to_dict(self, **kwargs):
+                exclude_fields = set(kwargs.get("exclude_fields") or [])
+                payload = {
+                    "id": self.id,
+                    "username": self.username,
+                    "session_version": self.session_version,
+                    "refresh_token_jti": self.refresh_token_jti,
+                    "email": "hidden@example.com",
+                }
+                return {key: value for key, value in payload.items() if key not in exclude_fields}
+
+        user = DummyUserWithProfile(session_version=3, refresh_token_jti="hidden-jti")
+
+        with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
+            profile = await auth_service.get_current_user_info(user.id)
+
+        self.assertNotIn("session_version", profile)
+        self.assertNotIn("refresh_token_jti", profile)
+
 
 class AuthControlSecurityTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_initialize_clears_rate_limit_buckets(self) -> None:
+        bucket_queryset = SimpleNamespace(delete=AsyncMock())
+
+        with patch("app.core.dependency.RateLimitBucket.all", return_value=bucket_queryset):
+            await AuthControl.initialize()
+
+        bucket_queryset.delete.assert_awaited_once()
+
     async def test_dev_token_is_not_accepted(self) -> None:
         request = make_request()
 
@@ -165,6 +228,30 @@ class AuthControlSecurityTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaisesRegex(AuthorizationError, "权限不足"):
                 await PermissionControl.has_permission(request, current_user=user)
+
+    async def test_trusted_proxy_header_uses_original_client_ip(self) -> None:
+        request = make_route_request(
+            headers=[(b"x-forwarded-for", b"203.0.113.10, 10.0.0.1")],
+            client=("10.0.0.1", 12345),
+        )
+
+        with (
+            patch.object(AuthControl, "_trust_proxy_headers", True),
+            patch.object(AuthControl, "_trusted_proxy_ips", {"10.0.0.1"}),
+        ):
+            self.assertEqual(AuthControl.get_client_ip(request), "203.0.113.10")
+
+    async def test_untrusted_proxy_header_is_ignored(self) -> None:
+        request = make_route_request(
+            headers=[(b"x-forwarded-for", b"203.0.113.10, 10.0.0.2")],
+            client=("198.51.100.7", 12345),
+        )
+
+        with (
+            patch.object(AuthControl, "_trust_proxy_headers", True),
+            patch.object(AuthControl, "_trusted_proxy_ips", {"10.0.0.1"}),
+        ):
+            self.assertEqual(AuthControl.get_client_ip(request), "198.51.100.7")
 
 
 class AuditLogMiddlewareSecurityTestCase(unittest.TestCase):

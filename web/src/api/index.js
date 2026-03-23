@@ -4,11 +4,13 @@ export default {
     // 认证相关
     auth: {
         login: (data) => request.post('/base/access_token', data, { noNeedToken: true, noAuthRefresh: true }),
-        refreshToken: (data) => request.post('/base/refresh_token', data, { noNeedToken: true, noAuthRefresh: true }),
+        refreshToken: () => request.post('/base/refresh_token', undefined, { noNeedToken: true, noAuthRefresh: true }),
+        getAppMeta: () => request.get('/base/app_meta', { noNeedToken: true, noAuthRefresh: true }),
         getOverview: () => request.get('/base/overview'),
         getUserInfo: () => request.get('/base/userinfo'),
         getUserMenu: () => request.get('/base/usermenu'),
         getUserApi: () => request.get('/base/userapi'),
+        getPasswordPolicy: () => request.get('/base/password_policy'),
         updatePassword: (data = {}) => request.post('/base/update_password', data),
         updateProfile: (data = {}) => request.post('/base/update_profile', data),
         uploadAvatar: (file) => {
@@ -25,6 +27,12 @@ export default {
 
     // 系统设置
     systemSettings: {
+        getApplicationSettings: () => request.get('/system_settings/application'),
+        updateApplicationSettings: (data = {}) => request.post('/system_settings/application', data),
+        getLoggingSettings: () => request.get('/system_settings/logging'),
+        updateLoggingSettings: (data = {}) => request.post('/system_settings/logging', data),
+        getSecuritySettings: () => request.get('/system_settings/security'),
+        updateSecuritySettings: (data = {}) => request.post('/system_settings/security', data),
         getStorageSettings: () => request.get('/system_settings/storage'),
         updateStorageSettings: (data = {}) => request.post('/system_settings/storage', data),
     },

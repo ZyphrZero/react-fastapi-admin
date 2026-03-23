@@ -23,11 +23,12 @@ import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
 import { resolveAvatarUrl } from '@/utils/avatar'
+import { validatePasswordAgainstPolicy } from '@/utils/passwordStrength'
 import { clearSession, setStoredUserInfo } from '@/utils/session'
 
 const phonePattern = /^1[3-9]\d{9}$/
-const specialCharPattern = /[!@#$%^&*(),.?":{}|<>]/
 const maxAvatarFileSize = 10 * 1024 * 1024
 
 const formatDate = (dateString) => {
@@ -58,7 +59,7 @@ const validateProfileForm = (values) => {
   return errors
 }
 
-const validatePasswordForm = (values) => {
+const validatePasswordForm = (values, passwordPolicy) => {
   const errors = {}
 
   if (!values.oldPassword) {
@@ -68,17 +69,8 @@ const validatePasswordForm = (values) => {
   if (!values.newPassword) {
     errors.newPassword = '请输入新密码'
   } else {
-    if (values.newPassword.length < 8) {
-      errors.newPassword = '密码长度不能少于 8 个字符'
-    } else if (!/[A-Z]/.test(values.newPassword)) {
-      errors.newPassword = '密码必须包含至少一个大写字母'
-    } else if (!/[a-z]/.test(values.newPassword)) {
-      errors.newPassword = '密码必须包含至少一个小写字母'
-    } else if (!/\d/.test(values.newPassword)) {
-      errors.newPassword = '密码必须包含至少一个数字'
-    } else if (!specialCharPattern.test(values.newPassword)) {
-      errors.newPassword = '密码必须包含至少一个特殊字符'
-    }
+    const passwordError = validatePasswordAgainstPolicy(values.newPassword, passwordPolicy)
+    if (passwordError) errors.newPassword = passwordError
   }
 
   if (!values.confirmPassword) {
@@ -116,6 +108,7 @@ const Profile = () => {
 
   const navigate = useNavigate()
   const { handleError, handleBusinessError, showSuccess, showWarning, message } = useErrorHandler()
+  const passwordPolicy = usePasswordPolicy()
 
   const fetchUserInfo = useCallback(async () => {
     try {
@@ -305,7 +298,7 @@ const Profile = () => {
   const handleUpdatePassword = async (event) => {
     event.preventDefault()
 
-    const nextErrors = validatePasswordForm(passwordValues)
+    const nextErrors = validatePasswordForm(passwordValues, passwordPolicy)
     if (Object.keys(nextErrors).length > 0) {
       setPasswordErrors(nextErrors)
       return
@@ -553,11 +546,21 @@ const Profile = () => {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <form className="flex flex-col gap-4" onSubmit={handleUpdatePassword}>
+                  <Input
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
+                    name="username"
+                    autoComplete="username"
+                    value={userInfo.username || ''}
+                    readOnly
+                  />
                   <FieldGroup>
                     <Field data-invalid={Boolean(passwordErrors.oldPassword)}>
                       <FieldLabel htmlFor="old-password" required>当前密码</FieldLabel>
                       <Input
                         id="old-password"
+                        name="current-password"
                         type="password"
                         required
                         autoComplete="current-password"
@@ -572,6 +575,7 @@ const Profile = () => {
                       <FieldLabel htmlFor="new-password" required>新密码</FieldLabel>
                       <Input
                         id="new-password"
+                        name="new-password"
                         type="password"
                         required
                         autoComplete="new-password"
@@ -584,6 +588,7 @@ const Profile = () => {
 
                     <PasswordStrengthIndicator
                       password={passwordValues.newPassword}
+                      policy={passwordPolicy}
                       onStrengthChange={setPasswordStrength}
                       showSuggestions
                     />
@@ -592,6 +597,7 @@ const Profile = () => {
                       <FieldLabel htmlFor="confirm-password" required>确认新密码</FieldLabel>
                       <Input
                         id="confirm-password"
+                        name="confirm-new-password"
                         type="password"
                         required
                         autoComplete="new-password"

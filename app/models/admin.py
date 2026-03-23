@@ -16,6 +16,7 @@ class User(BaseModel, TimestampMixin):
     is_superuser = fields.BooleanField(default=False, description="是否为超级管理员", db_index=True)
     last_login = fields.DatetimeField(null=True, description="最后登录时间", db_index=True)
     session_version = fields.IntField(default=0, description="会话版本", db_index=True)
+    refresh_token_jti = fields.CharField(max_length=32, null=True, description="当前刷新令牌标识", db_index=True)
     roles = fields.ManyToManyField("models.Role", related_name="user_roles")
 
     class Meta:
@@ -40,6 +41,15 @@ class Api(BaseModel, TimestampMixin):
 
     class Meta:
         table = "api"
+
+
+class RateLimitBucket(BaseModel, TimestampMixin):
+    bucket_key = fields.CharField(max_length=255, unique=True, description="限流桶键", db_index=True)
+    count = fields.IntField(default=0, description="窗口内请求次数")
+    expires_at = fields.BigIntField(description="过期时间戳", db_index=True)
+
+    class Meta:
+        table = "rate_limit_bucket"
 
 
 class AuditLog(BaseModel, TimestampMixin):

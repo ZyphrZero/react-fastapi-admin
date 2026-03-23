@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import {
   ChevronRightIcon,
@@ -74,6 +74,7 @@ import {
   setStoredMenus,
   subscribeSessionChange,
 } from '@/utils/session'
+import { useAppMeta } from '@/hooks/useAppMeta'
 
 const DEFAULT_TAB = {
   key: '/dashboard',
@@ -295,6 +296,7 @@ const AppLayout = () => {
   const [openKeys, setOpenKeys] = useState([])
   const [tabs, setTabs] = useState([DEFAULT_TAB])
   const [activeTab, setActiveTab] = useState('/dashboard')
+  const appMeta = useAppMeta()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -437,6 +439,15 @@ const AppLayout = () => {
     setOpenKeys(findOpenKeys(menuItems, location.pathname))
   }, [location.pathname, menuItems])
 
+  useEffect(() => {
+    const currentPageLabel = breadcrumbItems[breadcrumbItems.length - 1]?.label
+    const appTitle = appMeta.app_title || 'React FastAPI Admin'
+
+    document.title = currentPageLabel && currentPageLabel !== appTitle
+      ? `${currentPageLabel} - ${appTitle}`
+      : appTitle
+  }, [appMeta.app_title, breadcrumbItems])
+
   const toggleOpenKey = (key) => {
     setOpenKeys((currentOpenKeys) =>
       currentOpenKeys.includes(key)
@@ -531,8 +542,8 @@ const AppLayout = () => {
                     markClassName="!size-10"
                     titleClassName="text-[15px]"
                     subtitleClassName="text-[10px] tracking-[0.24em]"
-                    title="React FastAPI Admin"
-                    subtitle="CONTROL CENTER"
+                    title={appMeta.app_title || 'React FastAPI Admin'}
+                    subtitle={appMeta.project_name && appMeta.project_name !== appMeta.app_title ? appMeta.project_name : 'CONTROL CENTER'}
                   />
                 </Link>
               </SidebarMenuButton>
@@ -608,20 +619,20 @@ const AppLayout = () => {
                   const isLast = index === breadcrumbItems.length - 1
 
                   return (
-                    <BreadcrumbItem key={`${item.path}-${index}`}>
-                      {isLast ? (
-                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                      ) : (
-                        <>
+                    <Fragment key={`${item.path}-${index}`}>
+                      <BreadcrumbItem>
+                        {isLast ? (
+                          <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                        ) : (
                           <BreadcrumbLink asChild>
                             <button type="button" onClick={() => addTab(item.path, item.label)}>
                               {item.label}
                             </button>
                           </BreadcrumbLink>
-                          <BreadcrumbSeparator className="hidden md:block" />
-                        </>
-                      )}
-                    </BreadcrumbItem>
+                        )}
+                      </BreadcrumbItem>
+                      {!isLast ? <BreadcrumbSeparator className="hidden md:block" /> : null}
+                    </Fragment>
                   )
                 })}
               </BreadcrumbList>

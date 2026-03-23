@@ -5,7 +5,14 @@ from uuid import uuid4
 from app.settings.config import settings
 
 
-def _build_common_claims(*, user_id: int, session_version: int, token_type: str, expire_at: datetime) -> dict:
+def _build_common_claims(
+    *,
+    user_id: int,
+    session_version: int,
+    token_type: str,
+    expire_at: datetime,
+    token_jti: str | None = None,
+) -> dict:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -14,7 +21,7 @@ def _build_common_claims(*, user_id: int, session_version: int, token_type: str,
         "session_version": session_version,
         "iat": now,
         "exp": expire_at,
-        "jti": uuid4().hex,
+        "jti": token_jti or uuid4().hex,
     }
 
     if settings.JWT_AUDIENCE:
@@ -38,13 +45,14 @@ def create_access_token(*, user_id: int, username: str, is_superuser: bool, sess
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(*, user_id: int, session_version: int) -> str:
+def create_refresh_token(*, user_id: int, session_version: int, refresh_token_jti: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload = _build_common_claims(
         user_id=user_id,
         session_version=session_version,
         token_type="refresh",
         expire_at=expire,
+        token_jti=refresh_token_jti,
     )
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 

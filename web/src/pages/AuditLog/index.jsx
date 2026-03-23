@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CopyIcon,
   DownloadIcon,
@@ -149,6 +149,78 @@ const DetailCodeBlock = ({ value }) => (
   </pre>
 )
 
+const AuditLogTableRow = memo(function AuditLogTableRow({
+  isSelected,
+  isSuperuser,
+  log,
+  onDelete,
+  onOpenDetail,
+  onToggleSelectedRow,
+}) {
+  return (
+    <TableRow data-state={isSelected ? 'selected' : undefined} onDoubleClick={() => void onOpenDetail(log)}>
+      {isSuperuser ? (
+        <TableCell>
+          <Checkbox checked={isSelected} onCheckedChange={(checked) => onToggleSelectedRow(log.id, Boolean(checked))} />
+        </TableCell>
+      ) : null}
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-1">
+          <div className="font-medium">{formatDateTime(log.created_at)}</div>
+          <div className="text-xs text-muted-foreground">日志时间点</div>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-1">
+          <div className="font-medium">{log.username || 'system'}</div>
+          <div className="text-xs text-muted-foreground">用户 ID: {log.user_id || '-'}</div>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-2">
+          <Badge variant="outline">{log.module || '基础模块'}</Badge>
+          <div className="text-sm">{log.summary || '-'}</div>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant={getMethodVariant(log.method)}>{log.method || '-'}</Badge>
+            <Badge variant={getLogLevelVariant(log.log_level)}>{log.log_level || 'unknown'}</Badge>
+          </div>
+          <code className="break-all rounded bg-muted px-2 py-1 text-xs">{log.path || '-'}</code>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-2">
+          <Badge variant={getStatusVariant(log.status)}>{log.status ?? '-'}</Badge>
+          <div className="text-xs text-muted-foreground">{log.operation_type || '未分类操作'}</div>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-normal">
+        <div className="flex flex-col gap-1">
+          <div className="font-medium">{log.response_time || 0} ms</div>
+          <div className="text-xs text-muted-foreground">{log.ip_address || '-'}</div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="icon-sm" onClick={() => void onOpenDetail(log)}>
+            <EyeIcon />
+            <span className="sr-only">查看详情</span>
+          </Button>
+          {isSuperuser ? (
+            <Button variant="destructive" size="icon-sm" onClick={() => onDelete(log)}>
+              <Trash2Icon />
+              <span className="sr-only">删除日志</span>
+            </Button>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+})
+
 const AuditLog = () => {
   const currentUser = getStoredUserInfo()
   const isSuperuser = Boolean(currentUser?.is_superuser)
@@ -190,6 +262,8 @@ const AuditLog = () => {
   const [batchDeleteVisible, setBatchDeleteVisible] = useState(false)
 
   const { handleError, handleBusinessError, handleSilentError, showInfo, showSuccess, showWarning } = useErrorHandler()
+  const selectedRowKeySet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys])
+  const allRowsSelected = auditLogs.length > 0 && selectedRowKeys.length === auditLogs.length
 
   const fetchAuditLogs = useCallback(
     async (cursor = null, size = DEFAULT_PAGE_SIZE, nextSearchParams = {}, page = 1) => {
@@ -429,15 +503,19 @@ const AuditLog = () => {
     }
   }
 
-  const toggleSelectedRow = (id, checked) => {
+  const toggleSelectedRow = useCallback((id, checked) => {
     setSelectedRowKeys((current) =>
-      checked ? [...new Set([...current, id])] : current.filter((key) => key !== id),
+      checked ? (current.includes(id) ? current : [...current, id]) : current.filter((key) => key !== id),
     )
-  }
+  }, [])
 
-  const toggleSelectAllRows = (checked) => {
+  const toggleSelectAllRows = useCallback((checked) => {
     setSelectedRowKeys(checked ? auditLogs.map((log) => log.id) : [])
-  }
+  }, [auditLogs])
+
+  const openDeleteDialog = useCallback((log) => {
+    setDeleteTarget(log)
+  }, [])
 
   const renderAuditTable = () => {
     if (!auditLogs.length) {
@@ -463,7 +541,7 @@ const AuditLog = () => {
                 {isSuperuser ? (
                   <TableHead className="sticky top-0 z-10 w-12 bg-background shadow-[0_1px_0_hsl(var(--border))]">
                     <Checkbox
-                      checked={auditLogs.length > 0 && selectedRowKeys.length === auditLogs.length}
+                      checked={allRowsSelected}
                       onCheckedChange={(checked) => toggleSelectAllRows(Boolean(checked))}
                     />
                   </TableHead>
@@ -479,73 +557,15 @@ const AuditLog = () => {
             </TableHeader>
             <TableBody>
               {auditLogs.map((log) => (
-                <TableRow
+                <AuditLogTableRow
                   key={log.id}
-                  data-state={selectedRowKeys.includes(log.id) ? 'selected' : undefined}
-                  onDoubleClick={() => void openDetail(log)}
-                >
-                  {isSuperuser ? (
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedRowKeys.includes(log.id)}
-                        onCheckedChange={(checked) => toggleSelectedRow(log.id, Boolean(checked))}
-                      />
-                    </TableCell>
-                  ) : null}
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-1">
-                      <div className="font-medium">{formatDateTime(log.created_at)}</div>
-                      <div className="text-xs text-muted-foreground">日志时间点</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-1">
-                      <div className="font-medium">{log.username || 'system'}</div>
-                      <div className="text-xs text-muted-foreground">用户 ID: {log.user_id || '-'}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-2">
-                      <Badge variant="outline">{log.module || '基础模块'}</Badge>
-                      <div className="text-sm">{log.summary || '-'}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={getMethodVariant(log.method)}>{log.method || '-'}</Badge>
-                        <Badge variant={getLogLevelVariant(log.log_level)}>{log.log_level || 'unknown'}</Badge>
-                      </div>
-                      <code className="break-all rounded bg-muted px-2 py-1 text-xs">{log.path || '-'}</code>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-2">
-                      <Badge variant={getStatusVariant(log.status)}>{log.status ?? '-'}</Badge>
-                      <div className="text-xs text-muted-foreground">{log.operation_type || '未分类操作'}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex flex-col gap-1">
-                      <div className="font-medium">{log.response_time || 0} ms</div>
-                      <div className="text-xs text-muted-foreground">{log.ip_address || '-'}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="icon-sm" onClick={() => void openDetail(log)}>
-                        <EyeIcon />
-                        <span className="sr-only">查看详情</span>
-                      </Button>
-                      {isSuperuser ? (
-                        <Button variant="destructive" size="icon-sm" onClick={() => setDeleteTarget(log)}>
-                          <Trash2Icon />
-                          <span className="sr-only">删除日志</span>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                  isSelected={selectedRowKeySet.has(log.id)}
+                  isSuperuser={isSuperuser}
+                  log={log}
+                  onDelete={openDeleteDialog}
+                  onOpenDetail={openDetail}
+                  onToggleSelectedRow={toggleSelectedRow}
+                />
               ))}
             </TableBody>
           </Table>

@@ -16,8 +16,8 @@ from app.core.init_app import (
     register_exceptions,
     register_routers,
 )
+from app.services import system_setting_service
 from app.utils.log_control import logger, init_logging
-from app.core.dependency import AuthControl  # 导入身份验证控制器
 
 
 # 加载环境变量
@@ -51,9 +51,9 @@ async def lifespan(app: FastAPI):
     try:
         await app.state.db_runtime.initialize()
         async with app.state.db_runtime.activate():
-            await AuthControl.initialize()
-            logger.info("身份验证控制器初始化完成")
             await asyncio.shield(bootstrap_application())
+            await system_setting_service.initialize_runtime_settings(app=app)
+            logger.info("身份验证控制器初始化完成")
         logger.info("应用引导完成")
 
     except Exception as e:

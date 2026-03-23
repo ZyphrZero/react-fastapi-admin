@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowRightIcon, LockKeyholeIcon, ShieldCheckIcon, UserIcon, WaypointsIcon, WebhookIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -16,12 +16,13 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { useAppMeta } from '@/hooks/useAppMeta'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { findFirstAccessiblePath } from '@/utils/permission'
 import {
   clearSession,
+  markRefreshSession,
   setAccessToken,
-  setRefreshToken,
   setStoredApiPermissions,
   setStoredMenus,
   setStoredUserInfo,
@@ -49,6 +50,7 @@ const Login = () => {
   const [fieldErrors, setFieldErrors] = useState({})
   const navigate = useNavigate()
   const { resolvedTheme } = useTheme()
+  const appMeta = useAppMeta()
   const { handleBusinessError, showSuccess } = useErrorHandler()
 
   const formIsValid = useMemo(() => Object.keys(validateLoginForm(formValues)).length === 0, [formValues])
@@ -89,6 +91,10 @@ const Login = () => {
     },
   ]
 
+  useEffect(() => {
+    document.title = `登录 - ${appMeta.app_title || 'React FastAPI Admin'}`
+  }, [appMeta.app_title])
+
   const updateField = (name, value) => {
     setFormValues((current) => ({ ...current, [name]: value }))
     setFieldErrors((current) => ({ ...current, [name]: undefined }))
@@ -111,7 +117,7 @@ const Login = () => {
       })
 
       setAccessToken(response.data.access_token)
-      setRefreshToken(response.data.refresh_token)
+      markRefreshSession(true)
 
       const [userInfo, userMenu, userApi] = await Promise.all([
         api.auth.getUserInfo(),
@@ -153,7 +159,11 @@ const Login = () => {
             <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-[2rem] border border-white/65 bg-white/55 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_28px_90px_rgba(2,8,23,0.42)]">
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.5),transparent_52%)] dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_52%)]" />
               <div className="relative z-10 flex flex-col gap-8">
-                <BrandLogo markClassName="size-14" title="React FastAPI Admin" subtitle="CONTROL CENTER" />
+                <BrandLogo
+                  markClassName="size-14"
+                  title={appMeta.app_title || 'React FastAPI Admin'}
+                  subtitle={appMeta.project_name && appMeta.project_name !== appMeta.app_title ? appMeta.project_name : 'CONTROL CENTER'}
+                />
 
                 <div className="max-w-xl space-y-4">
                   <Badge variant="outline" className="rounded-full border-rose-300/50 bg-white/55 px-3 py-1 text-rose-700 dark:border-rose-400/20 dark:bg-white/8 dark:text-rose-200">
@@ -193,7 +203,10 @@ const Login = () => {
           <section className="flex items-center justify-center">
             <div className="w-full max-w-md">
               <div className="mb-6 flex justify-center lg:hidden">
-                <BrandLogo title="React FastAPI Admin" subtitle="CONTROL CENTER" />
+                <BrandLogo
+                  title={appMeta.app_title || 'React FastAPI Admin'}
+                  subtitle={appMeta.project_name && appMeta.project_name !== appMeta.app_title ? appMeta.project_name : 'CONTROL CENTER'}
+                />
               </div>
 
               <Card className="relative overflow-hidden border-white/65 bg-background/84 shadow-[0_24px_80px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-background/74 dark:shadow-[0_28px_90px_rgba(2,8,23,0.46)]">
@@ -216,6 +229,7 @@ const Login = () => {
                           <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="username"
+                            name="username"
                             autoComplete="username"
                             required
                             className="border-white/50 bg-background/78 pl-9 dark:border-white/10 dark:bg-background/45"
@@ -234,6 +248,7 @@ const Login = () => {
                           <LockKeyholeIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="password"
+                            name="password"
                             type="password"
                             required
                             autoComplete="current-password"
