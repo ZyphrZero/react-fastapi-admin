@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core.exceptions import AuthenticationError, AuthorizationError
+from app.core.exceptions import AuthorizationError
 from app.models.admin import Role, User
-from app.repositories import role_repository, user_repository
+from app.repositories import role_repository
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,14 +27,6 @@ class PermissionScope:
 
 
 class AdminPermissionService:
-    async def get_actor(self, current_user_id: int) -> User:
-        actor = await user_repository.get(current_user_id)
-        if not actor:
-            raise AuthenticationError("当前用户不存在")
-        if not actor.is_active:
-            raise AuthorizationError("当前用户已被禁用")
-        return actor
-
     async def get_user_scope(self, user: User) -> PermissionScope:
         if user.is_superuser:
             return PermissionScope.from_bundle(menu_paths=["*"], api_ids=[-1])

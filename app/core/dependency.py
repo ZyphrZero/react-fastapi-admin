@@ -1,11 +1,10 @@
-from typing import Optional, Set
 import time
+from typing import Annotated, Optional, Set
 
 import jwt
 from fastapi import Depends, Header, Request, Query
 from tortoise.expressions import F
 
-from app.core.ctx import CTX_USER_ID
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
 from app.models import RateLimitBucket, User
 from app.repositories import api_repository, role_repository, user_repository
@@ -142,7 +141,7 @@ class AuthControl:
     @classmethod
     async def is_authed(
         cls, request: Request, authorization: str = Header(..., description="Bearer access token")
-    ) -> Optional["User"]:
+    ) -> User:
         """
         身份验证主方法
         :param authorization: Bearer token
@@ -168,7 +167,6 @@ class AuthControl:
                 raise AuthenticationError("登录状态已失效，请重新登录")
 
             await cls.enforce_rate_limit(f"{client_ip}:{user_id}")
-            CTX_USER_ID.set(int(user_id))
             request.state.current_user = user
             return user
 
@@ -228,6 +226,5 @@ async def get_page_params(
     return {"page": page, "page_size": page_size}
 
 
-# 依赖注入快捷方式
-DependAuth = Depends(AuthControl.is_authed)
-DependPermisson = Depends(PermissionControl.has_permission)
+CurrentUser = Annotated[User, Depends(AuthControl.is_authed)]
+RequirePermission = Depends(PermissionControl.has_permission)

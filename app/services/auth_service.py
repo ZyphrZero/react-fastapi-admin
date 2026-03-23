@@ -86,26 +86,23 @@ class AuthService:
 
         return user
 
-    async def get_current_user_info(self, user_id: int) -> dict:
-        user = await self.get_current_user(user_id)
-        return await user.to_dict(exclude_fields=USER_RESPONSE_EXCLUDED_FIELDS)
+    async def get_current_user_info(self, current_user: User) -> dict:
+        return await current_user.to_dict(exclude_fields=USER_RESPONSE_EXCLUDED_FIELDS)
 
-    async def get_current_user_menu(self, user_id: int) -> list[dict]:
-        user = await self.get_current_user(user_id)
-        if user.is_superuser:
+    async def get_current_user_menu(self, current_user: User) -> list[dict]:
+        if current_user.is_superuser:
             return get_system_menu_tree(is_superuser=True)
 
-        permission_bundle = await role_repository.list_permissions_for_user(user.id)
+        permission_bundle = await role_repository.list_permissions_for_user(current_user.id)
         allowed_menu_paths = set(permission_bundle["menu_paths"] or ["/dashboard"])
         return get_system_menu_tree(
             is_superuser=False,
             allowed_menu_paths=allowed_menu_paths,
         )
 
-    async def get_current_user_api_permissions(self, user_id: int) -> list[str]:
-        user = await self.get_current_user(user_id)
-        if not user.is_superuser:
-            permission_bundle = await role_repository.list_permissions_for_user(user.id)
+    async def get_current_user_api_permissions(self, current_user: User) -> list[str]:
+        if not current_user.is_superuser:
+            permission_bundle = await role_repository.list_permissions_for_user(current_user.id)
             return await api_repository.list_permission_keys_by_ids(permission_bundle["api_ids"])
 
         return await api_repository.list_permission_keys()
@@ -113,28 +110,25 @@ class AuthService:
     async def get_platform_overview(self) -> dict:
         return await get_platform_overview()
 
-    async def update_current_user_password(self, user_id: int, payload: UpdatePassword) -> None:
-        user = await self.get_current_user(user_id)
-        if not verify_password(payload.old_password, user.password):
+    async def update_current_user_password(self, current_user: User, payload: UpdatePassword) -> None:
+        if not verify_password(payload.old_password, current_user.password):
             raise ValidationError("旧密码验证错误")
-        if verify_password(payload.new_password, user.password):
+        if verify_password(payload.new_password, current_user.password):
             raise ValidationError("新密码不能与当前密码相同")
 
         is_valid, message = validate_password_strength(payload.new_password)
         if not is_valid:
             raise ValidationError(f"密码强度不足: {message}")
 
-        user.password = get_password_hash(payload.new_password)
-        user.session_version += 1
-        user.refresh_token_jti = None
-        await user.save(update_fields=["password", "session_version", "refresh_token_jti", "updated_at"])
+        current_user.password = get_password_hash(payload.new_password)
+        current_user.session_version += 1
+        current_user.refresh_token_jti = None
+        await current_user.save(update_fields=["password", "session_version", "refresh_token_jti", "updated_at"])
 
-    async def update_current_user_profile(self, user_id: int, payload: ProfileUpdate) -> None:
-        user = await self.get_current_user(user_id)
-
-        if payload.email and payload.email != user.email:
+    async def update_current_user_profile(self, current_user: User, payload: ProfileUpdate) -> None:
+        if payload.email and payload.email != current_user.email:
             existing_user = await user_repository.get_by_email(payload.email)
-            if existing_user and existing_user.id != user_id:
+            if existing_user and existing_user.id != current_user.id:
                 raise ValidationError("该邮箱地址已被其他用户使用")
 
         update_data = payload.update_dict()
@@ -142,21 +136,20 @@ class AuthService:
             return
 
         for key, value in update_data.items():
-            if not hasattr(user, key):
+            if not hasattr(current_user, key):
                 continue
 
-            field = user._meta.fields_map.get(key)
+            field = current_user._meta.fields_map.get(key)
             if field and value is None and not field.null:
                 continue
-            setattr(user, key, value)
+            setattr(current_user, key, value)
 
-        await user.save()
+        await current_user.save()
 
-    async def logout(self, user_id: int) -> None:
-        user = await self.get_current_user(user_id)
-        user.session_version += 1
-        user.refresh_token_jti = None
-        await user.save(update_fields=["session_version", "refresh_token_jti", "updated_at"])
+    async def logout(self, current_user: User) -> None:
+        current_user.session_version += 1
+        current_user.refresh_token_jti = None
+        await current_user.save(update_fields=["session_version", "refresh_token_jti", "updated_at"])
 
 
 auth_service = AuthService()

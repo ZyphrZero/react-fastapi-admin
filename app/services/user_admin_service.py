@@ -4,7 +4,9 @@ import asyncio
 
 from tortoise.expressions import Q
 
+from app.core.transactions import managed_transaction
 from app.core.exceptions import AuthenticationError, ValidationError
+from app.models import User
 from app.repositories import role_repository, user_repository
 from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.services.admin_permission_service import admin_permission_service
@@ -60,9 +62,7 @@ class UserAdminService:
 
         return await user_obj.to_dict(exclude_fields=USER_RESPONSE_EXCLUDED_FIELDS)
 
-    async def create_user(self, user_in: UserCreate, *, current_user_id: int) -> None:
-        actor = await admin_permission_service.get_actor(current_user_id)
-
+    async def create_user(self, user_in: UserCreate, *, actor: User) -> None:
         if user_in.email:
             existing_email_user = await user_repository.get_by_email(user_in.email)
             if existing_email_user:
@@ -90,12 +90,13 @@ class UserAdminService:
             role_ids=role_ids,
         )
 
-        payload["password"] = get_password_hash(user_in.password)
-        new_user = await user_repository.create(payload)
-        if role_ids:
-            await user_repository.assign_roles(new_user, role_ids)
+        async with managed_transaction():
+            payload["password"] = get_password_hash(user_in.password)
+            new_user = await user_repository.create(payload)
+            if role_ids:
+                await user_repository.assign_roles(new_user, role_ids)
 
-    async def update_user(self, user_in: UserUpdate, *, current_user_id: int) -> None:
+    async def update_user(self, user_in: UserUpdate, *, actor: User) -> None:
         existing_user = await user_repository.get(user_in.id)
         if not existing_user:
             raise AuthenticationError("用户不存在")
@@ -111,10 +112,9 @@ class UserAdminService:
                 raise ValidationError("该用户名已被其他用户使用")
 
         update_data = user_in.update_dict()
-        if current_user_id == user_in.id and update_data.get("is_active") is False:
+        if actor.id == user_in.id and update_data.get("is_active") is False:
             raise ValidationError("不能禁用自己的账户")
 
-        actor = await admin_permission_service.get_actor(current_user_id)
         await admin_permission_service.ensure_can_update_user(
             actor=actor,
             target=existing_user,
@@ -124,24 +124,24 @@ class UserAdminService:
         if update_data.get("password"):
             raise ValidationError("请使用重置密码接口修改用户密码")
 
-        user = existing_user
-        if update_data:
-            user = await user_repository.update(user_in.id, update_data)
-            if not user:
-                raise AuthenticationError("用户更新失败")
+        async with managed_transaction():
+            user = existing_user
+            if update_data:
+                user = await user_repository.update(user_in.id, update_data)
+                if not user:
+                    raise AuthenticationError("用户更新失败")
 
-        if user_in.role_ids is not None:
-            await user_repository.assign_roles(user, user_in.role_ids)
+            if user_in.role_ids is not None:
+                await user_repository.assign_roles(user, user_in.role_ids)
 
-    async def delete_user(self, *, user_id: int, current_user_id: int) -> None:
-        if current_user_id == user_id:
+    async def delete_user(self, *, user_id: int, actor: User) -> None:
+        if actor.id == user_id:
             raise ValidationError("不能删除自己的账户")
 
         user_to_delete = await user_repository.get(user_id)
         if not user_to_delete:
             raise AuthenticationError("要删除的用户不存在")
 
-        actor = await admin_permission_service.get_actor(current_user_id)
         await admin_permission_service.ensure_can_manage_user(actor=actor, target=user_to_delete, action="删除")
 
         if user_to_delete.is_superuser:
@@ -149,16 +149,16 @@ class UserAdminService:
             if superuser_count <= 1:
                 raise ValidationError("不能删除最后一个超级管理员账户")
 
-        await user_repository.remove(user_id)
+        async with managed_transaction():
+            await user_repository.remove(user_id)
 
-    async def reset_user_password(self, payload: ResetPasswordRequest, *, current_user_id: int) -> None:
-        actor = await admin_permission_service.get_actor(current_user_id)
+    async def reset_user_password(self, payload: ResetPasswordRequest, *, actor: User) -> None:
         user_obj = await user_repository.get(payload.user_id)
         if not user_obj:
             raise AuthenticationError("用户不存在")
-        if user_obj.is_superuser and current_user_id != payload.user_id:
+        if user_obj.is_superuser and actor.id != payload.user_id:
             raise ValidationError("不允许重置其他超级管理员密码")
-        if current_user_id != payload.user_id:
+        if actor.id != payload.user_id:
             await admin_permission_service.ensure_can_manage_user(actor=actor, target=user_obj, action="重置密码")
         if verify_password(payload.new_password, user_obj.password):
             raise ValidationError("新密码不能与当前密码相同")
@@ -167,10 +167,11 @@ class UserAdminService:
         if not is_valid:
             raise ValidationError(f"密码强度不足: {message}")
 
-        user_obj.password = get_password_hash(payload.new_password)
-        user_obj.session_version += 1
-        user_obj.refresh_token_jti = None
-        await user_obj.save()
+        async with managed_transaction():
+            user_obj.password = get_password_hash(payload.new_password)
+            user_obj.session_version += 1
+            user_obj.refresh_token_jti = None
+            await user_obj.save()
 
 
 user_admin_service = UserAdminService()

@@ -107,22 +107,18 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_get_current_user_menu_for_normal_user_excludes_admin_pages(self) -> None:
         user = DummyUser(is_superuser=False)
 
-        with (
-            patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)),
-            patch(
-                "app.services.auth_service.role_repository.list_permissions_for_user",
-                new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": []}),
-            ),
+        with patch(
+            "app.services.auth_service.role_repository.list_permissions_for_user",
+            new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": []}),
         ):
-            menu = await auth_service.get_current_user_menu(user.id)
+            menu = await auth_service.get_current_user_menu(user)
 
         self.assertEqual([item["path"] for item in menu], ["/dashboard"])
 
     async def test_get_current_user_menu_for_superuser_keeps_admin_pages(self) -> None:
         user = DummyUser(is_superuser=True)
 
-        with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
-            menu = await auth_service.get_current_user_menu(user.id)
+        menu = await auth_service.get_current_user_menu(user)
 
         self.assertIn("/dashboard", [item["path"] for item in menu])
         self.assertIn("/system", [item["path"] for item in menu])
@@ -131,7 +127,6 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
         user = DummyUser(is_superuser=False)
 
         with (
-            patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)),
             patch(
                 "app.services.auth_service.role_repository.list_permissions_for_user",
                 new=AsyncMock(return_value={"menu_paths": ["/dashboard"], "api_ids": [1, 2]}),
@@ -141,7 +136,7 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=["get/api/v1/user/list", "post/api/v1/role/create"]),
             ),
         ):
-            permissions = await auth_service.get_current_user_api_permissions(user.id)
+            permissions = await auth_service.get_current_user_api_permissions(user)
 
         self.assertEqual(permissions, ["get/api/v1/user/list", "post/api/v1/role/create"])
 
@@ -160,8 +155,7 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
 
         user = DummyUserWithProfile(session_version=3, refresh_token_jti="hidden-jti")
 
-        with patch("app.services.auth_service.user_repository.get", new=AsyncMock(return_value=user)):
-            profile = await auth_service.get_current_user_info(user.id)
+        profile = await auth_service.get_current_user_info(user)
 
         self.assertNotIn("session_version", profile)
         self.assertNotIn("refresh_token_jti", profile)

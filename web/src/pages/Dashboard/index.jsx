@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
   ActivityIcon,
-  DatabaseIcon,
   ShieldCheckIcon,
   UsersIcon,
   WaypointsIcon,
@@ -78,24 +77,6 @@ const moduleActivityPalette = [
   'var(--color-chart-5)',
 ]
 
-const readinessToneMap = {
-  success: {
-    badgeVariant: 'secondary',
-    accentClassName: 'bg-emerald-500/14 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300',
-    dotClassName: 'bg-emerald-500',
-  },
-  warn: {
-    badgeVariant: 'outline',
-    accentClassName: 'bg-amber-500/12 text-amber-700 ring-amber-500/20 dark:text-amber-300',
-    dotClassName: 'bg-amber-500',
-  },
-  info: {
-    badgeVariant: 'outline',
-    accentClassName: 'bg-sky-500/12 text-sky-700 ring-sky-500/20 dark:text-sky-300',
-    dotClassName: 'bg-sky-500',
-  },
-}
-
 const resolveHttpStatusVariant = (status) => {
   if (status >= 500) {
     return 'destructive'
@@ -148,73 +129,6 @@ const truncateAxisLabel = (value, maxLength = 10) => {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
 }
 
-const FrameworkStatusPanel = ({ items, environment }) => {
-  const completedCount = items.filter((item) => item.valueTone === 'success').length
-  const warnCount = items.filter((item) => item.valueTone === 'warn').length
-  const readinessValue = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0
-  const readinessTone = warnCount > 0 ? 'warn' : 'success'
-  const readinessMeta = readinessToneMap[readinessTone]
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
-        <div className={`rounded-2xl border p-4 ring-1 ${readinessMeta.accentClassName}`}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <div className="text-xs font-medium uppercase tracking-[0.18em] opacity-80">系统就绪度</div>
-              <div className="text-3xl font-semibold tabular-nums">{readinessValue}%</div>
-            </div>
-            <Badge variant={readinessMeta.badgeVariant}>{environment}</Badge>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-background/60">
-            <div className="h-full rounded-full bg-current transition-[width]" style={{ width: `${readinessValue}%` }} />
-          </div>
-          <div className="mt-3 text-sm opacity-85">
-            {warnCount > 0 ? `存在 ${warnCount} 项需要留意` : '当前核心能力均处于可用状态'}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border bg-muted/20 p-4">
-          <div className="text-xs text-muted-foreground">配置摘要</div>
-          <div className="mt-3 grid gap-3">
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">{completedCount}</div>
-              <div className="text-xs text-muted-foreground">正常项</div>
-            </div>
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">{warnCount}</div>
-              <div className="text-xs text-muted-foreground">关注项</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3">
-        {items.map((item, index) => {
-          const tone = readinessToneMap[item.valueTone] || readinessToneMap.info
-
-          return (
-            <div
-              key={`${item.label}-${index}`}
-              className="grid gap-2 rounded-2xl border bg-card/80 p-4 sm:grid-cols-[10rem_minmax(0,1fr)_auto] sm:items-center"
-            >
-              <div className="text-sm text-muted-foreground">{item.label}</div>
-              <div className="flex items-center gap-3">
-                <span className={`size-2.5 rounded-full ${tone.dotClassName}`} />
-                <div className="min-w-0">
-                  <div className="font-medium">{item.value}</div>
-                  <div className="text-xs text-muted-foreground">{item.description}</div>
-                </div>
-              </div>
-              <Badge variant={tone.badgeVariant}>{item.badgeText}</Badge>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 const DashboardSkeleton = () => (
   <div className="flex flex-col gap-5">
     <div className="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
@@ -230,7 +144,7 @@ const DashboardSkeleton = () => (
       </div>
     </div>
 
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <Card key={`stat-skeleton-${index}`}>
           <CardHeader className="pb-0">
@@ -249,37 +163,20 @@ const DashboardSkeleton = () => (
       ))}
     </div>
 
-    <div className="grid gap-4 xl:grid-cols-[0.72fr_1.28fr]">
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-4 w-32" />
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 pt-0">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={`status-skeleton-${index}`} className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-6 w-20 rounded-full" />
-            </div>
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-4 w-36" />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 pt-0">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={`trend-meta-${index}`} className="h-16 rounded-xl" />
           ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="h-4 w-36" />
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-0">
-          <div className="grid gap-2 sm:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={`trend-meta-${index}`} className="h-16 rounded-xl" />
-            ))}
-          </div>
-          <Skeleton className="h-64 rounded-xl" />
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+        <Skeleton className="h-80 rounded-xl" />
+      </CardContent>
+    </Card>
 
     <div className="grid gap-4 xl:grid-cols-2">
       {Array.from({ length: 2 }).map((_, index) => (
@@ -353,7 +250,7 @@ const TrendLineChart = ({ items }) => {
   }))
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full w-full flex-col gap-4">
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="rounded-xl border bg-muted/20 p-3">
           <div className="text-xs text-muted-foreground">7 天累计</div>
@@ -372,7 +269,7 @@ const TrendLineChart = ({ items }) => {
         </div>
       </div>
 
-      <ChartContainer config={trendChartConfig} className="h-64 w-full rounded-xl border bg-muted/10 p-4">
+      <ChartContainer config={trendChartConfig} className="h-72 w-full flex-1 rounded-xl border bg-muted/10 p-4 xl:min-h-80">
         <AreaChart data={chartData} margin={{ left: 8, right: 8, top: 12, bottom: 8 }}>
           <defs>
             <linearGradient id="dashboard-audit-trend-fill" x1="0" x2="0" y1="0" y2="1">
@@ -541,9 +438,6 @@ const Dashboard = () => {
   }))
   const environment = system.environment || 'unknown'
   const environmentVariant = String(environment).toLowerCase() === 'production' ? 'destructive' : 'secondary'
-  const runMigrationsOnStartup = system.run_migrations_on_startup ?? false
-  const seedBaseDataOnStartup = system.seed_base_data_on_startup ?? false
-  const refreshApiMetadataOnStartup = system.refresh_api_metadata_on_startup ?? false
   const chartActivityTotal = moduleActivity.reduce((sum, item) => sum + item.count, 0)
 
   const statistics = [
@@ -577,58 +471,6 @@ const Dashboard = () => {
     },
   ]
 
-  const systemStatusItems = [
-    {
-      label: '运行环境',
-      value: environment,
-      description: environmentVariant === 'destructive' ? '生产环境，建议关注稳定性与审计数据' : '开发环境，适合快速验证与调试',
-      badgeText: environmentVariant === 'destructive' ? '严格模式' : '调试模式',
-      valueTone: environmentVariant === 'destructive' ? 'warn' : 'info',
-    },
-    {
-      label: '数据库引擎',
-      value: system.database || 'sqlite',
-      description: '当前工作台概览与审计数据都依赖此连接提供。',
-      badgeText: '核心依赖',
-      valueTone: 'info',
-    },
-    {
-      label: '访问日志',
-      value: system.access_log_enabled ? '已启用' : '已关闭',
-      description: system.access_log_enabled ? '每个请求都会保留访问轨迹。' : '请求轨迹不会写入访问日志。',
-      badgeText: system.access_log_enabled ? '观测开启' : '观测关闭',
-      valueTone: system.access_log_enabled ? 'success' : 'warn',
-    },
-    {
-      label: '自动引导',
-      value: system.auto_bootstrap ? '已启用' : '已关闭',
-      description: system.auto_bootstrap ? '启动时会自动执行基础准备流程。' : '基础准备需要人工执行。',
-      badgeText: system.auto_bootstrap ? '启动增强' : '手动模式',
-      valueTone: system.auto_bootstrap ? 'success' : 'warn',
-    },
-    {
-      label: '启动迁移',
-      value: runMigrationsOnStartup ? '自动升级' : '显式迁移',
-      description: runMigrationsOnStartup ? '实例启动时会自动应用数据库迁移。' : '数据库迁移需要显式执行。',
-      badgeText: runMigrationsOnStartup ? '自动同步' : '谨慎控制',
-      valueTone: runMigrationsOnStartup ? 'success' : 'warn',
-    },
-    {
-      label: '基础数据初始化',
-      value: seedBaseDataOnStartup ? '自动初始化' : '手动初始化',
-      description: seedBaseDataOnStartup ? '默认角色和基础数据会在启动时补齐。' : '基础数据不会自动注入。',
-      badgeText: seedBaseDataOnStartup ? '种子开启' : '种子关闭',
-      valueTone: seedBaseDataOnStartup ? 'success' : 'warn',
-    },
-    {
-      label: 'API 元数据刷新',
-      value: refreshApiMetadataOnStartup ? '自动刷新' : '按需刷新',
-      description: refreshApiMetadataOnStartup ? 'API 目录会在启动时自动同步。' : '接口目录依赖手动扫描更新。',
-      badgeText: refreshApiMetadataOnStartup ? '目录同步' : '手动扫描',
-      valueTone: refreshApiMetadataOnStartup ? 'success' : 'warn',
-    },
-  ]
-
   if (loading && !overview) {
     return <DashboardSkeleton />
   }
@@ -650,7 +492,7 @@ const Dashboard = () => {
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {statistics.map((item) => {
           const MetricIcon = item.icon
 
@@ -675,41 +517,22 @@ const Dashboard = () => {
         })}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.72fr_1.28fr]">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <CardTitle>框架状态</CardTitle>
-                <CardDescription>当前运行配置</CardDescription>
-              </div>
-              <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <DatabaseIcon />
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <CardTitle>近 7 天操作趋势</CardTitle>
+              <CardDescription>使用折线展示最近一周的审计活跃度</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <FrameworkStatusPanel items={systemStatusItems} environment={environment} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <CardTitle>近 7 天操作趋势</CardTitle>
-                <CardDescription>使用折线展示最近一周的审计活跃度</CardDescription>
-              </div>
-              <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <WaypointsIcon />
-              </div>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <WaypointsIcon />
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <TrendLineChart items={auditTrend} />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <TrendLineChart items={auditTrend} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from app.core.ctx import CTX_USER_ID
+from app.core.dependency import CurrentUser
 from app.schemas.base import Success, SuccessExtra
 from app.schemas.roles import RoleCreate, RoleUpdate
 from app.services import role_admin_service
@@ -28,18 +28,18 @@ async def get_permission_options():
 
 
 @router.post("/create", summary="创建角色")
-async def create_role(role_in: RoleCreate):
-    await role_admin_service.create_role(role_in, current_user_id=CTX_USER_ID.get())
+async def create_role(role_in: RoleCreate, current_user: CurrentUser):
+    await role_admin_service.create_role(role_in, actor=current_user)
     return Success(msg="创建成功")
 
 
 @router.post("/update", summary="更新角色")
-async def update_role(role_in: RoleUpdate):
-    await role_admin_service.update_role(role_in, current_user_id=CTX_USER_ID.get())
+async def update_role(role_in: RoleUpdate, current_user: CurrentUser):
+    await role_admin_service.update_role(role_in, actor=current_user)
     return Success(msg="更新成功")
 
 
 @router.delete("/delete", summary="删除角色")
-async def delete_role(role_id: int = Query(..., description="角色ID")):
-    await role_admin_service.delete_role(role_id, current_user_id=CTX_USER_ID.get())
+async def delete_role(current_user: CurrentUser, role_id: int = Query(..., description="角色ID")):
+    await role_admin_service.delete_role(role_id, actor=current_user)
     return Success(msg="删除成功")

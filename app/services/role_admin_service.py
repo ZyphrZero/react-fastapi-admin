@@ -7,7 +7,9 @@ from app.core.navigation import (
     get_assignable_menu_tree,
     normalize_menu_paths,
 )
+from app.core.transactions import managed_transaction
 from app.core.exceptions import ValidationError
+from app.models import User
 from app.repositories import api_repository, role_repository
 from app.schemas.roles import RoleCreate, RoleUpdate
 from app.services.admin_permission_service import admin_permission_service
@@ -74,8 +76,7 @@ class RoleAdminService:
 
         return normalized_menu_paths, normalized_api_ids
 
-    async def create_role(self, role_in: RoleCreate, *, current_user_id: int) -> None:
-        actor = await admin_permission_service.get_actor(current_user_id)
+    async def create_role(self, role_in: RoleCreate, *, actor: User) -> None:
         if await role_repository.exists_by_name(role_in.name):
             raise ValidationError("该角色名称已存在")
         menu_paths, api_ids = await self._normalize_role_permissions(
@@ -87,17 +88,17 @@ class RoleAdminService:
             menu_paths=menu_paths,
             api_ids=api_ids,
         )
-        await role_repository.create(
-            {
-                "name": role_in.name,
-                "desc": role_in.desc,
-                "menu_paths": menu_paths,
-                "api_ids": api_ids,
-            }
-        )
+        async with managed_transaction():
+            await role_repository.create(
+                {
+                    "name": role_in.name,
+                    "desc": role_in.desc,
+                    "menu_paths": menu_paths,
+                    "api_ids": api_ids,
+                }
+            )
 
-    async def update_role(self, role_in: RoleUpdate, *, current_user_id: int) -> None:
-        actor = await admin_permission_service.get_actor(current_user_id)
+    async def update_role(self, role_in: RoleUpdate, *, actor: User) -> None:
         current_role = await role_repository.get_or_raise(role_in.id, "角色不存在")
         if role_in.name and await role_repository.exists_by_name(role_in.name, exclude_id=role_in.id):
             raise ValidationError("该角色名称已存在")
@@ -119,13 +120,14 @@ class RoleAdminService:
         else:
             await admin_permission_service.ensure_can_manage_role(actor=actor, role=current_role, action="修改")
 
-        await role_repository.update(role_in.id, update_data)
+        async with managed_transaction():
+            await role_repository.update(role_in.id, update_data)
 
-    async def delete_role(self, role_id: int, *, current_user_id: int) -> None:
-        actor = await admin_permission_service.get_actor(current_user_id)
+    async def delete_role(self, role_id: int, *, actor: User) -> None:
         role = await role_repository.get_or_raise(role_id, "角色不存在")
         await admin_permission_service.ensure_can_manage_role(actor=actor, role=role, action="删除")
-        await role_repository.remove(role_id)
+        async with managed_transaction():
+            await role_repository.remove(role_id)
 
 
 role_admin_service = RoleAdminService()

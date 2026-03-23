@@ -26,44 +26,48 @@ class InitSuperuserTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_blank_initial_password_auto_generates_bootstrap_password(self) -> None:
         generated_password = "12!@#34$%^&?"
         created_user = SimpleNamespace(username="admin")
+        get_or_create_mock = AsyncMock(return_value=(created_user, True))
 
         with (
-            patch("app.core.bootstrap.user_controller.model.exists", new=AsyncMock(return_value=False)),
+            patch("app.core.bootstrap.user_repository.exists_any", new=AsyncMock(return_value=False)),
             patch.object(bootstrap.settings, "INITIAL_ADMIN_PASSWORD", ""),
             patch("app.core.bootstrap.generate_bootstrap_admin_password", return_value=generated_password),
             patch("app.core.bootstrap.get_password_hash", return_value="hashed-password") as hash_mock,
-            patch("app.core.bootstrap.User.create", new=AsyncMock(return_value=created_user)) as create_mock,
-            patch("app.core.bootstrap.user_controller.validate_password", new=AsyncMock()) as validate_mock,
+            patch("app.core.bootstrap.User.get_or_create", new=get_or_create_mock),
+            patch("app.core.bootstrap.validate_password_strength") as validate_mock,
             patch("app.core.bootstrap.emit_bootstrap_admin_password") as emit_mock,
         ):
             result = await bootstrap.init_superuser()
 
         self.assertIs(result, created_user)
-        validate_mock.assert_not_awaited()
+        validate_mock.assert_not_called()
         hash_mock.assert_called_once_with(generated_password)
-        create_mock.assert_awaited_once_with(
+        get_or_create_mock.assert_awaited_once_with(
             username="admin",
-            email="admin@example.com",
-            nickname="admin",
-            phone=None,
-            password="hashed-password",
-            is_active=True,
-            is_superuser=True,
+            defaults={
+                "email": "admin@example.com",
+                "nickname": "admin",
+                "phone": None,
+                "password": "hashed-password",
+                "is_active": True,
+                "is_superuser": True,
+            },
         )
         emit_mock.assert_called_once_with("admin", generated_password)
 
     async def test_explicit_initial_password_still_uses_password_policy(self) -> None:
         explicit_password = "StrongPass1!"
         created_user = SimpleNamespace(username="admin")
+        get_or_create_mock = AsyncMock(return_value=(created_user, True))
 
         with (
-            patch("app.core.bootstrap.user_controller.model.exists", new=AsyncMock(return_value=False)),
+            patch("app.core.bootstrap.user_repository.exists_any", new=AsyncMock(return_value=False)),
             patch.object(bootstrap.settings, "INITIAL_ADMIN_PASSWORD", explicit_password),
             patch("app.core.bootstrap.get_password_hash", return_value="hashed-password") as hash_mock,
-            patch("app.core.bootstrap.User.create", new=AsyncMock(return_value=created_user)) as create_mock,
+            patch("app.core.bootstrap.User.get_or_create", new=get_or_create_mock),
             patch(
-                "app.core.bootstrap.user_controller.validate_password",
-                new=AsyncMock(return_value=(True, "")),
+                "app.core.bootstrap.validate_password_strength",
+                return_value=(True, ""),
             ) as validate_mock,
             patch("app.core.bootstrap.generate_bootstrap_admin_password") as generator_mock,
             patch("app.core.bootstrap.emit_bootstrap_admin_password") as emit_mock,
@@ -71,10 +75,10 @@ class InitSuperuserTestCase(unittest.IsolatedAsyncioTestCase):
             result = await bootstrap.init_superuser()
 
         self.assertIs(result, created_user)
-        validate_mock.assert_awaited_once_with(explicit_password)
+        validate_mock.assert_called_once_with(explicit_password)
         generator_mock.assert_not_called()
         hash_mock.assert_called_once_with(explicit_password)
-        create_mock.assert_awaited_once()
+        get_or_create_mock.assert_awaited_once()
         emit_mock.assert_not_called()
 
 

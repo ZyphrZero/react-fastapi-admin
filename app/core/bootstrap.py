@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 from aerich import Command
 from tortoise.context import require_context
 
 from app.core.navigation import get_default_role_menu_paths
-from app.controllers.api import api_controller
-from app.controllers.user import user_controller
+from app.repositories import role_repository, user_repository
 from app.models.admin import Api, Role, User
+from app.services.api_admin_service import api_admin_service
 from app.settings import settings
 from app.utils.log_control import logger
-from app.utils.password import generate_bootstrap_admin_password, get_password_hash
+from app.utils.password import generate_bootstrap_admin_password, get_password_hash, validate_password_strength
 
 
 async def ensure_database_connection() -> None:
@@ -23,17 +24,13 @@ async def ensure_database_connection() -> None:
         raise RuntimeError("数据库上下文未初始化")
 
 
-async def bootstrap_database() -> None:
+async def bootstrap_database(*, run_migrations: bool = True) -> None:
     """
-    初始化数据库连接，并按配置选择是否应用现有迁移。
+    初始化数据库连接，并按显式命令选择是否应用现有迁移。
 
-    框架启动阶段只做安全的表初始化与迁移升级，不在运行时生成迁移文件。
+    该函数由显式运维命令调用，不再由 Web 服务启动隐式触发。
     """
     await ensure_database_connection()
-
-    if not settings.AUTO_BOOTSTRAP:
-        logger.info("已关闭启动数据库自举，仅保留连接初始化")
-        return
 
     command = Command(tortoise_config=settings.tortoise_orm)
     migrations_dir = Path(settings.BASE_DIR) / "migrations" / "models"
@@ -50,8 +47,8 @@ async def bootstrap_database() -> None:
             logger.error(f"数据库初始化失败: {exc}")
             return
 
-    if not settings.should_run_migrations_on_startup:
-        logger.info("已跳过启动迁移升级，当前为显式迁移模式")
+    if not run_migrations:
+        logger.info("已跳过迁移升级，仅完成数据库初始化检查")
         return
 
     if not has_migration_files:
@@ -72,29 +69,34 @@ async def bootstrap_database() -> None:
 
 
 async def init_superuser() -> User | None:
-    if await user_controller.model.exists():
+    if await user_repository.exists_any():
         return None
 
-    initial_password = settings.INITIAL_ADMIN_PASSWORD
+    initial_password = settings.INITIAL_ADMIN_PASSWORD.strip()
     generated_password: str | None = None
 
-    if initial_password.strip():
-        is_valid, message = await user_controller.validate_password(initial_password)
+    if initial_password:
+        is_valid, message = validate_password_strength(initial_password)
         if not is_valid:
             raise RuntimeError(f"INITIAL_ADMIN_PASSWORD 不符合密码策略: {message}")
     else:
         initial_password = generate_bootstrap_admin_password()
         generated_password = initial_password
 
-    admin_user = await User.create(
+    admin_user, created = await User.get_or_create(
         username=settings.INITIAL_ADMIN_USERNAME,
-        email=settings.INITIAL_ADMIN_EMAIL,
-        nickname=settings.INITIAL_ADMIN_NICKNAME,
-        phone=None,
-        password=get_password_hash(initial_password),
-        is_active=True,
-        is_superuser=True,
+        defaults={
+            "email": settings.INITIAL_ADMIN_EMAIL,
+            "nickname": settings.INITIAL_ADMIN_NICKNAME,
+            "phone": None,
+            "password": get_password_hash(initial_password),
+            "is_active": True,
+            "is_superuser": True,
+        },
     )
+    if not created:
+        return None
+
     logger.info(f"已初始化管理员账户: {admin_user.username}")
     if generated_password is not None:
         emit_bootstrap_admin_password(admin_user.username, generated_password)
@@ -122,7 +124,7 @@ def emit_bootstrap_admin_password(username: str, password: str) -> None:
 
 
 async def init_roles() -> tuple[Role | None, Role | None]:
-    if await Role.exists():
+    if await role_repository.exists_any():
         return None, None
 
     admin_role = await Role.create(
@@ -162,14 +164,9 @@ async def init_user_roles() -> None:
     logger.info("已为超级管理员分配管理员角色")
 
 
-async def refresh_api_metadata() -> None:
-    has_api_metadata = await api_controller.model.exists()
-    if has_api_metadata and not settings.should_refresh_api_metadata_on_startup:
-        return
-
-    if settings.should_refresh_api_metadata_on_startup or not has_api_metadata:
-        await api_controller.refresh_api()
-        logger.info("已刷新 API 元数据")
+async def refresh_api_metadata(routes: Iterable[object]) -> None:
+    await api_admin_service.refresh_api_catalog(routes)
+    logger.info("已刷新 API 元数据")
 
 
 async def sync_default_role_permissions() -> None:
@@ -206,17 +203,13 @@ async def sync_default_role_permissions() -> None:
 
 
 async def seed_base_data() -> None:
-    if not settings.should_seed_base_data_on_startup:
-        logger.info("已跳过基础数据初始化")
-        return
-
     await init_roles()
     await init_superuser()
     await init_user_roles()
 
 
-async def bootstrap_application() -> None:
+async def bootstrap_application(routes: Iterable[object]) -> None:
     await bootstrap_database()
     await seed_base_data()
-    await refresh_api_metadata()
+    await refresh_api_metadata(routes)
     await sync_default_role_permissions()

@@ -45,7 +45,7 @@ class OverviewAggregationTestCase(unittest.TestCase):
 
 
 class OverviewContractTestCase(unittest.IsolatedAsyncioTestCase):
-    async def test_get_platform_overview_drops_legacy_compatibility_fields(self) -> None:
+    async def test_get_platform_overview_exposes_explicit_operations_model(self) -> None:
         recent_logs = [
             SimpleNamespace(
                 id=9,
@@ -96,13 +96,14 @@ class OverviewContractTestCase(unittest.IsolatedAsyncioTestCase):
 
         system = result["system"]
         self.assertIn("app_title", system)
-        self.assertIn("run_migrations_on_startup", system)
-        self.assertIn("seed_base_data_on_startup", system)
-        self.assertIn("refresh_api_metadata_on_startup", system)
+        self.assertIn("migration_mode", system)
+        self.assertIn("seed_mode", system)
+        self.assertIn("api_catalog_mode", system)
+        self.assertFalse(system["startup_side_effects_enabled"])
         self.assertNotIn("title", system)
-        self.assertNotIn("auto_migration", system)
-        self.assertNotIn("auto_seed_data", system)
-        self.assertNotIn("auto_refresh_api", system)
+        self.assertNotIn("run_migrations_on_startup", system)
+        self.assertNotIn("seed_base_data_on_startup", system)
+        self.assertNotIn("refresh_api_metadata_on_startup", system)
 
         self.assertEqual(len(result["recent_activities"]), 1)
         activity = result["recent_activities"][0]

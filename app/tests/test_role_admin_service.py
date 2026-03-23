@@ -10,10 +10,6 @@ from app.services.role_admin_service import role_admin_service
 class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_create_role_normalizes_parent_menu_selection(self) -> None:
         with (
-            patch(
-                "app.services.admin_permission_service.user_repository.get",
-                new=AsyncMock(return_value=SimpleNamespace(id=1, is_superuser=True, is_active=True)),
-            ),
             patch("app.services.role_admin_service.role_repository.exists_by_name", new=AsyncMock(return_value=False)),
             patch(
                 "app.services.role_admin_service.api_repository.model.filter"
@@ -29,7 +25,7 @@ class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
                     menu_paths=["/dashboard", "/system"],
                     api_ids=[101, 102],
                 ),
-                current_user_id=1,
+                actor=SimpleNamespace(id=1, is_superuser=True, is_active=True),
             )
 
         create_payload = create_mock.await_args.args[0]
@@ -44,7 +40,6 @@ class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
         actor = SimpleNamespace(id=2, is_superuser=False, is_active=True)
 
         with (
-            patch("app.services.admin_permission_service.user_repository.get", new=AsyncMock(return_value=actor)),
             patch("app.services.role_admin_service.role_repository.exists_by_name", new=AsyncMock(return_value=False)),
             patch(
                 "app.services.admin_permission_service.role_repository.list_permissions_for_user",
@@ -64,7 +59,7 @@ class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
                         menu_paths=["/dashboard", "/system/users"],
                         api_ids=[101, 102],
                     ),
-                    current_user_id=2,
+                    actor=actor,
                 )
 
     async def test_non_superuser_cannot_expand_role_outside_own_scope(self) -> None:
@@ -72,7 +67,6 @@ class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
         existing_role = SimpleNamespace(id=9, menu_paths=["/dashboard"], api_ids=[101])
 
         with (
-            patch("app.services.admin_permission_service.user_repository.get", new=AsyncMock(return_value=actor)),
             patch("app.services.role_admin_service.role_repository.get_or_raise", new=AsyncMock(return_value=existing_role)),
             patch(
                 "app.services.admin_permission_service.role_repository.list_permissions_for_user",
@@ -88,7 +82,7 @@ class RoleAdminServiceTestCase(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(AuthorizationError, "同级或更高权限角色"):
                 await role_admin_service.update_role(
                     RoleUpdate(id=9, menu_paths=["/dashboard", "/system/users"], api_ids=[101, 102]),
-                    current_user_id=2,
+                    actor=actor,
                 )
 
         update_mock.assert_not_awaited()

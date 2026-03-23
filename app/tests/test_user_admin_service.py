@@ -35,7 +35,7 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
         with patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)):
             await user_admin_service.reset_user_password(
                 ResetPasswordRequest(user_id=1, new_password="NewPass1!"),
-                current_user_id=1,
+                actor=user,
             )
 
         self.assertTrue(user.saved)
@@ -49,7 +49,7 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(ValidationError, "不允许重置其他超级管理员密码"):
                 await user_admin_service.reset_user_password(
                     ResetPasswordRequest(user_id=1, new_password="NewPass1!"),
-                    current_user_id=2,
+                    actor=DummyUser(id=2, is_superuser=True),
                 )
 
         self.assertFalse(user.saved)
@@ -60,11 +60,11 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
 
         with patch(
             "app.services.user_admin_service.user_repository.get",
-            new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else user),
+            new=AsyncMock(return_value=user),
         ):
             await user_admin_service.reset_user_password(
                 ResetPasswordRequest(user_id=2, new_password="Another1!"),
-                current_user_id=1,
+                actor=actor,
             )
 
         self.assertTrue(user.saved)
@@ -77,12 +77,12 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
 
         with patch(
             "app.services.user_admin_service.user_repository.get",
-            new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else user),
+            new=AsyncMock(return_value=user),
         ):
             with self.assertRaisesRegex(ValidationError, "新密码不能与当前密码相同"):
                 await user_admin_service.reset_user_password(
                     ResetPasswordRequest(user_id=2, new_password="OldPass1!"),
-                    current_user_id=1,
+                    actor=actor,
                 )
 
     async def test_non_superuser_cannot_reset_peer_password(self) -> None:
@@ -90,10 +90,7 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
         target = DummyUser(id=2, is_superuser=False)
 
         with (
-            patch(
-                "app.services.user_admin_service.user_repository.get",
-                new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else target),
-            ),
+            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=target)),
             patch(
                 "app.services.user_admin_service.role_repository.list_permissions_for_user",
                 new=AsyncMock(
@@ -108,7 +105,7 @@ class UserAdminServiceResetPasswordTestCase(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(AuthorizationError, "同级或更高权限账户"):
                 await user_admin_service.reset_user_password(
                     ResetPasswordRequest(user_id=2, new_password="Another1!"),
-                    current_user_id=1,
+                    actor=actor,
                 )
 
 
@@ -121,7 +118,7 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
             patch("app.services.user_admin_service.user_repository.update", new=AsyncMock()) as update_mock,
         ):
             with self.assertRaisesRegex(ValidationError, "不能禁用自己的账户"):
-                await user_admin_service.update_user(UserUpdate(id=1, is_active=False), current_user_id=1)
+                await user_admin_service.update_user(UserUpdate(id=1, is_active=False), actor=user)
 
         update_mock.assert_not_awaited()
 
@@ -130,13 +127,10 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
         user = DummyUser(id=2, is_superuser=False)
 
         with (
-            patch(
-                "app.services.user_admin_service.user_repository.get",
-                new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else user),
-            ),
+            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=user)),
             patch("app.services.user_admin_service.user_repository.update", new=AsyncMock(return_value=user)) as update_mock,
         ):
-            await user_admin_service.update_user(UserUpdate(id=2, is_active=False), current_user_id=1)
+            await user_admin_service.update_user(UserUpdate(id=2, is_active=False), actor=actor)
 
         update_mock.assert_awaited_once_with(2, {"is_active": False})
 
@@ -145,10 +139,7 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
         target = DummyUser(id=2, is_superuser=False)
 
         with (
-            patch(
-                "app.services.user_admin_service.user_repository.get",
-                new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else target),
-            ),
+            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=target)),
             patch(
                 "app.services.user_admin_service.role_repository.list_permissions_for_user",
                 new=AsyncMock(
@@ -162,7 +153,7 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
             patch("app.services.user_admin_service.user_repository.update", new=AsyncMock()) as update_mock,
         ):
             with self.assertRaisesRegex(AuthorizationError, "超级管理员"):
-                await user_admin_service.update_user(UserUpdate(id=2, is_superuser=True), current_user_id=1)
+                await user_admin_service.update_user(UserUpdate(id=2, is_superuser=True), actor=actor)
 
         update_mock.assert_not_awaited()
 
@@ -171,10 +162,7 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
         target = DummyUser(id=2, is_superuser=False)
 
         with (
-            patch(
-                "app.services.user_admin_service.user_repository.get",
-                new=AsyncMock(side_effect=lambda user_id: actor if user_id == 1 else target),
-            ),
+            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=target)),
             patch(
                 "app.services.user_admin_service.role_repository.list_permissions_for_user",
                 new=AsyncMock(
@@ -188,7 +176,7 @@ class UserAdminServiceUpdateUserTestCase(unittest.IsolatedAsyncioTestCase):
             patch("app.services.user_admin_service.user_repository.update", new=AsyncMock()) as update_mock,
         ):
             with self.assertRaisesRegex(AuthorizationError, "同级或更高权限账户"):
-                await user_admin_service.update_user(UserUpdate(id=2, password="Another1!"), current_user_id=1)
+                await user_admin_service.update_user(UserUpdate(id=2, password="Another1!"), actor=actor)
 
         update_mock.assert_not_awaited()
 
@@ -200,7 +188,6 @@ class UserAdminServiceCreateUserTestCase(unittest.IsolatedAsyncioTestCase):
         default_role = SimpleNamespace(id=9)
 
         with (
-            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=actor)),
             patch("app.services.user_admin_service.user_repository.get_by_email", new=AsyncMock(return_value=None)),
             patch("app.services.user_admin_service.user_repository.get_by_username", new=AsyncMock(return_value=None)),
             patch("app.services.user_admin_service.role_repository.get_by_name", new=AsyncMock(return_value=default_role)),
@@ -215,7 +202,7 @@ class UserAdminServiceCreateUserTestCase(unittest.IsolatedAsyncioTestCase):
                     is_superuser=False,
                     role_ids=[],
                 ),
-                current_user_id=1,
+                actor=actor,
             )
 
         assign_roles_mock.assert_awaited_once_with(new_user, [9])
@@ -224,7 +211,6 @@ class UserAdminServiceCreateUserTestCase(unittest.IsolatedAsyncioTestCase):
         actor = DummyUser(id=1, is_superuser=False)
 
         with (
-            patch("app.services.user_admin_service.user_repository.get", new=AsyncMock(return_value=actor)),
             patch("app.services.user_admin_service.user_repository.get_by_email", new=AsyncMock(return_value=None)),
             patch("app.services.user_admin_service.user_repository.get_by_username", new=AsyncMock(return_value=None)),
         ):
@@ -237,7 +223,7 @@ class UserAdminServiceCreateUserTestCase(unittest.IsolatedAsyncioTestCase):
                         is_superuser=True,
                         role_ids=[],
                     ),
-                    current_user_id=1,
+                    actor=actor,
                 )
 
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from app.core.ctx import CTX_USER_ID
+from app.core.dependency import CurrentUser
 from app.schemas.base import Success, SuccessExtra
 from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
 from app.services import user_admin_service
@@ -32,24 +32,24 @@ async def get_user(user_id: int = Query(..., description="用户ID")):
 
 
 @router.post("/create", summary="创建用户")
-async def create_user(user_in: UserCreate):
-    await user_admin_service.create_user(user_in, current_user_id=CTX_USER_ID.get())
+async def create_user(user_in: UserCreate, current_user: CurrentUser):
+    await user_admin_service.create_user(user_in, actor=current_user)
     return Success(msg="创建成功")
 
 
 @router.post("/update", summary="更新用户")
-async def update_user(user_in: UserUpdate):
-    await user_admin_service.update_user(user_in, current_user_id=CTX_USER_ID.get())
+async def update_user(user_in: UserUpdate, current_user: CurrentUser):
+    await user_admin_service.update_user(user_in, actor=current_user)
     return Success(msg="更新成功")
 
 
 @router.delete("/delete", summary="删除用户")
-async def delete_user(user_id: int = Query(..., description="用户ID")):
-    await user_admin_service.delete_user(user_id=user_id, current_user_id=CTX_USER_ID.get())
+async def delete_user(current_user: CurrentUser, user_id: int = Query(..., description="用户ID")):
+    await user_admin_service.delete_user(user_id=user_id, actor=current_user)
     return Success(msg="删除成功")
 
 
 @router.post("/reset_password", summary="重置密码")
-async def reset_password(payload: ResetPasswordRequest):
-    await user_admin_service.reset_user_password(payload, current_user_id=CTX_USER_ID.get())
+async def reset_password(payload: ResetPasswordRequest, current_user: CurrentUser):
+    await user_admin_service.reset_user_password(payload, actor=current_user)
     return Success(msg="密码更新成功")

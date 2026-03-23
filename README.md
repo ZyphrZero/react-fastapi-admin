@@ -7,7 +7,7 @@
 </p>
 
 <p>
-  默认使用 SQLite 启动，内置启动引导、JWT 认证、RBAC 权限控制、审计日志、文件上传与个人中心头像裁剪上传能力。
+  默认使用 SQLite 启动，采用显式运维命令管理数据库与种子数据，内置 JWT 认证、RBAC 权限控制、审计日志、文件上传与个人中心头像裁剪上传能力。
 </p>
 
 <p>
@@ -33,8 +33,8 @@
 <table>
   <tr>
     <td width="33%">
-      <strong>自动引导启动</strong><br>
-      开发环境默认支持数据库初始化、迁移升级、基础数据种子与 API 元数据刷新。
+      <strong>显式运维命令</strong><br>
+      数据库初始化、迁移升级、基础数据种子与 API 元数据刷新统一由 <code>manage.py</code> 显式执行。
     </td>
     <td width="33%">
       <strong>权限模型完整</strong><br>
@@ -60,20 +60,6 @@
     </td>
   </tr>
 </table>
-
-## 功能状态
-
-| 模块 | 状态 | 说明 |
-| --- | --- | --- |
-| 认证与会话 | 已完成 | JWT 登录、刷新令牌、退出登录、密码修改、个人资料更新 |
-| 权限控制 | 已完成 | RBAC 菜单权限、API 权限、前端页面守卫 |
-| 工作台 | 已完成 | 概览统计、运行状态、趋势图、分布图、近期活动 |
-| 用户管理 | 已完成 | 用户查询、创建、编辑、启停等管理能力 |
-| 角色管理 | 已完成 | 角色维护、权限分配 |
-| API 管理 | 已完成 | API 元数据维护与权限关联 |
-| 审计日志 | 已完成 | 条件检索、游标分页、详情、导出 |
-| 个人中心 | 已完成 | 头像裁剪上传、WebP 转换、昵称/邮箱/手机号维护 |
-| 文件上传 | 已完成 | 本地存储与对象存储上传 |
 
 ## 技术栈
 
@@ -103,6 +89,7 @@
 │   ├── src/router/       # 路由
 │   ├── src/hooks/        # Hooks
 │   └── src/utils/        # 工具方法
+├── manage.py             # 运维命令入口（迁移、种子、刷新 API）
 ├── main.py               # 后端启动入口
 ├── pyproject.toml        # Python 依赖与工具配置
 └── .env.example          # 环境变量示例
@@ -157,22 +144,23 @@ INITIAL_ADMIN_PASSWORD=
 
 ```bash
 uv sync
+uv run python manage.py bootstrap
 uv run python main.py
 ```
 
 如果你已经激活虚拟环境，也可以直接运行：
 
 ```bash
+python manage.py bootstrap
 python main.py
 ```
 
-开发环境首次启动默认会自动执行：
+首次初始化或数据库变更后，请显式执行运维命令：
 
-- 初始化数据库结构
-- 应用已有迁移
-- 创建默认角色
-- 创建超级管理员
-- 刷新 API 元数据
+- `python manage.py migrate`：初始化数据库并应用迁移
+- `python manage.py seed`：写入默认角色、超级管理员和默认权限
+- `python manage.py refresh-api`：同步 API 元数据目录
+- `python manage.py bootstrap`：一次性执行以上完整流程
 
 ### 4. 启动前端
 
@@ -216,6 +204,7 @@ pnpm dev
 
 ```bash
 uv sync
+uv run python manage.py bootstrap
 uv run python main.py
 uv run pytest app/tests
 uv run pytest app/tests/test_log_system.py
@@ -234,8 +223,10 @@ pnpm build
 ### 数据库迁移
 
 ```bash
-aerich migrate
-aerich upgrade
+uv run python manage.py migrate
+uv run python manage.py seed
+uv run python manage.py refresh-api
+uv run python manage.py bootstrap
 ```
 
 ## 配置说明
@@ -249,10 +240,6 @@ aerich upgrade
 | `PORT` | 服务端口 | `9999` |
 | `DB_CONNECTION` | 数据库类型，支持 `sqlite` / `mysql` / `postgres` | `sqlite` |
 | `DB_FILE` | SQLite 文件名 | `db.sqlite3` |
-| `AUTO_BOOTSTRAP` | 是否启用启动引导 | `true` |
-| `RUN_MIGRATIONS_ON_STARTUP` | 启动时是否自动迁移 | 开发环境默认开启 |
-| `SEED_BASE_DATA_ON_STARTUP` | 启动时是否初始化基础数据 | 默认开启 |
-| `REFRESH_API_METADATA_ON_STARTUP` | 启动时是否刷新 API 元数据 | 开发环境默认开启 |
 | `INITIAL_ADMIN_USERNAME` | 初始管理员用户名 | `admin` |
 | `INITIAL_ADMIN_PASSWORD` | 初始管理员密码，留空则自动生成 | 空 |
 | `SECRET_KEY` | 应用密钥，生产环境必须修改 | 开发环境自动生成 |
@@ -275,7 +262,8 @@ aerich upgrade
 ### 启动行为
 
 - 根路径 `/` 会重定向到 `/docs`
-- 开发环境会根据配置自动决定是否启用热重载、自动迁移和 API 元数据刷新
+- 应用进程启动时只负责加载配置、连接数据库并提供服务，不再隐式执行迁移或种子写入
+- 数据库初始化、基础数据和 API 元数据同步统一通过 `python manage.py ...` 显式执行
 - 本地文件上传默认挂载到 `/static`
 - `.webp` 静态资源已注册为 `image/webp` MIME 类型，适用于头像与图片资源直接访问
 

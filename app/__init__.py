@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 import asyncio
+from contextlib import asynccontextmanager
 import mimetypes
 import os
 
@@ -9,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from app.core.exceptions import SettingNotFound
-from app.core.bootstrap import bootstrap_application
 from app.core.db_runtime import DatabaseRuntime
 from app.core.init_app import (
     make_middlewares,
@@ -51,10 +50,9 @@ async def lifespan(app: FastAPI):
     try:
         await app.state.db_runtime.initialize()
         async with app.state.db_runtime.activate():
-            await asyncio.shield(bootstrap_application())
             await system_setting_service.initialize_runtime_settings(app=app)
-            logger.info("身份验证控制器初始化完成")
-        logger.info("应用引导完成")
+            logger.info("运行时配置初始化完成")
+        logger.info("应用启动完成")
 
     except Exception as e:
         logger.error(f"应用引导出现问题: {str(e)}")

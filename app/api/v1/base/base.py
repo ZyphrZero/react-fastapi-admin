@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Cookie, File, Request, Response, UploadFile
 
-from app.controllers.upload import upload_controller
-from app.core.ctx import CTX_USER_ID
-from app.core.dependency import AuthControl, DependAuth
+from app.core.dependency import AuthControl, CurrentUser
 from app.core.exceptions import AuthenticationError
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema
 from app.schemas.users import ProfileUpdate, UpdatePassword
 from app.settings import settings
 from app.services import auth_service
+from app.services.upload_service import upload_service
 from app.utils.password import get_password_policy
 
 router = APIRouter()
@@ -73,50 +72,50 @@ async def get_app_meta():
     )
 
 
-@router.get("/userinfo", summary="查看用户信息", dependencies=[DependAuth])
-async def get_userinfo():
-    return Success(data=await auth_service.get_current_user_info(CTX_USER_ID.get()))
+@router.get("/userinfo", summary="查看用户信息")
+async def get_userinfo(current_user: CurrentUser):
+    return Success(data=await auth_service.get_current_user_info(current_user))
 
 
-@router.get("/usermenu", summary="查看用户菜单", dependencies=[DependAuth])
-async def get_user_menu():
-    return Success(data=await auth_service.get_current_user_menu(CTX_USER_ID.get()))
+@router.get("/usermenu", summary="查看用户菜单")
+async def get_user_menu(current_user: CurrentUser):
+    return Success(data=await auth_service.get_current_user_menu(current_user))
 
 
-@router.get("/userapi", summary="查看用户API", dependencies=[DependAuth])
-async def get_user_api():
-    return Success(data=await auth_service.get_current_user_api_permissions(CTX_USER_ID.get()))
+@router.get("/userapi", summary="查看用户API")
+async def get_user_api(current_user: CurrentUser):
+    return Success(data=await auth_service.get_current_user_api_permissions(current_user))
 
 
-@router.get("/overview", summary="查看管理台概览", dependencies=[DependAuth])
-async def get_overview():
+@router.get("/overview", summary="查看管理台概览")
+async def get_overview(_current_user: CurrentUser):
     return Success(data=await auth_service.get_platform_overview())
 
 
-@router.get("/password_policy", summary="查看密码策略", dependencies=[DependAuth])
-async def get_runtime_password_policy():
+@router.get("/password_policy", summary="查看密码策略")
+async def get_runtime_password_policy(_current_user: CurrentUser):
     return Success(data=get_password_policy())
 
 
-@router.post("/update_password", summary="修改密码", dependencies=[DependAuth])
-async def update_user_password(req_in: UpdatePassword):
-    await auth_service.update_current_user_password(CTX_USER_ID.get(), req_in)
+@router.post("/update_password", summary="修改密码")
+async def update_user_password(req_in: UpdatePassword, current_user: CurrentUser):
+    await auth_service.update_current_user_password(current_user, req_in)
     return Success(msg="修改成功")
 
 
-@router.post("/update_profile", summary="更新个人信息", dependencies=[DependAuth])
-async def update_user_profile(req_in: ProfileUpdate):
-    await auth_service.update_current_user_profile(CTX_USER_ID.get(), req_in)
+@router.post("/update_profile", summary="更新个人信息")
+async def update_user_profile(req_in: ProfileUpdate, current_user: CurrentUser):
+    await auth_service.update_current_user_profile(current_user, req_in)
     return Success(msg="个人信息更新成功")
 
 
-@router.post("/upload_avatar", summary="上传头像", dependencies=[DependAuth])
-async def upload_avatar(file: UploadFile = File(...)):
-    return Success(data=await upload_controller.upload_avatar(file))
+@router.post("/upload_avatar", summary="上传头像")
+async def upload_avatar(_current_user: CurrentUser, file: UploadFile = File(...)):
+    return Success(data=await upload_service.upload_avatar(file))
 
 
-@router.post("/logout", summary="用户注销", dependencies=[DependAuth])
-async def logout(response: Response):
-    await auth_service.logout(CTX_USER_ID.get())
+@router.post("/logout", summary="用户注销")
+async def logout(response: Response, current_user: CurrentUser):
+    await auth_service.logout(current_user)
     clear_refresh_token_cookie(response)
     return Success(msg="注销成功")
