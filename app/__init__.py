@@ -15,6 +15,7 @@ from app.core.init_app import (
     register_exceptions,
     register_routers,
 )
+from app.repositories.api_repository import ApiRepository
 from app.services import system_setting_service
 from app.utils.log_control import logger, init_logging
 
@@ -87,12 +88,12 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=settings.storage_root_path, check_dir=False), name="static")
 
-    @app.get("/")
+    @app.get("/", summary="根路径重定向")
     async def root():
         """根路径处理器，重定向到文档页。"""
         return RedirectResponse(url="/docs")
 
-    @app.get("/health")
+    @app.get("/health", summary="健康检查")
     async def health():
         """健康检查接口。"""
         return {
@@ -101,6 +102,8 @@ def create_app() -> FastAPI:
             "version": settings.VERSION,
             "environment": settings.APP_ENV,
         }
+
+    ApiRepository.validate_route_summaries(app.routes)
 
     return app
 

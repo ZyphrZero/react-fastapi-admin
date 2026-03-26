@@ -12,6 +12,22 @@ class StorageProvider(str, Enum):
     OSS = "oss"
 
 
+class NotificationPosition(str, Enum):
+    TOP_LEFT = "top-left"
+    TOP_CENTER = "top-center"
+    TOP_RIGHT = "top-right"
+    BOTTOM_LEFT = "bottom-left"
+    BOTTOM_CENTER = "bottom-center"
+    BOTTOM_RIGHT = "bottom-right"
+
+
+class LoginPageImageMode(str, Enum):
+    COVER = "cover"
+    CONTAIN = "contain"
+    FILL = "fill"
+    REPEAT = "repeat"
+
+
 class StorageSettingsUpdate(BaseModel):
     provider: StorageProvider = Field(default=StorageProvider.LOCAL, description="存储模式")
     local_upload_dir: str = Field(default="uploads", description="本地上传目录")
@@ -75,8 +91,19 @@ class ApplicationSettingsUpdate(BaseModel):
     project_name: str = Field(default="React FastAPI Admin", description="项目名称")
     app_description: str = Field(default="React FastAPI Admin Description", description="应用描述")
     debug: bool = Field(default=False, description="调试模式")
+    login_page_image_url: str = Field(default="", description="登录页展示图片地址")
+    login_page_image_mode: LoginPageImageMode = Field(
+        default=LoginPageImageMode.CONTAIN,
+        description="登录页图片显示模式",
+    )
+    notification_position: NotificationPosition = Field(
+        default=NotificationPosition.TOP_RIGHT,
+        description="前端通知显示位置",
+    )
+    notification_duration: int = Field(default=4000, ge=1000, le=60000, description="前端通知显示时长（毫秒）")
+    notification_visible_toasts: int = Field(default=3, ge=1, le=10, description="前端同时显示通知数量")
 
-    @field_validator("app_title", "project_name", "app_description", mode="before")
+    @field_validator("app_title", "project_name", "app_description", "login_page_image_url", mode="before")
     @classmethod
     def normalize_text(cls, value: object) -> str:
         if value is None:

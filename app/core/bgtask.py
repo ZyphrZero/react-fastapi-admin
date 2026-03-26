@@ -1,6 +1,7 @@
 from starlette.background import BackgroundTasks
 
 from .ctx import CTX_BG_TASKS
+from app.utils.log_control import logger
 
 
 class BgTasks:
@@ -27,5 +28,11 @@ class BgTasks:
     async def execute_tasks(cls):
         """执行后台任务，一般是请求结果返回之后执行"""
         bg_tasks = await cls.get_bg_tasks_obj()
-        if bg_tasks.tasks:
-            await bg_tasks()
+        if not bg_tasks or not bg_tasks.tasks:
+            return
+
+        for task in list(bg_tasks.tasks):
+            try:
+                await task()
+            except Exception:
+                logger.exception("后台任务执行失败，异常已被隔离")

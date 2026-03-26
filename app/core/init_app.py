@@ -36,6 +36,7 @@ def make_middlewares() -> list[Middleware]:
             HttpAuditLogMiddleware,
             methods=["GET", "POST", "PUT", "DELETE"],
             exclude_paths=[
+                "/health",
                 "/docs",
                 "/openapi.json",
                 "/static/",

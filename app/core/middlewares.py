@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.models.admin import AuditLog
+from app.repositories.api_repository import ApiRepository
 
 from .bgtask import BgTasks
 
@@ -181,16 +182,10 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
             if hasattr(response, "body"):
                 body = response.body
             else:
-                # 收集响应体片段
-                body_chunks = []
-                async for chunk in response.body_iterator:
-                    if not isinstance(chunk, bytes):
-                        chunk = chunk.encode(response.charset)
-                    body_chunks.append(chunk)
+                return {"truncated": True, "message": "Streaming response skipped"}
 
-                # 重建响应迭代器
-                response.body_iterator = self._async_iter(body_chunks)
-                body = b"".join(body_chunks)
+            if isinstance(body, bytes) and len(body) > self.max_body_size:
+                return {"truncated": True, "message": "Response too large to log"}
 
             # 解析响应体
             return await self.lenient_json(body)
@@ -232,10 +227,6 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         # 非字符串类型直接返回
         return v
 
-    async def _async_iter(self, items: list[bytes]) -> AsyncGenerator[bytes, None]:
-        for item in items:
-            yield item
-
     async def get_request_log(self, request: Request, response: Response) -> dict:
         """根据request和response对象获取对应的日志记录数据，优化路由匹配逻辑"""
         data = {
@@ -271,7 +262,7 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
                 and request.method in route.methods
             ):
                 data["module"] = ",".join(route.tags)
-                data["summary"] = route.summary
+                data["summary"] = ApiRepository.require_route_summary(route)
                 break
 
         # 获取用户信息

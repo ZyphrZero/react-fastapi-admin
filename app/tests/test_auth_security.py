@@ -3,6 +3,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from fastapi import FastAPI
+from fastapi.responses import Response
 from starlette.requests import Request
 
 from app.core.dependency import AuthControl, PermissionControl
@@ -292,6 +294,45 @@ class AuditLogMiddlewareSecurityTestCase(unittest.TestCase):
 
         self.assertEqual(redacted_args["old_password"], "***REDACTED***")
         self.assertEqual(redacted_args["new_password"], "***REDACTED***")
+
+    def test_request_log_uses_declared_route_summary(self) -> None:
+        app = FastAPI()
+
+        @app.get("/healthz", summary="健康检查")
+        async def healthz():
+            return {"status": "ok"}
+
+        request = make_route_request(path="/healthz")
+        request.scope["app"] = app
+        middleware = HttpAuditLogMiddleware(app=app, methods=["GET"], exclude_paths=[])
+
+        data = __import__("asyncio").run(middleware.get_request_log(request, Response(status_code=200)))
+
+        self.assertEqual(data["summary"], "健康检查")
+
+    def test_request_log_rejects_missing_route_summary(self) -> None:
+        app = FastAPI()
+
+        @app.get("/missing-summary")
+        async def missing_summary():
+            return {"status": "ok"}
+
+        request = make_route_request(path="/missing-summary")
+        request.scope["app"] = app
+        middleware = HttpAuditLogMiddleware(app=app, methods=["GET"], exclude_paths=[])
+
+        with self.assertRaisesRegex(ValueError, "must declare summary"):
+            __import__("asyncio").run(middleware.get_request_log(request, Response(status_code=200)))
+
+    def test_streaming_response_bodies_are_skipped(self) -> None:
+        class StreamingResponseStub:
+            headers = {"content-type": "text/plain"}
+
+        middleware = HttpAuditLogMiddleware(app=None, methods=["GET"], exclude_paths=[])
+
+        data = __import__("asyncio").run(middleware.get_response_body(make_request(), StreamingResponseStub()))
+
+        self.assertEqual(data, {"truncated": True, "message": "Streaming response skipped"})
 
 
 if __name__ == "__main__":

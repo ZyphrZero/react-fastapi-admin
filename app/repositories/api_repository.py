@@ -88,6 +88,24 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
         return [f"{api.method.lower()}{api.path}" for api in api_objects]
 
     @staticmethod
+    def get_route_primary_method(route: APIRoute) -> str:
+        methods = sorted(method for method in route.methods or [] if method not in {"HEAD", "OPTIONS"})
+        return methods[0] if methods else "UNKNOWN"
+
+    @staticmethod
+    def require_route_summary(route: APIRoute) -> str:
+        if not route.summary:
+            raise ValueError(f"Route {ApiRepository.get_route_primary_method(route)} {route.path_format} must declare summary")
+        return route.summary
+
+    @staticmethod
+    def validate_route_summaries(routes: Iterable[object]) -> None:
+        for route in routes:
+            if not isinstance(route, APIRoute):
+                continue
+            ApiRepository.require_route_summary(route)
+
+    @staticmethod
     def build_route_definitions(routes: Iterable[object]) -> list[ApiRouteDefinition]:
         definitions: list[ApiRouteDefinition] = []
         for route in routes:
@@ -102,9 +120,9 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
 
             definitions.append(
                 ApiRouteDefinition(
-                    method=sorted(methods)[0],
+                    method=ApiRepository.get_route_primary_method(route),
                     path=route.path_format,
-                    summary=route.summary or "无描述",
+                    summary=ApiRepository.require_route_summary(route),
                     tags=str(route.tags[0]) if route.tags else "未分类",
                 )
             )

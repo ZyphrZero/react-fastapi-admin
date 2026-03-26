@@ -35,6 +35,11 @@ class SystemSettingService:
             "project_name": settings.PROJECT_NAME,
             "app_description": settings.APP_DESCRIPTION,
             "debug": settings.DEBUG,
+            "login_page_image_url": settings.LOGIN_PAGE_IMAGE_URL,
+            "login_page_image_mode": settings.LOGIN_PAGE_IMAGE_MODE,
+            "notification_position": settings.NOTIFICATION_POSITION,
+            "notification_duration": settings.NOTIFICATION_DURATION,
+            "notification_visible_toasts": settings.NOTIFICATION_VISIBLE_TOASTS,
         }
 
     def build_default_logging_payload(self) -> dict:
@@ -114,6 +119,11 @@ class SystemSettingService:
         settings.PROJECT_NAME = payload["project_name"]
         settings.APP_DESCRIPTION = payload["app_description"]
         settings.DEBUG = payload["debug"]
+        settings.LOGIN_PAGE_IMAGE_URL = payload["login_page_image_url"]
+        settings.LOGIN_PAGE_IMAGE_MODE = payload["login_page_image_mode"]
+        settings.NOTIFICATION_POSITION = payload["notification_position"]
+        settings.NOTIFICATION_DURATION = payload["notification_duration"]
+        settings.NOTIFICATION_VISIBLE_TOASTS = payload["notification_visible_toasts"]
 
     def apply_logging_settings(self, payload: dict) -> None:
         settings.LOGS_ROOT = payload["logs_root"]

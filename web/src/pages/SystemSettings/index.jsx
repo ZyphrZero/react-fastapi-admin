@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AppWindowIcon,
   CloudIcon,
   FileTextIcon,
+  ImageUpIcon,
   LockKeyholeIcon,
   LogsIcon,
+  RotateCcwIcon,
   SaveIcon,
   ServerCogIcon,
   ShieldIcon,
+  LinkIcon,
 } from 'lucide-react'
 
 import api from '@/api'
+import { LoginPageImageStage } from '@/components/LoginPageImageStage'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,7 +32,29 @@ const defaultApplicationValues = {
   app_description: 'React FastAPI Admin Description',
   debug: false,
   environment: 'development',
+  login_page_image_url: '',
+  login_page_image_mode: 'contain',
+  notification_position: 'top-right',
+  notification_duration: '4000',
+  notification_visible_toasts: '3',
 }
+
+const defaultLoginPageImage = '/login-panel-illustration.svg'
+const loginPageImageModeOptions = [
+  { value: 'cover', label: '填充' },
+  { value: 'contain', label: '适应' },
+  { value: 'fill', label: '拉伸' },
+  { value: 'repeat', label: '平铺' },
+]
+
+const notificationPositionOptions = [
+  { value: 'top-left', label: '左上角' },
+  { value: 'top-center', label: '顶部居中' },
+  { value: 'top-right', label: '右上角' },
+  { value: 'bottom-left', label: '左下角' },
+  { value: 'bottom-center', label: '底部居中' },
+  { value: 'bottom-right', label: '右下角' },
+]
 
 const defaultLoggingValues = {
   logs_root: 'app/logs',
@@ -62,6 +89,8 @@ const defaultStorageValues = {
   oss_upload_dir: 'uploads',
 }
 
+const maxLoginPageImageSize = 10 * 1024 * 1024
+
 const localFieldConfig = [
   { key: 'local_upload_dir', label: '本地上传目录', placeholder: '例如 uploads' },
   { key: 'local_full_url', label: '本地完整访问地址', placeholder: '可选，例如 https://files.example.com' },
@@ -85,9 +114,17 @@ const normalizeWhitelistItems = (value = '') =>
 
 const validateApplicationSettings = (values) => {
   const errors = {}
+  const notificationDuration = Number(values.notification_duration)
+  const notificationVisibleToasts = Number(values.notification_visible_toasts)
   if (!values.app_title.trim()) errors.app_title = '请填写应用标题'
   if (!values.project_name.trim()) errors.project_name = '请填写项目名称'
   if (!values.app_description.trim()) errors.app_description = '请填写应用描述'
+  if (!Number.isInteger(notificationDuration) || notificationDuration < 1000 || notificationDuration > 60000) {
+    errors.notification_duration = '通知时长必须为 1000 到 60000 之间的整数'
+  }
+  if (!Number.isInteger(notificationVisibleToasts) || notificationVisibleToasts < 1 || notificationVisibleToasts > 10) {
+    errors.notification_visible_toasts = '同时显示数量必须为 1 到 10 之间的整数'
+  }
   return errors
 }
 
@@ -165,10 +202,13 @@ const SystemSettings = () => {
   const [storageErrors, setStorageErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [savingSection, setSavingSection] = useState('')
+  const [uploadingLoginImage, setUploadingLoginImage] = useState(false)
+  const loginImageInputRef = useRef(null)
 
-  const { handleBusinessError, handleError, showSuccess } = useErrorHandler()
+  const { handleBusinessError, handleError, showSuccess, showWarning } = useErrorHandler()
   const provider = storageValues.provider || 'local'
   const whitelistCount = useMemo(() => normalizeWhitelistItems(securityValues.ip_whitelist).length, [securityValues.ip_whitelist])
+  const loginPageImagePreview = applicationValues.login_page_image_url?.trim() || defaultLoginPageImage
 
   const fetchSystemSettings = useCallback(async () => {
     setLoading(true)
@@ -191,6 +231,13 @@ const SystemSettings = () => {
         app_description: applicationData.app_description || defaultApplicationValues.app_description,
         debug: Boolean(applicationData.debug),
         environment: applicationData.environment || defaultApplicationValues.environment,
+        login_page_image_url: applicationData.login_page_image_url || '',
+        login_page_image_mode: applicationData.login_page_image_mode || defaultApplicationValues.login_page_image_mode,
+        notification_position: applicationData.notification_position || defaultApplicationValues.notification_position,
+        notification_duration: String(applicationData.notification_duration || defaultApplicationValues.notification_duration),
+        notification_visible_toasts: String(
+          applicationData.notification_visible_toasts || defaultApplicationValues.notification_visible_toasts
+        ),
       })
       setLoggingValues({
         logs_root: loggingData.logs_root || defaultLoggingValues.logs_root,
@@ -268,6 +315,11 @@ const SystemSettings = () => {
         project_name: applicationValues.project_name.trim(),
         app_description: applicationValues.app_description.trim(),
         debug: applicationValues.debug,
+        login_page_image_url: applicationValues.login_page_image_url.trim(),
+        login_page_image_mode: applicationValues.login_page_image_mode || defaultApplicationValues.login_page_image_mode,
+        notification_position: applicationValues.notification_position || defaultApplicationValues.notification_position,
+        notification_duration: Number(applicationValues.notification_duration),
+        notification_visible_toasts: Number(applicationValues.notification_visible_toasts),
       }
       const response = await api.systemSettings.updateApplicationSettings(payload)
       const data = response.data || payload
@@ -278,11 +330,21 @@ const SystemSettings = () => {
         project_name: data.project_name || payload.project_name,
         app_description: data.app_description || payload.app_description,
         debug: Boolean(data.debug),
+        login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
+        login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
+        notification_position: data.notification_position || payload.notification_position,
+        notification_duration: String(data.notification_duration || payload.notification_duration),
+        notification_visible_toasts: String(data.notification_visible_toasts || payload.notification_visible_toasts),
       }))
       dispatchAppMetaUpdated({
         app_title: data.app_title || payload.app_title,
         project_name: data.project_name || payload.project_name,
         app_description: data.app_description || payload.app_description,
+        login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
+        login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
+        notification_position: data.notification_position || payload.notification_position,
+        notification_duration: data.notification_duration || payload.notification_duration,
+        notification_visible_toasts: data.notification_visible_toasts || payload.notification_visible_toasts,
       })
       showSuccess('基础设置已保存')
     } catch (error) {
@@ -405,11 +467,64 @@ const SystemSettings = () => {
     }
   }
 
+  const triggerLoginImageUpload = () => {
+    loginImageInputRef.current?.click()
+  }
+
+  const restoreDefaultLoginImage = () => {
+    updateApplicationField('login_page_image_url', '')
+  }
+
+  const handleLoginImageUpload = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showWarning('请选择图片文件')
+      return
+    }
+
+    if (file.size > maxLoginPageImageSize) {
+      showWarning('登录页图片不能超过 10MB')
+      return
+    }
+
+    setUploadingLoginImage(true)
+    try {
+      const response = await api.upload.uploadImage(file)
+      const nextUrl = response.data?.url || ''
+
+      if (!nextUrl) {
+        showWarning('图片上传成功，但没有返回可用地址')
+        return
+      }
+
+      updateApplicationField('login_page_image_url', nextUrl)
+      showSuccess('登录页图片上传成功')
+    } catch (error) {
+      handleBusinessError(error, '登录页图片上传失败')
+    } finally {
+      setUploadingLoginImage(false)
+    }
+  }
+
   const statusBadges = useMemo(
     () => [
-      { label: '应用标题', value: applicationValues.app_title || defaultApplicationValues.app_title },
-      { label: '项目名称', value: applicationValues.project_name || defaultApplicationValues.project_name },
+      { label: '当前环境', value: applicationValues.environment || defaultApplicationValues.environment },
       { label: '调试模式', value: applicationValues.debug ? '已启用' : '已关闭' },
+      { label: '登录页图片', value: applicationValues.login_page_image_url ? '已自定义' : '默认插画' },
+      {
+        label: '图片模式',
+        value: loginPageImageModeOptions.find((item) => item.value === applicationValues.login_page_image_mode)?.label || '适应',
+      },
+      {
+        label: '通知位置',
+        value: notificationPositionOptions.find((item) => item.value === applicationValues.notification_position)?.label || '右上角',
+      },
       { label: '日志目录', value: loggingValues.logs_root || defaultLoggingValues.logs_root },
       {
         label: '限流',
@@ -421,9 +536,11 @@ const SystemSettings = () => {
       { label: '存储模式', value: provider === 'oss' ? '对象存储' : '本地存储' },
     ],
     [
-      applicationValues.app_title,
       applicationValues.debug,
-      applicationValues.project_name,
+      applicationValues.environment,
+      applicationValues.login_page_image_url,
+      applicationValues.login_page_image_mode,
+      applicationValues.notification_position,
       loggingValues.logs_root,
       provider,
       securityValues.rate_limit_enabled,
@@ -462,7 +579,7 @@ const SystemSettings = () => {
           <Card>
             <CardHeader>
               <CardTitle>基础设置</CardTitle>
-              <CardDescription>配置系统名称、项目名称、描述和调试模式，当前环境：{applicationValues.environment}</CardDescription>
+              <CardDescription>配置系统名称、项目名称、描述、调试模式和通知展示策略</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? loadingContent : (
@@ -501,15 +618,161 @@ const SystemSettings = () => {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <FileTextIcon className="size-4" />
-                          运行模式
+                          运行与通知
                         </CardTitle>
-                        <CardDescription>调试模式会影响日志级别和诊断输出</CardDescription>
+                        <CardDescription>调试模式会影响日志级别和诊断输出，通知相关设置会立即影响全局提示</CardDescription>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="flex flex-col gap-4">
+                        <Field>
+                          <FieldLabel htmlFor="application-environment">当前环境</FieldLabel>
+                          <Input
+                            id="application-environment"
+                            value={applicationValues.environment}
+                            disabled
+                            readOnly
+                          />
+                        </Field>
                         <ToggleField label="DEBUG" description="生产环境下后端会拒绝启用调试模式" checked={applicationValues.debug} onCheckedChange={(checked) => updateApplicationField('debug', checked)} />
+                        <Field>
+                          <FieldLabel htmlFor="notification-position">通知显示位置</FieldLabel>
+                          <Select
+                            value={applicationValues.notification_position}
+                            onValueChange={(value) => updateApplicationField('notification_position', value)}
+                          >
+                            <SelectTrigger id="notification-position" className="w-full">
+                              <SelectValue placeholder="请选择通知显示位置" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {notificationPositionOptions.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field data-invalid={Boolean(applicationErrors.notification_duration)}>
+                          <FieldLabel htmlFor="notification-duration" required>通知显示时长（毫秒）</FieldLabel>
+                          <Input
+                            id="notification-duration"
+                            type="number"
+                            min="1000"
+                            max="60000"
+                            value={applicationValues.notification_duration}
+                            onChange={(event) => updateApplicationField('notification_duration', event.target.value)}
+                            aria-invalid={Boolean(applicationErrors.notification_duration)}
+                          />
+                          <FieldError>{applicationErrors.notification_duration}</FieldError>
+                        </Field>
+                        <Field data-invalid={Boolean(applicationErrors.notification_visible_toasts)}>
+                          <FieldLabel htmlFor="notification-visible-toasts" required>最大同时显示数</FieldLabel>
+                          <Input
+                            id="notification-visible-toasts"
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={applicationValues.notification_visible_toasts}
+                            onChange={(event) => updateApplicationField('notification_visible_toasts', event.target.value)}
+                            aria-invalid={Boolean(applicationErrors.notification_visible_toasts)}
+                          />
+                          <FieldError>{applicationErrors.notification_visible_toasts}</FieldError>
+                        </Field>
                       </CardContent>
                     </Card>
                   </div>
+
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <ImageUpIcon className="size-4" />
+                        登录页图片
+                      </CardTitle>
+                      <CardDescription>支持填写外部 URL，或直接上传到当前存储。图片支持填充、适应、拉伸和平铺四种显示方式，预览与登录页使用同一套展示规则。</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+                      <div className="flex flex-col gap-4">
+                        <Field>
+                          <FieldLabel htmlFor="login-page-image-url">
+                            <LinkIcon className="size-4" />
+                            登录页图片地址
+                          </FieldLabel>
+                          <Input
+                            id="login-page-image-url"
+                            value={applicationValues.login_page_image_url}
+                            placeholder="支持 https://... 或 /static/... 地址"
+                            onChange={(event) => updateApplicationField('login_page_image_url', event.target.value)}
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="login-page-image-mode">图片显示模式</FieldLabel>
+                          <Select
+                            value={applicationValues.login_page_image_mode}
+                            onValueChange={(value) => updateApplicationField('login_page_image_mode', value)}
+                          >
+                            <SelectTrigger id="login-page-image-mode" className="w-full">
+                              <SelectValue placeholder="请选择图片显示模式" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {loginPageImageModeOptions.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+
+                        <input
+                          ref={loginImageInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="hidden"
+                          onChange={(event) => void handleLoginImageUpload(event)}
+                        />
+
+                        <div className="flex flex-wrap gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={triggerLoginImageUpload}
+                            disabled={uploadingLoginImage}
+                          >
+                            <ImageUpIcon data-icon="inline-start" />
+                            {uploadingLoginImage ? '上传中...' : '上传图片到存储'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={restoreDefaultLoginImage}
+                            disabled={!applicationValues.login_page_image_url}
+                          >
+                            <RotateCcwIcon data-icon="inline-start" />
+                            恢复默认插画
+                          </Button>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                          预览与登录页右侧卡片使用同一套展示比例和图片模式。填充会覆盖显示区域，适应会完整显示，拉伸会强制铺满，平铺会以固定块尺寸重复显示。上传图片会使用当前系统存储配置，本地存储和对象存储都可直接回填 URL。
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="text-sm font-medium">预览</div>
+                        <div className="mx-auto flex aspect-[10/13] w-full max-w-[20rem] items-stretch justify-stretch overflow-hidden rounded-2xl border bg-stone-100/60 dark:bg-muted/10">
+                          <LoginPageImageStage
+                            src={loginPageImagePreview}
+                            mode={applicationValues.login_page_image_mode}
+                            alt="登录页图片预览"
+                            fillParent
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
                   <div className="flex justify-end">
                     <Button type="submit" disabled={savingSection === 'application'}>

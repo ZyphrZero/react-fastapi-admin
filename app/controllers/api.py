@@ -3,6 +3,7 @@ from fastapi.routing import APIRoute
 from app.core.crud import CRUDBase
 from app.utils.log_control import logger
 from app.models.admin import Api
+from app.repositories.api_repository import ApiRepository
 from app.schemas.apis import ApiCreate, ApiUpdate
 
 
@@ -19,7 +20,7 @@ class ApiController(CRUDBase[Api, ApiCreate, ApiUpdate]):
         for route in app.routes:
             # 只处理有依赖项（通常是权限控制）的API路由
             if isinstance(route, APIRoute) and len(route.dependencies) > 0:
-                method = list(route.methods)[0]
+                method = ApiRepository.get_route_primary_method(route)
                 path = route.path_format
                 current_api_list.append((method, path))
 
@@ -33,9 +34,9 @@ class ApiController(CRUDBase[Api, ApiCreate, ApiUpdate]):
         # 添加或更新API记录
         for route in app.routes:
             if isinstance(route, APIRoute) and len(route.dependencies) > 0:
-                method = list(route.methods)[0]
+                method = ApiRepository.get_route_primary_method(route)
                 path = route.path_format
-                summary = route.summary or "无描述"
+                summary = ApiRepository.require_route_summary(route)
                 tags = list(route.tags)[0] if route.tags else "未分类"
 
                 # 检查API是否已存在

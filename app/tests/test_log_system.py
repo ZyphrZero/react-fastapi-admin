@@ -6,9 +6,11 @@
 验证重构后的日志系统是否正常工作
 """
 
+import asyncio
 import sys
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 # 添加项目根目录到路径
 project_root = Path(__file__).resolve().parents[2]
@@ -127,6 +129,51 @@ def test_access_log_middleware():
     print("✅ 访问日志中间件测试通过")
 
 
+def test_health_path_is_excluded_from_audit_log():
+    """测试健康检查路径被排除在审计日志之外"""
+    print("🧪 测试审计日志排除/health路径...")
+    from app.core.init_app import make_middlewares
+    from app.core.middlewares import HttpAuditLogMiddleware
+
+    audit_middlewares = [item for item in make_middlewares() if item.cls is HttpAuditLogMiddleware]
+
+    assert len(audit_middlewares) == 1, "应该只注册一个审计日志中间件"
+    assert "/health" in audit_middlewares[0].kwargs["exclude_paths"], "应该跳过/health路径的审计日志"
+
+    print("✅ 审计日志排除/health路径测试通过")
+
+
+def test_background_task_exceptions_are_isolated():
+    """测试后台任务异常不会中断请求链"""
+    print("🧪 测试后台任务异常隔离...")
+    from app.core.bgtask import BgTasks
+
+    executed = []
+
+    async def failing_task():
+        executed.append("fail")
+        raise RuntimeError("boom")
+
+    async def success_task():
+        executed.append("success")
+
+    async def run_test():
+        await BgTasks.init_bg_tasks_obj()
+        await BgTasks.add_task(failing_task)
+        await BgTasks.add_task(success_task)
+
+        with patch("app.core.bgtask.logger.exception") as mock_exception:
+            await BgTasks.execute_tasks()
+
+        mock_exception.assert_called_once()
+        assert "后台任务执行失败" in mock_exception.call_args.args[0]
+        assert executed == ["fail", "success"], "后台任务异常被隔离后，后续任务应继续执行"
+
+    asyncio.run(run_test())
+
+    print("✅ 后台任务异常隔离测试通过")
+
+
 def main():
     """主测试函数"""
     print("🚀 开始测试重构后的日志系统...")
@@ -140,6 +187,8 @@ def main():
         test_exception_logging,
         test_structured_logging,
         test_access_log_middleware,
+        test_health_path_is_excluded_from_audit_log,
+        test_background_task_exceptions_are_isolated,
     ]
 
     passed = 0

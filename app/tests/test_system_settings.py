@@ -1,10 +1,12 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi import FastAPI
 from fastapi import APIRouter, Depends
 from fastapi import HTTPException
 from pydantic import ValidationError as PydanticValidationError
 
+import app as app_module
 from app.controllers.upload import upload_controller
 from app.core.dependency import AuthControl
 from app.repositories.api_repository import ApiRepository
@@ -32,6 +34,11 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["environment"], settings.APP_ENV)
         self.assertEqual(data["project_name"], settings.PROJECT_NAME)
         self.assertEqual(data["app_description"], settings.APP_DESCRIPTION)
+        self.assertEqual(data["login_page_image_url"], settings.LOGIN_PAGE_IMAGE_URL)
+        self.assertEqual(data["login_page_image_mode"], settings.LOGIN_PAGE_IMAGE_MODE)
+        self.assertEqual(data["notification_position"], settings.NOTIFICATION_POSITION)
+        self.assertEqual(data["notification_duration"], settings.NOTIFICATION_DURATION)
+        self.assertEqual(data["notification_visible_toasts"], settings.NOTIFICATION_VISIBLE_TOASTS)
 
     async def test_get_logging_settings_defaults_to_runtime_settings(self) -> None:
         with patch(
@@ -108,6 +115,11 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
         original_project_name = settings.PROJECT_NAME
         original_app_description = settings.APP_DESCRIPTION
         original_debug = settings.DEBUG
+        original_login_page_image_url = settings.LOGIN_PAGE_IMAGE_URL
+        original_login_page_image_mode = settings.LOGIN_PAGE_IMAGE_MODE
+        original_notification_position = settings.NOTIFICATION_POSITION
+        original_notification_duration = settings.NOTIFICATION_DURATION
+        original_notification_visible_toasts = settings.NOTIFICATION_VISIBLE_TOASTS
 
         async def fake_set_value(*, key: str, value: dict, description: str | None = None):
             saved_payload.clear()
@@ -122,6 +134,11 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             project_name="Control Platform",
             app_description="Unified admin control center",
             debug=False,
+            login_page_image_url="/static/uploads/image/20260326/login.webp",
+            login_page_image_mode="cover",
+            notification_position="bottom-left",
+            notification_duration=6500,
+            notification_visible_toasts=5,
         )
 
         try:
@@ -145,18 +162,38 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(saved_payload["project_name"], "Control Platform")
             self.assertEqual(saved_payload["app_description"], "Unified admin control center")
             self.assertFalse(saved_payload["debug"])
+            self.assertEqual(saved_payload["login_page_image_url"], "/static/uploads/image/20260326/login.webp")
+            self.assertEqual(saved_payload["login_page_image_mode"], "cover")
+            self.assertEqual(saved_payload["notification_position"], "bottom-left")
+            self.assertEqual(saved_payload["notification_duration"], 6500)
+            self.assertEqual(saved_payload["notification_visible_toasts"], 5)
             self.assertEqual(settings.APP_TITLE, "Control Hub")
             self.assertEqual(settings.PROJECT_NAME, "Control Platform")
             self.assertEqual(settings.APP_DESCRIPTION, "Unified admin control center")
             self.assertFalse(settings.DEBUG)
+            self.assertEqual(settings.LOGIN_PAGE_IMAGE_URL, "/static/uploads/image/20260326/login.webp")
+            self.assertEqual(settings.LOGIN_PAGE_IMAGE_MODE, "cover")
+            self.assertEqual(settings.NOTIFICATION_POSITION, "bottom-left")
+            self.assertEqual(settings.NOTIFICATION_DURATION, 6500)
+            self.assertEqual(settings.NOTIFICATION_VISIBLE_TOASTS, 5)
             setup_logger_mock.assert_called_once_with(force=True)
             auth_initialize_mock.assert_awaited_once()
             self.assertEqual(data["app_title"], "Control Hub")
+            self.assertEqual(data["login_page_image_url"], "/static/uploads/image/20260326/login.webp")
+            self.assertEqual(data["login_page_image_mode"], "cover")
+            self.assertEqual(data["notification_position"], "bottom-left")
+            self.assertEqual(data["notification_duration"], 6500)
+            self.assertEqual(data["notification_visible_toasts"], 5)
         finally:
             settings.APP_TITLE = original_app_title
             settings.PROJECT_NAME = original_project_name
             settings.APP_DESCRIPTION = original_app_description
             settings.DEBUG = original_debug
+            settings.LOGIN_PAGE_IMAGE_URL = original_login_page_image_url
+            settings.LOGIN_PAGE_IMAGE_MODE = original_login_page_image_mode
+            settings.NOTIFICATION_POSITION = original_notification_position
+            settings.NOTIFICATION_DURATION = original_notification_duration
+            settings.NOTIFICATION_VISIBLE_TOASTS = original_notification_visible_toasts
 
     async def test_update_logging_settings_persists_and_applies_runtime_payload(self) -> None:
         saved_payload: dict = {}
@@ -330,13 +367,14 @@ class ApiCatalogFilterTestCase(unittest.TestCase):
         async def dummy_dependency():
             return None
 
-        @router.get("/visible", dependencies=[Depends(dummy_dependency)])
+        @router.get("/visible", dependencies=[Depends(dummy_dependency)], summary="可见接口")
         async def visible_route():
             return None
 
         @router.get(
             "/hidden",
             dependencies=[Depends(dummy_dependency)],
+            summary="隐藏接口",
             openapi_extra={"skip_api_catalog": True},
         )
         async def hidden_route():
@@ -347,6 +385,33 @@ class ApiCatalogFilterTestCase(unittest.TestCase):
 
         self.assertIn("/visible", paths)
         self.assertNotIn("/hidden", paths)
+
+    def test_routes_without_summary_are_rejected(self) -> None:
+        router = APIRouter()
+
+        async def dummy_dependency():
+            return None
+
+        @router.get("/missing-summary", dependencies=[Depends(dummy_dependency)])
+        async def missing_summary_route():
+            return None
+
+        with self.assertRaisesRegex(ValueError, "must declare summary"):
+            ApiRepository.build_route_definitions(router.routes)
+
+    def test_create_app_rejects_routes_without_summary(self) -> None:
+        original_register_routers = app_module.register_routers
+
+        def fake_register_routers(app: FastAPI, prefix: str = "/api") -> None:
+            original_register_routers(app, prefix=prefix)
+
+            @app.get("/missing-summary")
+            async def missing_summary_route():
+                return None
+
+        with patch("app.register_routers", side_effect=fake_register_routers):
+            with self.assertRaisesRegex(ValueError, "must declare summary"):
+                app_module.create_app()
 
 
 if __name__ == "__main__":

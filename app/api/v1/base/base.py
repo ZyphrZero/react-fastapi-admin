@@ -68,6 +68,11 @@ async def get_app_meta():
             "app_title": settings.APP_TITLE,
             "project_name": settings.PROJECT_NAME,
             "app_description": settings.APP_DESCRIPTION,
+            "login_page_image_url": settings.LOGIN_PAGE_IMAGE_URL,
+            "login_page_image_mode": settings.LOGIN_PAGE_IMAGE_MODE,
+            "notification_position": settings.NOTIFICATION_POSITION,
+            "notification_duration": settings.NOTIFICATION_DURATION,
+            "notification_visible_toasts": settings.NOTIFICATION_VISIBLE_TOASTS,
         }
     )
 

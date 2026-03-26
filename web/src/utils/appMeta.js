@@ -4,6 +4,11 @@ export const defaultAppMeta = {
   app_title: 'React FastAPI Admin',
   project_name: 'React FastAPI Admin',
   app_description: 'React FastAPI Admin Description',
+  login_page_image_url: '',
+  login_page_image_mode: 'contain',
+  notification_position: 'top-right',
+  notification_duration: 4000,
+  notification_visible_toasts: 3,
 }
 
 export const dispatchAppMetaUpdated = (payload = {}) => {
