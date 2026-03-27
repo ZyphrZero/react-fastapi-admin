@@ -159,7 +159,7 @@ python -m app serve
 
 - `python -m app db upgrade`：应用已提交的数据库迁移
 - `python -m app db seed`：写入默认角色、超级管理员和默认权限
-- `python -m app db refresh-api`：同步 API 元数据目录
+- `python -m app db sync`：同步 API 元数据目录
 - `python -m app bootstrap`：一次性执行以上完整流程
 
 ### 4. 启动前端
@@ -225,7 +225,7 @@ pnpm build
 ```bash
 uv run python -m app db upgrade
 uv run python -m app db seed
-uv run python -m app db refresh-api
+uv run python -m app db sync
 uv run python -m app bootstrap
 ```
 

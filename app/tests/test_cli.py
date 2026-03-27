@@ -14,9 +14,9 @@ class CliContractTestCase(unittest.TestCase):
         self.assertEqual(upgrade_args.command, "db")
         self.assertEqual(upgrade_args.db_command, "upgrade")
 
-        refresh_args = parser.parse_args(["db", "refresh-api"])
-        self.assertEqual(refresh_args.command, "db")
-        self.assertEqual(refresh_args.db_command, "refresh-api")
+        sync_args = parser.parse_args(["db", "sync"])
+        self.assertEqual(sync_args.command, "db")
+        self.assertEqual(sync_args.db_command, "sync")
 
         bootstrap_args = parser.parse_args(["bootstrap"])
         self.assertEqual(bootstrap_args.command, "bootstrap")

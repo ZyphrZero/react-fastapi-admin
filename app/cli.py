@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
     db_subparsers.add_parser("upgrade", help="Apply committed database migrations")
     db_subparsers.add_parser("seed", help="Seed default roles, admin user, and baseline permissions")
-    db_subparsers.add_parser("refresh-api", help="Refresh API catalog from declared application routes")
+    db_subparsers.add_parser("sync", help="Sync API catalog from declared application routes")
 
     subparsers.add_parser("bootstrap", help="Apply migrations, seed baseline data, and refresh API catalog")
     return parser
@@ -74,7 +74,7 @@ async def execute_async_command(args: argparse.Namespace) -> int:
             await bootstrap_database()
         elif args.command == "db" and args.db_command == "seed":
             await run_with_database_context(seed_application_data)
-        elif args.command == "db" and args.db_command == "refresh-api":
+        elif args.command == "db" and args.db_command == "sync":
             await run_with_database_context(refresh_api_metadata)
         elif args.command == "bootstrap":
             await bootstrap_database()
