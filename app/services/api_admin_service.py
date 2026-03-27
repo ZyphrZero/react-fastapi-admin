@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from tortoise.expressions import Q
 
 from app.repositories import api_repository
+from app.repositories.api_repository import ApiRouteDefinition
 from app.schemas.apis import ApiUpdate
 
 
@@ -52,8 +53,8 @@ class ApiAdminService:
         await api_repository.get_or_raise(api_id, "API不存在")
         await api_repository.remove(api_id)
 
-    async def refresh_api_catalog(self, routes: Iterable[object]) -> None:
-        await api_repository.sync_routes(api_repository.build_route_definitions(routes))
+    async def refresh_api_catalog(self, route_definitions: Iterable[ApiRouteDefinition]) -> None:
+        await api_repository.sync_routes(route_definitions)
 
     async def get_api_tags(self) -> list[dict]:
         return await api_repository.list_tags()

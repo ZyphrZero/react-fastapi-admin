@@ -141,8 +141,8 @@ async def get_platform_overview() -> dict:
             "startup_side_effects_enabled": False,
             "migration_mode": "explicit",
             "seed_mode": "explicit",
-            "api_catalog_mode": "manual",
-            "management_entry": "python manage.py",
+            "api_catalog_mode": "explicit",
+            "management_entry": "python -m app",
         },
         "audit_trend": audit_trend,
         "charts": {

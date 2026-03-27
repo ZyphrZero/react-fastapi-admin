@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query
 
+from app.api.catalog import build_api_catalog_route_definitions
 from app.schemas import Success, SuccessExtra
 from app.schemas.apis import ApiUpdate
 from app.services import api_admin_service
@@ -46,8 +47,8 @@ async def delete_api(api_id: int = Query(..., description="ApiID")):
 
 
 @router.post("/refresh", summary="刷新API列表")
-async def refresh_api(request: Request):
-    await api_admin_service.refresh_api_catalog(request.app.routes)
+async def refresh_api():
+    await api_admin_service.refresh_api_catalog(build_api_catalog_route_definitions())
     return Success(msg="刷新成功")
 
 

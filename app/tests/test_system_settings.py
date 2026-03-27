@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi import HTTPException
 from pydantic import ValidationError as PydanticValidationError
 
-import app as app_module
+import app.application as app_module
 from app.controllers.upload import upload_controller
 from app.core.dependency import AuthControl
 from app.repositories.api_repository import ApiRepository
@@ -380,11 +380,11 @@ class ApiCatalogFilterTestCase(unittest.TestCase):
         async def hidden_route():
             return None
 
-        definitions = ApiRepository.build_route_definitions(router.routes)
+        definitions = ApiRepository.build_route_definitions(router.routes, path_prefix="/api")
         paths = [item.path for item in definitions]
 
-        self.assertIn("/visible", paths)
-        self.assertNotIn("/hidden", paths)
+        self.assertIn("/api/visible", paths)
+        self.assertNotIn("/api/hidden", paths)
 
     def test_routes_without_summary_are_rejected(self) -> None:
         router = APIRouter()
@@ -409,7 +409,7 @@ class ApiCatalogFilterTestCase(unittest.TestCase):
             async def missing_summary_route():
                 return None
 
-        with patch("app.register_routers", side_effect=fake_register_routers):
+        with patch("app.application.register_routers", side_effect=fake_register_routers):
             with self.assertRaisesRegex(ValueError, "must declare summary"):
                 app_module.create_app()
 

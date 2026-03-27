@@ -106,7 +106,16 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
             ApiRepository.require_route_summary(route)
 
     @staticmethod
-    def build_route_definitions(routes: Iterable[object]) -> list[ApiRouteDefinition]:
+    def join_route_path(path_prefix: str, path: str) -> str:
+        if not path_prefix:
+            return path
+
+        normalized_prefix = f"/{path_prefix.strip('/')}"
+        normalized_path = f"/{path.lstrip('/')}"
+        return normalized_prefix if normalized_path == "/" else f"{normalized_prefix}{normalized_path}"
+
+    @staticmethod
+    def build_route_definitions(routes: Iterable[object], *, path_prefix: str = "") -> list[ApiRouteDefinition]:
         definitions: list[ApiRouteDefinition] = []
         for route in routes:
             if not isinstance(route, APIRoute) or not route.dependencies:
@@ -121,7 +130,7 @@ class ApiRepository(BaseRepository[Api, ApiCreate, ApiUpdate]):
             definitions.append(
                 ApiRouteDefinition(
                     method=ApiRepository.get_route_primary_method(route),
-                    path=route.path_format,
+                    path=ApiRepository.join_route_path(path_prefix, route.path_format),
                     summary=ApiRepository.require_route_summary(route),
                     tags=str(route.tags[0]) if route.tags else "未分类",
                 )

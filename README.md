@@ -34,7 +34,7 @@
   <tr>
     <td width="33%">
       <strong>显式运维命令</strong><br>
-      数据库初始化、迁移升级、基础数据种子与 API 元数据刷新统一由 <code>manage.py</code> 显式执行。
+      数据库初始化、迁移升级、基础数据种子与 API 元数据刷新统一由 <code>python -m app</code> 显式执行。
     </td>
     <td width="33%">
       <strong>权限模型完整</strong><br>
@@ -89,8 +89,8 @@
 │   ├── src/router/       # 路由
 │   ├── src/hooks/        # Hooks
 │   └── src/utils/        # 工具方法
-├── manage.py             # 运维命令入口（迁移、种子、刷新 API）
-├── main.py               # 后端启动入口
+├── app/cli.py            # 统一 CLI 入口（服务、迁移、种子、刷新 API）
+├── app/asgi.py           # ASGI 应用入口
 ├── pyproject.toml        # Python 依赖与工具配置
 └── .env.example          # 环境变量示例
 ```
@@ -144,23 +144,23 @@ INITIAL_ADMIN_PASSWORD=
 
 ```bash
 uv sync
-uv run python manage.py bootstrap
-uv run python main.py
+uv run python -m app bootstrap
+uv run python -m app serve
 ```
 
 如果你已经激活虚拟环境，也可以直接运行：
 
 ```bash
-python manage.py bootstrap
-python main.py
+python -m app bootstrap
+python -m app serve
 ```
 
 首次初始化或数据库变更后，请显式执行运维命令：
 
-- `python manage.py migrate`：初始化数据库并应用迁移
-- `python manage.py seed`：写入默认角色、超级管理员和默认权限
-- `python manage.py refresh-api`：同步 API 元数据目录
-- `python manage.py bootstrap`：一次性执行以上完整流程
+- `python -m app db upgrade`：应用已提交的数据库迁移
+- `python -m app db seed`：写入默认角色、超级管理员和默认权限
+- `python -m app db refresh-api`：同步 API 元数据目录
+- `python -m app bootstrap`：一次性执行以上完整流程
 
 ### 4. 启动前端
 
@@ -204,8 +204,8 @@ pnpm dev
 
 ```bash
 uv sync
-uv run python manage.py bootstrap
-uv run python main.py
+uv run python -m app bootstrap
+uv run python -m app serve
 uv run pytest app/tests
 uv run pytest app/tests/test_log_system.py
 ```
@@ -223,10 +223,10 @@ pnpm build
 ### 数据库迁移
 
 ```bash
-uv run python manage.py migrate
-uv run python manage.py seed
-uv run python manage.py refresh-api
-uv run python manage.py bootstrap
+uv run python -m app db upgrade
+uv run python -m app db seed
+uv run python -m app db refresh-api
+uv run python -m app bootstrap
 ```
 
 ## 配置说明
@@ -263,7 +263,7 @@ uv run python manage.py bootstrap
 
 - 根路径 `/` 会重定向到 `/docs`
 - 应用进程启动时只负责加载配置、连接数据库并提供服务，不再隐式执行迁移或种子写入
-- 数据库初始化、基础数据和 API 元数据同步统一通过 `python manage.py ...` 显式执行
+- 数据库初始化、基础数据和 API 元数据同步统一通过 `python -m app ...` 显式执行
 - 本地文件上传默认挂载到 `/static`
 - `.webp` 静态资源已注册为 `image/webp` MIME 类型，适用于头像与图片资源直接访问
 

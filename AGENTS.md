@@ -3,13 +3,13 @@
 ## Project Structure & Module Organization
 `app/` contains the FastAPI backend. Keep HTTP routes in `app/api/v1/`, business logic in `app/controllers/`, ORM models in `app/models/`, schemas in `app/schemas/`, and framework setup in `app/core/` and `app/settings/`. Backend checks live in `app/tests/`.
 
-`web/` contains the Vite + React frontend. Use `web/src/api/` for API clients, `web/src/components/` for reusable UI, `web/src/pages/` for routed screens, `web/src/router/` for navigation, and `web/src/utils/` or `web/src/hooks/` for shared code. Static files belong in `web/public/` or `web/src/assets/`. Entrypoints are `main.py` for the server and `web/src/main.jsx` for the client.
+`web/` contains the Vite + React frontend. Use `web/src/api/` for API clients, `web/src/components/` for reusable UI, `web/src/pages/` for routed screens, `web/src/router/` for navigation, and `web/src/utils/` or `web/src/hooks/` for shared code. Static files belong in `web/public/` or `web/src/assets/`. Entrypoints are `app/cli.py` for backend operations, `app/asgi.py` for the ASGI app, and `web/src/main.jsx` for the client.
 
 ## Build, Test, and Development Commands
 Backend:
 - `uv sync` installs Python dependencies, including `pytest`.
-- `python main.py` starts Granian/FastAPI on `http://localhost:9999`.
-- `aerich migrate` then `aerich upgrade` generates and applies schema changes.
+- `python -m app serve` starts Granian/FastAPI on `http://localhost:9999`.
+- `python -m app db upgrade` applies committed schema migrations.
 
 Frontend:
 - `cd web && pnpm install` installs the UI dependencies.

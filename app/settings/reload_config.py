@@ -74,7 +74,6 @@ RELOAD_IGNORE_PATTERNS = [
 # 监视的路径（只监视应用相关代码）
 RELOAD_WATCH_PATHS = [
     "app",  # 应用主目录
-    "main.py",  # 主入口文件
 ]
 
 # 热重载配置

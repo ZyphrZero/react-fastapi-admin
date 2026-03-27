@@ -100,6 +100,7 @@ class OverviewContractTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertIn("seed_mode", system)
         self.assertIn("api_catalog_mode", system)
         self.assertFalse(system["startup_side_effects_enabled"])
+        self.assertEqual(system["management_entry"], "python -m app")
         self.assertNotIn("title", system)
         self.assertNotIn("run_migrations_on_startup", system)
         self.assertNotIn("seed_base_data_on_startup", system)

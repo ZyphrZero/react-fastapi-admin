@@ -91,11 +91,7 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_DIGITS: bool = Field(default=True, description="是否要求包含数字")
     PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True, description="是否要求包含特殊字符")
 
-    # 启动引导配置
-    AUTO_BOOTSTRAP: bool = Field(default=True, description="是否在启动时执行引导流程")
-    RUN_MIGRATIONS_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时应用迁移")
-    SEED_BASE_DATA_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时初始化基础数据")
-    REFRESH_API_METADATA_ON_STARTUP: Optional[bool] = Field(default=None, description="是否在启动时刷新 API 元数据")
+    # 初始管理员配置
     INITIAL_ADMIN_USERNAME: str = Field(default="admin", description="初始管理员用户名")
     INITIAL_ADMIN_EMAIL: str = Field(default="admin@example.com", description="初始管理员邮箱")
     INITIAL_ADMIN_NICKNAME: str = Field(default="admin", description="初始管理员昵称")
@@ -117,9 +113,6 @@ class Settings(BaseSettings):
 
     @field_validator(
         "SERVER_RELOAD",
-        "RUN_MIGRATIONS_ON_STARTUP",
-        "SEED_BASE_DATA_ON_STARTUP",
-        "REFRESH_API_METADATA_ON_STARTUP",
         "REFRESH_TOKEN_COOKIE_SECURE",
         mode="before",
     )
@@ -220,36 +213,6 @@ class Settings(BaseSettings):
         if self.REFRESH_TOKEN_COOKIE_SECURE is not None:
             return self.REFRESH_TOKEN_COOKIE_SECURE
         return self.is_production
-
-    @computed_field
-    @property
-    def should_run_migrations_on_startup(self) -> bool:
-        """判断是否在启动时应用数据库迁移"""
-        if not self.AUTO_BOOTSTRAP:
-            return False
-        if self.RUN_MIGRATIONS_ON_STARTUP is not None:
-            return self.RUN_MIGRATIONS_ON_STARTUP
-        return self.is_development
-
-    @computed_field
-    @property
-    def should_seed_base_data_on_startup(self) -> bool:
-        """判断是否在启动时初始化基础数据"""
-        if not self.AUTO_BOOTSTRAP:
-            return False
-        if self.SEED_BASE_DATA_ON_STARTUP is not None:
-            return self.SEED_BASE_DATA_ON_STARTUP
-        return True
-
-    @computed_field
-    @property
-    def should_refresh_api_metadata_on_startup(self) -> bool:
-        """判断是否在启动时刷新 API 元数据"""
-        if not self.AUTO_BOOTSTRAP:
-            return False
-        if self.REFRESH_API_METADATA_ON_STARTUP is not None:
-            return self.REFRESH_API_METADATA_ON_STARTUP
-        return self.is_development
 
     @computed_field
     @property

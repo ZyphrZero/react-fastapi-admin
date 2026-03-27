@@ -24,20 +24,14 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
             """
             APP_ENV=development
             SERVER_RELOAD=
-            RUN_MIGRATIONS_ON_STARTUP=
-            SEED_BASE_DATA_ON_STARTUP=
-            REFRESH_API_METADATA_ON_STARTUP=
+            REFRESH_TOKEN_COOKIE_SECURE=
             """
         )
 
         self.assertIsNone(settings.SERVER_RELOAD)
-        self.assertIsNone(settings.RUN_MIGRATIONS_ON_STARTUP)
-        self.assertIsNone(settings.SEED_BASE_DATA_ON_STARTUP)
-        self.assertIsNone(settings.REFRESH_API_METADATA_ON_STARTUP)
+        self.assertIsNone(settings.REFRESH_TOKEN_COOKIE_SECURE)
         self.assertTrue(settings.server_reload_enabled)
-        self.assertTrue(settings.should_run_migrations_on_startup)
-        self.assertTrue(settings.should_seed_base_data_on_startup)
-        self.assertTrue(settings.should_refresh_api_metadata_on_startup)
+        self.assertFalse(settings.refresh_token_cookie_secure)
 
     def test_explicit_boolean_overrides_still_parse(self) -> None:
         settings = self.load_settings(
@@ -45,20 +39,14 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
             APP_ENV=production
             SECRET_KEY=production_secret_key_that_is_long_enough_1234567890
             SERVER_RELOAD=true
-            RUN_MIGRATIONS_ON_STARTUP=false
-            SEED_BASE_DATA_ON_STARTUP=false
-            REFRESH_API_METADATA_ON_STARTUP=true
+            REFRESH_TOKEN_COOKIE_SECURE=false
             """
         )
 
         self.assertTrue(settings.SERVER_RELOAD)
-        self.assertFalse(settings.RUN_MIGRATIONS_ON_STARTUP)
-        self.assertFalse(settings.SEED_BASE_DATA_ON_STARTUP)
-        self.assertTrue(settings.REFRESH_API_METADATA_ON_STARTUP)
+        self.assertFalse(settings.REFRESH_TOKEN_COOKIE_SECURE)
         self.assertTrue(settings.server_reload_enabled)
-        self.assertFalse(settings.should_run_migrations_on_startup)
-        self.assertFalse(settings.should_seed_base_data_on_startup)
-        self.assertTrue(settings.should_refresh_api_metadata_on_startup)
+        self.assertFalse(settings.refresh_token_cookie_secure)
 
     def test_development_generates_secret_key_when_missing(self) -> None:
         settings = self.load_settings(

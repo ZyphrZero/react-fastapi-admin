@@ -1,7 +1,9 @@
+import tempfile
+from pathlib import Path
 import string
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import app.core.bootstrap as bootstrap
 from app.utils.password import (
@@ -80,6 +82,35 @@ class InitSuperuserTestCase(unittest.IsolatedAsyncioTestCase):
         hash_mock.assert_called_once_with(explicit_password)
         get_or_create_mock.assert_awaited_once()
         emit_mock.assert_not_called()
+
+
+class BootstrapDatabaseTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_bootstrap_database_requires_committed_migrations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.object(bootstrap.settings, "BASE_DIR", Path(tmpdir)):
+                with self.assertRaisesRegex(FileNotFoundError, "迁移目录不存在或为空"):
+                    await bootstrap.bootstrap_database()
+
+    async def test_bootstrap_database_propagates_upgrade_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            migrations_dir = Path(tmpdir) / "migrations" / "models"
+            migrations_dir.mkdir(parents=True)
+            (migrations_dir / "0_initial.py").write_text("# migration\n", encoding="utf-8")
+
+            command = MagicMock()
+            command.init = AsyncMock()
+            command.upgrade = AsyncMock(side_effect=RuntimeError("upgrade failed"))
+            command.close = AsyncMock()
+
+            with (
+                patch.object(bootstrap.settings, "BASE_DIR", Path(tmpdir)),
+                patch("app.core.bootstrap.Command", return_value=command),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "upgrade failed"):
+                    await bootstrap.bootstrap_database()
+
+            command.init.assert_awaited_once()
+            command.close.assert_awaited_once()
 
 
 if __name__ == "__main__":

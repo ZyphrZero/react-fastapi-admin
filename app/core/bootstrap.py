@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from collections.abc import Iterable
 from pathlib import Path
 
 from aerich import Command
 from tortoise.context import require_context
 
+from app.api.catalog import build_api_catalog_route_definitions
 from app.core.navigation import get_default_role_menu_paths
 from app.repositories import role_repository, user_repository
 from app.models.admin import Api, Role, User
@@ -24,37 +24,16 @@ async def ensure_database_connection() -> None:
         raise RuntimeError("数据库上下文未初始化")
 
 
-async def bootstrap_database(*, run_migrations: bool = True) -> None:
+async def bootstrap_database() -> None:
     """
-    初始化数据库连接，并按显式命令选择是否应用现有迁移。
-
-    该函数由显式运维命令调用，不再由 Web 服务启动隐式触发。
+    应用已提交的数据库迁移。
     """
-    await ensure_database_connection()
-
-    command = Command(tortoise_config=settings.tortoise_orm)
     migrations_dir = Path(settings.BASE_DIR) / "migrations" / "models"
     has_migration_files = migrations_dir.exists() and any(migrations_dir.glob("*.py"))
-
     if not has_migration_files:
-        try:
-            await asyncio.shield(command.init_db(safe=True))
-            logger.info("已初始化数据库结构与初始迁移")
-        except FileExistsError as exc:
-            logger.warning(f"检测到已存在的迁移文件，跳过初始化: {exc}")
-            has_migration_files = True
-        except Exception as exc:
-            logger.error(f"数据库初始化失败: {exc}")
-            return
+        raise FileNotFoundError(f"迁移目录不存在或为空: {migrations_dir}")
 
-    if not run_migrations:
-        logger.info("已跳过迁移升级，仅完成数据库初始化检查")
-        return
-
-    if not has_migration_files:
-        logger.info("当前没有可升级的迁移文件")
-        return
-
+    command = Command(tortoise_config=settings.tortoise_orm)
     try:
         await command.init()
         upgraded = await asyncio.shield(command.upgrade(run_in_transaction=True))
@@ -62,10 +41,8 @@ async def bootstrap_database(*, run_migrations: bool = True) -> None:
             logger.info(f"已应用数据库迁移: {upgraded}")
         else:
             logger.info("数据库迁移已是最新状态")
-    except FileNotFoundError:
-        logger.warning("迁移文件不存在，已跳过自动升级")
-    except Exception as exc:
-        logger.error(f"数据库升级失败: {exc}")
+    finally:
+        await command.close()
 
 
 async def init_superuser() -> User | None:
@@ -164,12 +141,14 @@ async def init_user_roles() -> None:
     logger.info("已为超级管理员分配管理员角色")
 
 
-async def refresh_api_metadata(routes: Iterable[object]) -> None:
-    await api_admin_service.refresh_api_catalog(routes)
+async def refresh_api_metadata() -> None:
+    await ensure_database_connection()
+    await api_admin_service.refresh_api_catalog(build_api_catalog_route_definitions())
     logger.info("已刷新 API 元数据")
 
 
 async def sync_default_role_permissions() -> None:
+    await ensure_database_connection()
     built_in_roles = {
         "管理员": await Role.filter(name="管理员").first(),
         "普通用户": await Role.filter(name="普通用户").first(),
@@ -203,13 +182,7 @@ async def sync_default_role_permissions() -> None:
 
 
 async def seed_base_data() -> None:
+    await ensure_database_connection()
     await init_roles()
     await init_superuser()
     await init_user_roles()
-
-
-async def bootstrap_application(routes: Iterable[object]) -> None:
-    await bootstrap_database()
-    await seed_base_data()
-    await refresh_api_metadata(routes)
-    await sync_default_role_permissions()

@@ -6,7 +6,7 @@
 基于loguru的统一日志系统，包含日志配置、访问日志中间件等功能
 """
 
-import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -15,6 +15,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from loguru import logger
 
 from app.settings import settings
+
+
+def _console_sink(message: str) -> None:
+    stream = sys.stderr
+    try:
+        stream.write(message)
+    except UnicodeEncodeError:
+        encoding = stream.encoding or "utf-8"
+        stream.write(message.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+    stream.flush()
 
 
 class LogManager:
@@ -92,7 +102,7 @@ class LogManager:
 
         # 添加控制台输出
         logger.add(
-            sink=lambda msg: print(msg, end=""),
+            sink=_console_sink,
             format=console_format,
             level=log_level,
             colorize=True,
@@ -223,11 +233,11 @@ def init_logging():
 
     # 记录系统启动信息
     logger.info("=" * 50)
-    logger.info(f"🚀 {settings.APP_TITLE} 正在启动...")
-    logger.info(f"📍 环境: {settings.APP_ENV}")
-    logger.info(f"🔧 调试模式: {settings.DEBUG}")
-    logger.info(f"📂 项目根目录: {settings.BASE_DIR}")
-    logger.info(f"📋 日志目录: {settings.logs_path}")
+    logger.info(f"{settings.APP_TITLE} 正在启动...")
+    logger.info(f"环境: {settings.APP_ENV}")
+    logger.info(f"调试模式: {settings.DEBUG}")
+    logger.info(f"项目根目录: {settings.BASE_DIR}")
+    logger.info(f"日志目录: {settings.logs_path}")
     logger.info("=" * 50)
 
     return logger
