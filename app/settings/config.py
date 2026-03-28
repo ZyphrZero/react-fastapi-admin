@@ -7,17 +7,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def get_root_path() -> Path:
-    """获取项目根路径"""
+    """Return the project root path."""
     return Path(__file__).parent.parent.parent.resolve()
 
 
 def ensure_path(path: str, create_parent: bool = True) -> Path:
     """
-    pathlib.Path 自动跨平台处理
+    Build a project-relative path with cross-platform pathlib handling.
 
     Args:
-        path: 相对路径
-        create_parent: 是否创建父目录，默认为True
+        path: Relative path.
+        create_parent: Whether to create the parent directory. Defaults to True.
     """
     root = get_root_path()
     full_path = root / path
@@ -27,12 +27,12 @@ def ensure_path(path: str, create_parent: bool = True) -> Path:
 
 
 class Settings(BaseSettings):
-    """应用程序配置设置"""
+    """Application settings."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
 
-    # 基础应用配置
-    APP_ENV: str = Field(default="development", description="应用环境")
+    # Core application settings.
+    APP_ENV: str = Field(default="dev", description="应用环境（dev/prod）")
     VERSION: str = Field(default="0.1.0", description="应用版本")
     APP_TITLE: str = Field(default="React FastAPI Admin", description="应用标题")
     PROJECT_NAME: str = Field(default="React FastAPI Admin", description="项目名称")
@@ -47,23 +47,23 @@ class Settings(BaseSettings):
     PORT: int = Field(default=9999, description="服务监听端口")
     SERVER_RELOAD: Optional[bool] = Field(default=None, description="是否启用服务热重载")
 
-    # CORS 配置
+    # CORS settings.
     CORS_ORIGINS: List[str] = Field(default=["*"], description="CORS 允许的来源")
     CORS_ALLOW_CREDENTIALS: bool = Field(default=True, description="CORS 允许凭证")
     CORS_ALLOW_METHODS: List[str] = Field(default=["*"], description="CORS 允许的方法")
     CORS_ALLOW_HEADERS: List[str] = Field(default=["*"], description="CORS 允许的头部")
 
-    # 路径配置
+    # Path settings.
     BASE_DIR: Path = Field(default_factory=get_root_path, description="项目根目录")
     LOGS_ROOT: str = Field(default="app/logs", description="日志目录")
 
-    # 日志配置
+    # Logging settings.
     LOG_RETENTION_DAYS: int = Field(default=7, description="日志保留天数")
     LOG_ROTATION: str = Field(default="1 day", description="日志轮转周期")
     LOG_MAX_FILE_SIZE: str = Field(default="10 MB", description="单个日志文件最大大小")
     LOG_ENABLE_ACCESS_LOG: bool = Field(default=True, description="是否启用访问日志")
 
-    # 安全配置
+    # Security settings.
     SECRET_KEY: str = Field(default="", description="应用密钥")
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT 算法")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, description="JWT 访问令牌过期时间（分钟）")
@@ -74,51 +74,61 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_COOKIE_SECURE: Optional[bool] = Field(default=None, description="刷新令牌 Cookie 是否仅限 HTTPS")
     REFRESH_TOKEN_COOKIE_SAMESITE: str = Field(default="lax", description="刷新令牌 Cookie SameSite 策略")
 
-    # IP 白名单配置
+    # IP allowlist settings.
     IP_WHITELIST: str = Field(default="", description="IP 白名单字符串")
     TRUST_PROXY_HEADERS: bool = Field(default=False, description="是否信任代理请求头中的客户端 IP")
     TRUSTED_PROXY_IPS: str = Field(default="", description="可信代理 IP 列表，逗号分隔")
 
-    # 请求频率限制
+    # Rate-limit settings.
     RATE_LIMIT_ENABLED: bool = Field(default=True, description="是否启用请求频率限制")
     RATE_LIMIT_MAX_REQUESTS: int = Field(default=60, description="时间窗口内最大请求数")
     RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, description="时间窗口大小（秒）")
 
-    # 密码策略配置
+    # Password policy settings.
     PASSWORD_MIN_LENGTH: int = Field(default=8, description="密码最小长度")
     PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True, description="是否要求包含大写字母")
     PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True, description="是否要求包含小写字母")
     PASSWORD_REQUIRE_DIGITS: bool = Field(default=True, description="是否要求包含数字")
     PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True, description="是否要求包含特殊字符")
 
-    # 初始管理员配置
+    # Initial administrator settings.
     INITIAL_ADMIN_USERNAME: str = Field(default="admin", description="初始管理员用户名")
     INITIAL_ADMIN_EMAIL: str = Field(default="admin@example.com", description="初始管理员邮箱")
     INITIAL_ADMIN_NICKNAME: str = Field(default="admin", description="初始管理员昵称")
     INITIAL_ADMIN_PASSWORD: str = Field(default="", description="初始管理员密码，留空时首次引导自动生成")
 
-    # 数据库配置
+    # Database settings.
     DB_CONNECTION: str = Field(default="sqlite", description="数据库连接类型")
     DB_FILE: str = Field(default="db.sqlite3", description="SQLite 数据库文件名")
 
-    # MySQL/PostgreSQL 配置
+    # MySQL/PostgreSQL settings.
     DB_HOST: str = Field(default="localhost", description="数据库主机")
     DB_PORT: int = Field(default=3306, description="数据库端口")
     DB_USERNAME: str = Field(default="root", description="数据库用户名")
     DB_PASSWORD: str = Field(default="", description="数据库密码")
     DB_DATABASE: str = Field(default="fastapi_admin", description="数据库名称")
 
-    # 时间格式配置
+    # Date and time formatting.
     DATETIME_FORMAT: str = Field(default="%Y-%m-%d %H:%M:%S", description="日期时间格式")
 
     @field_validator(
+        "APP_ENV",
         "SERVER_RELOAD",
         "REFRESH_TOKEN_COOKIE_SECURE",
         mode="before",
     )
     @classmethod
-    def empty_optional_booleans_to_none(cls, value: object) -> object:
-        """兼容 .env 中留空的可选布尔值，将空字符串视为未设置。"""
+    def normalize_settings_inputs(cls, value: object, info) -> object:
+        """Normalize setting inputs before standard validation."""
+        if info.field_name == "APP_ENV":
+            if not isinstance(value, str):
+                raise ValueError("APP_ENV 必须为 dev 或 prod")
+
+            normalized = value.strip().lower()
+            if normalized not in {"dev", "prod"}:
+                raise ValueError("APP_ENV 仅支持 dev 或 prod")
+            return normalized
+
         if isinstance(value, str):
             value = value.strip()
             if not value:
@@ -161,19 +171,19 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def logs_path(self) -> Path:
-        """获取日志文件夹路径"""
+        """Return the log directory path."""
         return ensure_path(self.LOGS_ROOT)
 
     @computed_field
     @property
     def storage_root_path(self) -> Path:
-        """获取静态存储根目录（不自动创建目录）"""
+        """Return the static storage root path without creating it automatically."""
         return ensure_path("storage", create_parent=False)
 
     @computed_field
     @property
     def ip_whitelist(self) -> List[str]:
-        """获取 IP 白名单列表"""
+        """Return the IP allowlist."""
         if not self.IP_WHITELIST:
             return []
         return [ip.strip() for ip in self.IP_WHITELIST.split(",") if ip.strip()]
@@ -181,7 +191,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def trusted_proxy_ips(self) -> List[str]:
-        """获取可信代理 IP 列表"""
+        """Return the trusted proxy IP list."""
         if not self.TRUSTED_PROXY_IPS:
             return []
         return [ip.strip() for ip in self.TRUSTED_PROXY_IPS.split(",") if ip.strip()]
@@ -189,19 +199,19 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def is_production(self) -> bool:
-        """判断是否为生产环境"""
-        return self.APP_ENV.lower() == "production"
+        """Return whether the current environment is production."""
+        return self.APP_ENV == "prod"
 
     @computed_field
     @property
     def is_development(self) -> bool:
-        """判断是否为开发环境"""
-        return self.APP_ENV.lower() == "development"
+        """Return whether the current environment is development."""
+        return self.APP_ENV == "dev"
 
     @computed_field
     @property
     def server_reload_enabled(self) -> bool:
-        """根据环境和配置判断是否启用热重载"""
+        """Return whether hot reload should be enabled for the current environment and settings."""
         if self.SERVER_RELOAD is not None:
             return self.SERVER_RELOAD
         return self.is_development
@@ -209,7 +219,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def refresh_token_cookie_secure(self) -> bool:
-        """根据环境和配置判断刷新令牌 Cookie 是否仅限 HTTPS"""
+        """Return whether the refresh-token cookie should be HTTPS-only."""
         if self.REFRESH_TOKEN_COOKIE_SECURE is not None:
             return self.REFRESH_TOKEN_COOKIE_SECURE
         return self.is_production
@@ -217,7 +227,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def tortoise_orm(self) -> dict:
-        """动态生成 Tortoise ORM 配置"""
+        """Build the Tortoise ORM configuration dynamically."""
         base_config = {
             "connections": {
                 "sqlite": {
@@ -235,7 +245,7 @@ class Settings(BaseSettings):
             "timezone": "Asia/Shanghai",
         }
 
-        # 根据连接类型添加相应的数据库配置
+        # Add the matching database configuration for the selected connection type.
         if self.DB_CONNECTION == "mysql":
             base_config["connections"]["mysql"] = {
                 "engine": "tortoise.backends.mysql",
@@ -262,13 +272,13 @@ class Settings(BaseSettings):
         return base_config
 
     def model_post_init(self, __context) -> None:
-        """模型初始化后的处理"""
-        # 确保日志目录存在（这是必需的）
+        """Post-initialization processing for the settings model."""
+        # Ensure the log directory exists. This is required.
         self.logs_path.mkdir(parents=True, exist_ok=True)
-        # 注意：存储目录只在实际需要时创建，不在启动时自动创建
+        # Note: the storage directory is created only when it is actually needed, not during startup.
 
     def get_database_url(self) -> str:
-        """获取数据库连接 URL"""
+        """Return the database connection URL."""
         if self.DB_CONNECTION == "sqlite":
             return f"sqlite:///{self.BASE_DIR / self.DB_FILE}"
         elif self.DB_CONNECTION == "mysql":
@@ -284,26 +294,26 @@ class Settings(BaseSettings):
         return f"<Settings env={self.APP_ENV} debug={self.DEBUG} db={self.DB_CONNECTION}>"
 
 
-# 创建全局设置实例
+# Global settings instance.
 settings = Settings()
 
 
-# 输出当前环境信息
+# Print the current runtime information.
 def print_startup_info():
-    """打印启动信息"""
-    print(f"🚀 当前运行环境: {settings.APP_ENV}")
-    print(f"🔧 调试模式: {settings.DEBUG}")
-    print(f"💾 数据库连接: {settings.DB_CONNECTION}")
+    """Print startup information."""
+    print(f"🚀 Runtime environment: {settings.APP_ENV}")
+    print(f"🔧 Debug mode: {settings.DEBUG}")
+    print(f"💾 Database connection: {settings.DB_CONNECTION}")
     if settings.DB_CONNECTION == "sqlite":
-        print(f"📁 SQLite 数据库文件: {settings.DB_FILE}")
-    print(f"📂 项目根路径: {settings.BASE_DIR}")
-    print(f"📋 日志路径: {settings.logs_path}")
-    print(f"💾 静态存储根路径: {settings.storage_root_path}")
+        print(f"📁 SQLite database file: {settings.DB_FILE}")
+    print(f"📂 Project root path: {settings.BASE_DIR}")
+    print(f"📋 Log path: {settings.logs_path}")
+    print(f"💾 Static storage root path: {settings.storage_root_path}")
     if settings.ip_whitelist:
-        print(f"🛡️  IP 白名单: {settings.ip_whitelist}")
+        print(f"🛡️  IP allowlist: {settings.ip_whitelist}")
     print("=" * 50)
 
 
-# 在模块导入时打印启动信息
+# Print startup information when the module is executed directly.
 if __name__ == "__main__":
     print_startup_info()

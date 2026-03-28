@@ -22,7 +22,7 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
     def test_blank_optional_booleans_use_derived_defaults(self) -> None:
         settings = self.load_settings(
             """
-            APP_ENV=development
+            APP_ENV=dev
             SERVER_RELOAD=
             REFRESH_TOKEN_COOKIE_SECURE=
             """
@@ -36,7 +36,7 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
     def test_explicit_boolean_overrides_still_parse(self) -> None:
         settings = self.load_settings(
             """
-            APP_ENV=production
+            APP_ENV=prod
             SECRET_KEY=production_secret_key_that_is_long_enough_1234567890
             SERVER_RELOAD=true
             REFRESH_TOKEN_COOKIE_SECURE=false
@@ -48,10 +48,10 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
         self.assertTrue(settings.server_reload_enabled)
         self.assertFalse(settings.refresh_token_cookie_secure)
 
-    def test_development_generates_secret_key_when_missing(self) -> None:
+    def test_dev_generates_secret_key_when_missing(self) -> None:
         settings = self.load_settings(
             """
-            APP_ENV=development
+            APP_ENV=dev
             """
         )
 
@@ -60,12 +60,20 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
     def test_ip_whitelist_reads_direct_env_name(self) -> None:
         settings = self.load_settings(
             """
-            APP_ENV=development
+            APP_ENV=dev
             IP_WHITELIST=192.168.1.100,10.0.0.1
             """
         )
 
         self.assertEqual(settings.ip_whitelist, ["192.168.1.100", "10.0.0.1"])
+
+    def test_long_form_app_env_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "APP_ENV 仅支持 dev 或 prod"):
+            self.load_settings(
+                """
+                APP_ENV=development
+                """
+            )
 
 
 if __name__ == "__main__":

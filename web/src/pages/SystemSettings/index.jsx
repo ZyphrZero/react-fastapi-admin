@@ -31,7 +31,7 @@ const defaultApplicationValues = {
   project_name: 'React FastAPI Admin',
   app_description: 'React FastAPI Admin Description',
   debug: false,
-  environment: 'development',
+  environment: 'dev',
   login_page_image_url: '',
   login_page_image_mode: 'contain',
   notification_position: 'top-right',

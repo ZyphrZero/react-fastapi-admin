@@ -1,1 +1,16 @@
+.git
+.gitignore
+.env
+.env.local
+.env.production
+.venv
+venv
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+app/logs/
+storage/
+db.sqlite3
 web/node_modules
+web/dist
+node_modules

@@ -1,33 +1,26 @@
-FROM node:18.12.0-alpine3.16 AS web
+FROM python:3.11-slim
 
-WORKDIR /opt/react-fastapi-admin
-COPY /web ./web
-RUN cd /opt/react-fastapi-admin/web && npm i --registry=https://registry.npmmirror.com && npm run build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    APP_ENV=prod \
+    HOST=0.0.0.0 \
+    PORT=9999
 
+WORKDIR /app
 
-FROM python:3.11-slim-bullseye
+COPY pyproject.toml ./
+COPY app ./app
+COPY migrations ./migrations
 
-WORKDIR /opt/react-fastapi-admin
-ADD . .
-COPY /deploy/entrypoint.sh .
+RUN python -m pip install --upgrade pip \
+    && python -m pip install .
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=core-apt \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked,id=core-apt \
-    sed -i "s@http://.*.debian.org@http://mirrors.ustc.edu.cn@g" /etc/apt/sources.list \
-    && rm -f /etc/apt/apt.conf.d/docker-clean \
-    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
-    && echo "Asia/Shanghai" > /etc/timezone \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends gcc python3-dev bash nginx vim curl procps net-tools
+RUN mkdir -p /app/storage /app/app/logs
 
-RUN pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+EXPOSE 9999
 
-COPY --from=web /opt/react-fastapi-admin/web/dist /opt/react-fastapi-admin/web/dist
-ADD /deploy/web.conf /etc/nginx/sites-available/web.conf
-RUN rm -f /etc/nginx/sites-enabled/default \ 
-    && ln -s /etc/nginx/sites-available/web.conf /etc/nginx/sites-enabled/ 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9999/health', timeout=3)"
 
-ENV LANG=zh_CN.UTF-8
-EXPOSE 80
-
-ENTRYPOINT [ "sh", "entrypoint.sh" ]
+CMD ["python", "-m", "app", "serve"]
