@@ -140,8 +140,6 @@ const Login = () => {
       <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="relative w-full max-w-[58rem]">
           <div className="relative grid overflow-hidden rounded-[2rem] border border-border/60 bg-background shadow-[0_28px_80px_rgba(15,23,42,0.12),0_12px_28px_rgba(15,23,42,0.08)] dark:border-white/10 dark:shadow-[0_30px_90px_rgba(2,6,23,0.58),0_12px_32px_rgba(2,6,23,0.3)] lg:min-h-[39rem] lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/85 dark:bg-white/20" />
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-white/55 dark:bg-white/8" />
             <section className="bg-background px-6 py-6 sm:px-10 sm:py-7">
               <div className="mx-auto flex h-full max-w-sm flex-col">
                 <BrandLogo

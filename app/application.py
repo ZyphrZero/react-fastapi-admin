@@ -19,27 +19,27 @@ mimetypes.add_type("image/webp", ".webp")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理器。"""
+    """Application lifespan manager."""
     init_logging()
-    logger.info(f"正在启动应用，环境: {settings.APP_ENV}")
+    logger.info(f"Starting application in environment: {settings.APP_ENV}")
     app.state.db_runtime = DatabaseRuntime()
 
     try:
         await app.state.db_runtime.initialize()
         async with app.state.db_runtime.activate():
             await system_setting_service.initialize_runtime_settings(app=app)
-            logger.info("运行时配置初始化完成")
-        logger.info("应用启动完成")
+            logger.info("Runtime settings initialized")
+        logger.info("Application startup completed")
     except Exception as exc:
-        logger.error(f"应用启动失败: {exc}")
+        logger.error(f"Application startup failed: {exc}")
         raise
 
     try:
         yield
     except asyncio.CancelledError:
-        logger.warning("应用运行被取消，正在执行关闭...")
+        logger.warning("Application execution was cancelled; shutting down...")
     finally:
-        logger.info("应用正在关闭...")
+        logger.info("Shutting down application...")
         db_runtime = getattr(app.state, "db_runtime", None)
         if db_runtime is not None:
             try:

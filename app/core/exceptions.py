@@ -8,13 +8,13 @@ import traceback
 
 
 class SettingNotFound(Exception):
-    """配置文件未找到异常"""
+    """Configuration file not found."""
 
     pass
 
 
 class CustomHTTPException(HTTPException):
-    """自定义HTTP异常类，支持额外的错误信息"""
+    """Custom HTTP exception supporting extra error data."""
 
     def __init__(
         self,
@@ -29,16 +29,16 @@ class CustomHTTPException(HTTPException):
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """
-    HTTP异常处理器，统一返回格式
+    HTTP exception handler that returns a unified response shape.
     """
     status_code = exc.status_code
     detail = exc.detail
     data = getattr(exc, "data", None)
 
-    # 记录异常信息
-    logger.warning(f"HTTP异常 - 状态码: {status_code}, 详情: {detail}, 路径: {request.url.path}")
+    # Record exception details.
+    logger.warning(f"HTTP exception - status_code: {status_code}, detail: {detail}, path: {request.url.path}")
 
-    # 根据状态码返回相应的响应
+    # Return the appropriate response by status code.
     if status_code == 401:
         return ApiResponse.unauthorized(msg=detail, data=data)
     elif status_code == 403:
@@ -57,25 +57,25 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 async def starlette_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """
-    Starlette HTTP异常处理器
+    Starlette HTTP exception handler.
     """
     return await http_exception_handler(request, HTTPException(status_code=exc.status_code, detail=exc.detail))
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
-    全局异常处理器，处理所有未捕获的异常
+    Global exception handler for uncaught exceptions.
     """
-    # 记录完整的异常信息
-    logger.error(f"未捕获的异常: {type(exc).__name__}: {str(exc)}")
-    logger.error(f"请求路径: {request.url.path}")
-    logger.error(f"异常堆栈:\n{traceback.format_exc()}")
+    # Record the full exception details.
+    logger.error(f"Unhandled exception: {type(exc).__name__}: {str(exc)}")
+    logger.error(f"Request path: {request.url.path}")
+    logger.error(f"Exception traceback:\n{traceback.format_exc()}")
 
-    # 返回统一的错误响应
+    # Return a unified error response.
     return ApiResponse.error(msg="服务器内部错误", data=None)
 
 
-# 异常处理器映射
+# Exception handler mapping.
 exception_handlers = {
     HTTPException: http_exception_handler,
     StarletteHTTPException: starlette_exception_handler,
@@ -83,52 +83,52 @@ exception_handlers = {
 }
 
 
-# 认证相关异常
+# Authentication-related exceptions.
 class AuthenticationError(CustomHTTPException):
-    """认证错误"""
+    """Authentication error."""
 
     def __init__(self, detail: str = "认证失败", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=401, detail=detail, data=data)
 
 
 class AuthorizationError(CustomHTTPException):
-    """授权错误"""
+    """Authorization error."""
 
     def __init__(self, detail: str = "权限不足", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=403, detail=detail, data=data)
 
 
 class RateLimitError(CustomHTTPException):
-    """频率限制错误"""
+    """Rate-limit error."""
 
     def __init__(self, detail: str = "请求过于频繁", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=429, detail=detail, data=data)
 
 
 class ValidationError(CustomHTTPException):
-    """验证错误"""
+    """Validation error."""
 
     def __init__(self, detail: str = "数据验证失败", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=422, detail=detail, data=data)
 
 
-# CRUD 操作相关异常
+# CRUD-related exceptions.
 class RecordNotFoundError(CustomHTTPException):
-    """记录不存在错误"""
+    """Record not found error."""
 
     def __init__(self, detail: str = "记录不存在", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=404, detail=detail, data=data)
 
 
 class RecordAlreadyExistsError(CustomHTTPException):
-    """记录已存在错误"""
+    """Record already exists error."""
 
     def __init__(self, detail: str = "记录已存在", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=409, detail=detail, data=data)
 
 
 class InvalidParameterError(CustomHTTPException):
-    """参数错误"""
+    """Invalid parameter error."""
 
     def __init__(self, detail: str = "参数无效", data: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=400, detail=detail, data=data)

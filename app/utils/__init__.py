@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-工具模块
-包含日志系统、密码处理、JWT工具等
+Utility modules.
+Includes the logging system, password handling, JWT helpers, and more.
 """
 
 from .log_control import (

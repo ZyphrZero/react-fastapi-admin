@@ -2,9 +2,9 @@ import axios from 'axios'
 import { isBusinessError, isBusinessSuccess, handleAuthError } from '@/utils/errorHandler'
 import { clearSession, getAccessToken, hasRefreshSession, markRefreshSession, setAccessToken } from '@/utils/session'
 
-// 创建axios实例
+// Create the Axios client.
 const request = axios.create({
-    baseURL: '/api', // API基础路径
+    baseURL: '/api', // Base API path.
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ const getRefreshPromise = () => {
     return refreshPromise
 }
 
-// 请求拦截器
+// Request interceptor.
 request.interceptors.request.use(
     async (config) => {
         if (config.noNeedToken) {
@@ -86,37 +86,37 @@ request.interceptors.request.use(
     }
 )
 
-// 响应拦截器
+// Response interceptor.
 request.interceptors.response.use(
     (response) => {
-        // 如果是文件下载等特殊响应，直接返回
+        // Return special responses such as file downloads directly.
         if (response.config.responseType === 'blob') {
             return response
         }
 
-        // 检查是否为业务成功
+        // Check whether the business request succeeded.
         if (isBusinessSuccess(response)) {
             return response.data
         }
 
-        // 检查是否为业务错误（在正常HTTP响应中）
+        // Check whether this is a business error inside an otherwise normal HTTP response.
         if (isBusinessError(response)) {
-            // 处理认证错误
+            // Handle authentication errors.
             if (response.status === 401) {
                 handleAuthError(response.status)
             }
 
-            // 创建业务错误对象并抛出
+            // Create and throw a business error object.
             const error = new Error('Business Error')
             error.response = response
             return Promise.reject(error)
         }
 
-        // 其他情况直接返回数据
+        // Return the payload directly for all other cases.
         return response.data
     },
     async (error) => {
-        // 处理网络错误和HTTP错误状态码
+        // Handle network errors and HTTP error status codes.
         const originalRequest = error.config || {}
 
         if (
@@ -143,7 +143,7 @@ request.interceptors.response.use(
             handleAuthError(error.response.status)
         }
 
-        // 拒绝Promise，让组件处理具体的错误显示
+        // Reject the promise so components can decide how to display the error.
         return Promise.reject(error)
     }
 )

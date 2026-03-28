@@ -18,29 +18,29 @@ from app.utils.password import generate_bootstrap_admin_password, get_password_h
 
 
 async def ensure_database_connection() -> None:
-    """确保当前执行流已经显式绑定数据库上下文。"""
+    """Ensure the current execution flow is explicitly bound to a database context."""
     context = require_context()
     if not context.inited:
-        raise RuntimeError("数据库上下文未初始化")
+        raise RuntimeError("Database context is not initialized")
 
 
 async def bootstrap_database() -> None:
     """
-    应用已提交的数据库迁移。
+    Apply committed database migrations.
     """
     migrations_dir = Path(settings.BASE_DIR) / "migrations" / "models"
     has_migration_files = migrations_dir.exists() and any(migrations_dir.glob("*.py"))
     if not has_migration_files:
-        raise FileNotFoundError(f"迁移目录不存在或为空: {migrations_dir}")
+        raise FileNotFoundError(f"Migration directory does not exist or is empty: {migrations_dir}")
 
     command = Command(tortoise_config=settings.tortoise_orm)
     try:
         await command.init()
         upgraded = await asyncio.shield(command.upgrade(run_in_transaction=True))
         if upgraded:
-            logger.info(f"已应用数据库迁移: {upgraded}")
+            logger.info(f"Applied database migrations: {upgraded}")
         else:
-            logger.info("数据库迁移已是最新状态")
+            logger.info("Database migrations are already up to date")
     finally:
         await command.close()
 
@@ -55,7 +55,7 @@ async def init_superuser() -> User | None:
     if initial_password:
         is_valid, message = validate_password_strength(initial_password)
         if not is_valid:
-            raise RuntimeError(f"INITIAL_ADMIN_PASSWORD 不符合密码策略: {message}")
+            raise RuntimeError(f"INITIAL_ADMIN_PASSWORD does not satisfy the password policy: {message}")
     else:
         initial_password = generate_bootstrap_admin_password()
         generated_password = initial_password
@@ -74,14 +74,17 @@ async def init_superuser() -> User | None:
     if not created:
         return None
 
-    logger.info(f"已初始化管理员账户: {admin_user.username}")
+    logger.info(f"Initialized admin account: {admin_user.username}")
     if generated_password is not None:
         emit_bootstrap_admin_password(admin_user.username, generated_password)
     return admin_user
 
 
 def emit_bootstrap_admin_password(username: str, password: str) -> None:
-    logger.warning("首次引导已自动生成超级管理员密码，请从当前启动控制台复制该一次性密码并立即修改。")
+    logger.warning(
+        "A bootstrap superuser password was generated automatically. Copy this one-time password from the current "
+        "startup console and rotate it immediately."
+    )
     print(
         "\n".join(
             [
@@ -116,20 +119,20 @@ async def init_roles() -> tuple[Role | None, Role | None]:
         menu_paths=get_default_role_menu_paths("普通用户"),
         api_ids=[],
     )
-    logger.info("已初始化默认角色")
+    logger.info("Initialized default roles")
     return admin_role, user_role
 
 
 async def init_user_roles() -> None:
-    """确保超级管理员持有默认管理员角色。"""
+    """Ensure the superuser has the default administrator role."""
     admin_role = await Role.filter(name="管理员").first()
     if not admin_role:
-        logger.warning("未找到管理员角色，跳过角色分配")
+        logger.warning("Administrator role not found; skipping role assignment")
         return
 
     admin_user = await User.filter(username=settings.INITIAL_ADMIN_USERNAME, is_superuser=True).first()
     if not admin_user:
-        logger.warning("未找到超级管理员用户，跳过角色分配")
+        logger.warning("Superuser not found; skipping role assignment")
         return
 
     user_roles = await admin_user.roles.all()
@@ -138,13 +141,13 @@ async def init_user_roles() -> None:
         return
 
     await admin_user.roles.add(admin_role)
-    logger.info("已为超级管理员分配管理员角色")
+    logger.info("Assigned administrator role to superuser")
 
 
 async def refresh_api_metadata() -> None:
     await ensure_database_connection()
     await api_admin_service.refresh_api_catalog(build_api_catalog_route_definitions())
-    logger.info("已刷新 API 元数据")
+    logger.info("API metadata refreshed")
 
 
 async def sync_default_role_permissions() -> None:
@@ -178,7 +181,7 @@ async def sync_default_role_permissions() -> None:
         if updated_fields:
             updated_fields.append("updated_at")
             await role.save(update_fields=updated_fields)
-            logger.info(f"已初始化角色默认权限: {role_name}")
+            logger.info(f"Initialized default role permissions: {role_name}")
 
 
 async def seed_base_data() -> None:

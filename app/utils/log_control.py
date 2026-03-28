@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-日志控制模块
-基于loguru的统一日志系统，包含日志配置、访问日志中间件等功能
+Logging control module.
+Provides a unified logging system built on loguru, including logging setup and access log middleware.
 """
 
 import sys
@@ -28,14 +28,14 @@ def _console_sink(message: str) -> None:
 
 
 class LogManager:
-    """日志管理器，统一管理应用的日志配置"""
+    """Log manager responsible for application-wide logging configuration."""
 
     def __init__(self):
-        # 是否已配置
+        # Whether logging has already been configured.
         self._is_configured = False
 
     def get_log_config(self) -> dict:
-        """获取日志配置"""
+        """Return the effective log configuration."""
         config = {
             "log_dir": str(settings.logs_path),
             "log_retention_days": settings.LOG_RETENTION_DAYS,
@@ -44,7 +44,7 @@ class LogManager:
             "max_file_size": settings.LOG_MAX_FILE_SIZE,
         }
 
-        # 生产环境优化配置
+        # Apply production-focused overrides.
         if settings.is_production:
             config.update(
                 {
@@ -59,11 +59,11 @@ class LogManager:
 
     def setup_logger(self, force: bool = False, **kwargs):
         """
-        设置日志记录器
+        Configure the application logger.
 
         Args:
-            force: 是否强制重新配置
-            **kwargs: 日志配置参数
+            force: Whether to force reconfiguration.
+            **kwargs: Logging configuration overrides.
         """
         if self._is_configured and not force:
             return logger
@@ -75,21 +75,21 @@ class LogManager:
         config = self.get_log_config()
         config.update(kwargs)
 
-        # 移除默认的日志处理器
+        # Remove the default handlers.
         logger.remove()
 
-        # 设置日志级别
+        # Compute the effective log level.
         log_level = "DEBUG" if config["debug_mode"] else "INFO"
 
-        # 确保日志目录存在
+        # Ensure the log directory exists.
         log_path = Path(config["log_dir"])
         log_path.mkdir(parents=True, exist_ok=True)
 
-        # 获取当前日期作为日志文件名的一部分
+        # Use the current date in the log file name.
         today = datetime.now().strftime("%Y-%m-%d")
         log_file = log_path / f"{today}.log"
 
-        # 控制台输出配置
+        # Console output settings.
         console_format = (
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
@@ -97,10 +97,10 @@ class LogManager:
             "<level>{message}</level>"
         )
 
-        # 文件输出配置
+        # File output settings.
         file_format = "{time:YYYY-MM-DD HH:mm:ss} | " "{level: <8} | " "{name}:{function}:{line} | " "{message}"
 
-        # 添加控制台输出
+        # Add console logging.
         logger.add(
             sink=_console_sink,
             format=console_format,
@@ -110,7 +110,7 @@ class LogManager:
             diagnose=config["debug_mode"],
         )
 
-        # 添加文件日志处理器
+        # Add the main file logger.
         logger.add(
             sink=str(log_file),
             rotation=config["log_rotation"],
@@ -124,7 +124,7 @@ class LogManager:
             compression="zip",
         )
 
-        # 错误日志单独记录
+        # Persist error logs to a dedicated file.
         error_log_file = log_path / f"error_{today}.log"
         logger.add(
             sink=str(error_log_file),
@@ -141,19 +141,19 @@ class LogManager:
 
         self._is_configured = True
 
-        # 记录配置信息
-        logger.info(f"日志系统已配置 - 环境: {settings.APP_ENV}")
-        logger.info(f"日志目录: {config['log_dir']}")
-        logger.info(f"调试模式: {config['debug_mode']}")
-        logger.info(f"日志保留天数: {config['log_retention_days']}")
+        # Log the resolved configuration.
+        logger.info(f"Logging system configured - environment: {settings.APP_ENV}")
+        logger.info(f"Log directory: {config['log_dir']}")
+        logger.info(f"Debug mode: {config['debug_mode']}")
+        logger.info(f"Log retention days: {config['log_retention_days']}")
 
         return logger
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
     """
-    HTTP访问日志中间件
-    记录所有HTTP请求的访问日志
+    HTTP access log middleware.
+    Records access logs for all HTTP requests.
     """
 
     def __init__(self, app, skip_paths: Optional[list[str]] = None):
@@ -161,22 +161,22 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         self.skip_paths = skip_paths or ["/docs", "/redoc", "/openapi.json", "/favicon.ico"]
 
     def should_skip_logging(self, path: str) -> bool:
-        """判断是否应该跳过日志记录"""
+        """Return whether logging should be skipped for the given path."""
         return any(skip_path in path for skip_path in self.skip_paths)
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # 跳过不需要记录的路径
+        # Skip paths that should not be logged.
         if self.should_skip_logging(request.url.path):
             return await call_next(request)
 
         start_time = datetime.now()
 
-        # 安全地获取客户端IP
+        # Safely resolve the client IP address.
         client_host = "unknown"
         if request.client:
             client_host = request.client.host
 
-        # 获取用户代理
+        # Read the user agent.
         user_agent = request.headers.get("user-agent", "")
 
         try:
@@ -184,7 +184,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
             end_time = datetime.now()
             process_time = (end_time - start_time).total_seconds()
 
-            # 记录访问日志
+            # Record the access log entry.
             log_message = (
                 f"HTTP {response.status_code} | "
                 f"{client_host} | "
@@ -194,7 +194,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                 f"UA: {user_agent[:100]}"
             )
 
-            # 根据状态码选择日志级别
+            # Select the log level based on the response status.
             if response.status_code >= 500:
                 logger.error(log_message)
             elif response.status_code >= 400:
@@ -208,7 +208,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
             end_time = datetime.now()
             process_time = (end_time - start_time).total_seconds()
 
-            # 记录异常日志
+            # Record exception details.
             logger.error(
                 f"HTTP ERROR | "
                 f"{client_host} | "
@@ -220,24 +220,24 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
             raise
 
 
-# 创建全局日志管理器
+# Global log manager instance.
 log_manager = LogManager()
 
 
 def init_logging():
     """
-    初始化日志系统
-    在应用启动时调用
+    Initialize the logging system.
+    Called during application startup.
     """
     log_manager.setup_logger()
 
-    # 记录系统启动信息
+    # Record startup information.
     logger.info("=" * 50)
-    logger.info(f"{settings.APP_TITLE} 正在启动...")
-    logger.info(f"环境: {settings.APP_ENV}")
-    logger.info(f"调试模式: {settings.DEBUG}")
-    logger.info(f"项目根目录: {settings.BASE_DIR}")
-    logger.info(f"日志目录: {settings.logs_path}")
+    logger.info(f"{settings.APP_TITLE} is starting...")
+    logger.info(f"Environment: {settings.APP_ENV}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"Project root: {settings.BASE_DIR}")
+    logger.info(f"Log directory: {settings.logs_path}")
     logger.info("=" * 50)
 
     return logger
@@ -245,13 +245,13 @@ def init_logging():
 
 def get_logger(name: Optional[str] = None):
     """
-    获取日志记录器
+    Return a configured logger.
 
     Args:
-        name: 日志记录器名称
+        name: Logger name.
 
     Returns:
-        配置好的日志记录器
+        The configured logger.
     """
     if not log_manager._is_configured:
         log_manager.setup_logger()
@@ -261,32 +261,32 @@ def get_logger(name: Optional[str] = None):
     return logger
 
 
-# 便捷的日志记录函数
+# Convenience logging helpers.
 def log_info(message: str, **kwargs):
-    """记录信息日志"""
+    """Log an info message."""
     logger.info(message, **kwargs)
 
 
 def log_warning(message: str, **kwargs):
-    """记录警告日志"""
+    """Log a warning message."""
     logger.warning(message, **kwargs)
 
 
 def log_error(message: str, **kwargs):
-    """记录错误日志"""
+    """Log an error message."""
     logger.error(message, **kwargs)
 
 
 def log_debug(message: str, **kwargs):
-    """记录调试日志"""
+    """Log a debug message."""
     logger.debug(message, **kwargs)
 
 
 def log_exception(message: str, **kwargs):
-    """记录异常日志"""
+    """Log an exception message."""
     logger.exception(message, **kwargs)
 
 
 def log_critical(message: str, **kwargs):
-    """记录严重错误日志"""
+    """Log a critical message."""
     logger.critical(message, **kwargs)

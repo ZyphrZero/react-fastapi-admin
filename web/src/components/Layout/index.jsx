@@ -356,7 +356,7 @@ const AppLayout = () => {
     try {
       await api.auth.logout()
     } catch (error) {
-      console.error('退出登录失败:', error)
+      console.error('Logout failed:', error)
     } finally {
       clearSession()
       setUserInfo(null)
@@ -385,7 +385,7 @@ const AppLayout = () => {
           setStoredApiPermissions(apiPermissionResponse.data || [])
         }
       } catch (error) {
-        console.error('获取菜单失败:', error)
+        console.error('Failed to fetch menu data:', error)
 
         if (!cancelled) {
           setMenuItems([])

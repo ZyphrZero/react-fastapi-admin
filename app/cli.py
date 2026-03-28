@@ -80,12 +80,12 @@ async def execute_async_command(args: argparse.Namespace) -> int:
             await bootstrap_database()
             await run_with_database_context(bootstrap_application_data)
         else:
-            raise ValueError(f"不支持的命令: {command_label}")
+            raise ValueError(f"Unsupported command: {command_label}")
     except Exception:
-        logger.exception(f"运维命令执行失败: {command_label}")
+        logger.exception(f"Operations command failed: {command_label}")
         return 1
 
-    logger.info(f"运维命令执行完成: {command_label}")
+    logger.info(f"Operations command completed: {command_label}")
     return 0
 
 

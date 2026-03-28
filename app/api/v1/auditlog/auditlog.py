@@ -68,14 +68,14 @@ def build_query_filter(
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
 ) -> Q:
-    """构建统一的查询条件过滤器
+    """Build a shared query filter.
 
-    将所有查询条件统一处理为一个Q对象，方便重复使用
+    Normalize all query conditions into a single reusable `Q` object.
     """
-    # 基础条件：未删除的记录
+    # Base condition: only non-deleted records.
     q = Q(is_deleted=False)
 
-    # 添加文本匹配条件
+    # Add text-match conditions.
     if username:
         q &= Q(username__icontains=username)
     if module:
@@ -91,11 +91,11 @@ def build_query_filter(
     if log_level:
         q &= Q(log_level=log_level.lower())
 
-    # 添加数值匹配条件
+    # Add numeric-match conditions.
     if status is not None:
         q &= Q(status=status)
 
-    # 添加时间范围条件
+    # Add time-range conditions.
     if start_time and end_time:
         q &= Q(created_at__range=[start_time, end_time])
     elif start_time:
@@ -122,7 +122,7 @@ async def get_audit_log_list(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
 ):
     """
-    获取审计日志轻量列表，使用游标分页降低大表查询成本
+    Return a lightweight audit-log list using cursor pagination to reduce large-table query costs.
     """
     base_q = build_query_filter(
         username, module, method, summary, status, ip_address, operation_type, log_level, start_time, end_time
@@ -145,7 +145,7 @@ async def get_audit_log_list(
 @router.get("/detail/{log_id}", summary="查看操作日志详情")
 async def get_audit_log_detail(log_id: int = FastAPIPath(..., description="日志ID")):
     """
-    获取单条审计日志详情，按需返回大字段
+    Return the details for a single audit log and fetch large fields on demand.
     """
     detail_rows = await AuditLog.filter(id=log_id, is_deleted=False).limit(1).values(*AUDIT_LOG_DETAIL_FIELDS)
 
@@ -160,18 +160,18 @@ async def delete_audit_log(
     log_id: int = FastAPIPath(..., description="日志ID"), current_user=Depends(AuthControl.is_authed)
 ):
     """
-    删除指定的审计日志（软删除）
+    Soft-delete the specified audit log.
     """
-    # 权限检查
+    # Permission check.
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="权限不足，只有超级管理员可以删除日志")
 
-    # 检查日志是否存在
+    # Check whether the log exists.
     log = await AuditLog.get_or_none(id=log_id)
     if not log:
         raise HTTPException(status_code=404, detail="日志不存在")
 
-    # 执行软删除
+    # Perform the soft delete.
     await AuditLog.filter(id=log_id).update(is_deleted=True)
     return Success(msg="删除成功")
 
@@ -181,17 +181,17 @@ async def batch_delete_audit_logs(
     log_ids: List[int] = Body(..., description="日志ID列表"), current_user=Depends(AuthControl.is_authed)
 ):
     """
-    批量删除指定的审计日志（软删除）
+    Soft-delete the specified audit logs in batch.
     """
-    # 权限检查
+    # Permission check.
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="权限不足，只有超级管理员可以删除日志")
 
-    # 检查参数
+    # Validate input.
     if not log_ids:
         raise HTTPException(status_code=400, detail="请提供要删除的日志ID")
 
-    # 执行批量软删除
+    # Perform the batch soft delete.
     count = await AuditLog.batch_delete(log_ids)
     return Success(msg=f"成功删除{count}条日志")
 
@@ -202,20 +202,20 @@ async def clear_audit_logs(
     current_user=Depends(AuthControl.is_authed),
 ):
     """
-    清空所有或指定天数前的审计日志（软删除）
+    Soft-delete all audit logs or only logs older than the specified number of days.
     """
-    # 权限检查
+    # Permission check.
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="权限不足，只有超级管理员可以清空日志")
 
-    # 构建查询条件
+    # Build the query filter.
     q = Q(is_deleted=False)
     if days:
         clear_date = datetime.now() - timedelta(days=days)
         clear_date_str = clear_date.strftime("%Y-%m-%d")
         q &= Q(created_at__lt=clear_date_str)
 
-    # 执行批量软删除
+    # Perform the batch soft delete.
     count = await AuditLog.filter(q).update(is_deleted=True)
     return Success(msg=f"成功清除{count}条日志")
 
@@ -227,9 +227,9 @@ async def _export_logs_to_csv(
     export_path: str,
 ):
     """
-    将日志导出到CSV文件（后台任务）
+    Export logs to a CSV file in a background task.
     """
-    # 构建查询条件
+    # Build the query filter.
     filter_params = {
         "username": filters.get("username", ""),
         "module": filters.get("module", ""),
@@ -242,14 +242,14 @@ async def _export_logs_to_csv(
     }
     q = build_query_filter(**filter_params, start_time=start_time, end_time=end_time)
 
-    # 查询符合条件的日志
+    # Query the matching logs.
     logs = await AuditLog.filter(q).order_by("-created_at")
 
-    # 确保导出目录存在
+    # Ensure the export directory exists.
     export_dir = os.path.dirname(export_path)
     os.makedirs(export_dir, exist_ok=True)
 
-    # 字段名称映射
+    # Column display-name mapping.
     field_names_map = {
         "ID": "id",
         "用户ID": "user_id",
@@ -267,7 +267,7 @@ async def _export_logs_to_csv(
         "更新时间": "updated_at",
     }
 
-    # 写入CSV文件
+    # Write the CSV file.
     try:
         with open(export_path, "w", newline="", encoding="utf-8-sig") as f:
             fieldnames = list(field_names_map.keys())
@@ -275,21 +275,21 @@ async def _export_logs_to_csv(
             writer.writeheader()
 
             for log in logs:
-                # 创建行数据
+                # Create a CSV row.
                 row_data = {}
                 for display_name, field_name in field_names_map.items():
                     value = getattr(log, field_name)
-                    # 处理时间格式
+                    # Format timestamp fields.
                     if field_name in ("created_at", "updated_at") and value:
                         value = value.strftime("%Y-%m-%d %H:%M:%S")
                     row_data[display_name] = value
 
                 writer.writerow(row_data)
     except Exception as e:
-        # 记录导出错误但不中断程序
+        # Log export failures without interrupting the process.
         import logging
 
-        logging.error(f"导出日志到CSV文件失败: {str(e)}")
+        logging.error(f"Failed to export audit logs to CSV: {str(e)}")
 
 
 @router.post("/export", summary="导出操作日志")
@@ -308,16 +308,16 @@ async def export_audit_logs(
     current_user=Depends(AuthControl.is_authed),
 ):
     """
-    导出审计日志到CSV文件
+    Export audit logs to a CSV file.
     """
-    # 生成导出文件名和路径
+    # Generate the export file name and path.
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     export_dir = Path("./exports/auditlogs")
     export_dir.mkdir(parents=True, exist_ok=True)
     export_file = f"auditlog_export_{timestamp}.csv"
     export_path = export_dir / export_file
 
-    # 准备过滤条件
+    # Prepare the filter payload.
     filters = {
         "username": username,
         "module": module,
@@ -329,7 +329,7 @@ async def export_audit_logs(
         "log_level": log_level,
     }
 
-    # 启动后台任务导出日志
+    # Start the background export task.
     background_tasks.add_task(_export_logs_to_csv, start_time, end_time, filters, str(export_path))
 
     return Success(msg=f"正在导出日志，文件将保存为 {export_file}")
@@ -340,9 +340,9 @@ async def download_export_file(
     filename: str = FastAPIPath(..., description="导出文件名"), current_user=Depends(AuthControl.is_authed)
 ):
     """
-    下载已导出的审计日志文件
+    Download a previously exported audit-log file.
     """
-    # 验证文件名，防止目录遍历攻击
+    # Validate the file name to prevent path traversal.
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="无效的文件名")
 
@@ -358,9 +358,9 @@ async def get_audit_log_statistics(
     days: int = Query(7, description="统计最近几天的数据", ge=1, le=30), current_user=Depends(AuthControl.is_authed)
 ):
     """
-    获取最近N天的审计日志统计信息
+    Return audit-log statistics for the most recent N days.
     """
-    # 添加参数验证
+    # Apply additional bounds checking.
     if days < 1:
         days = 1
     elif days > 30:

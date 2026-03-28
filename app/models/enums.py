@@ -12,7 +12,7 @@ class EnumBase(Enum):
 
 
 class StrEnum(str, Enum):
-    """Python 3.10 兼容的 StrEnum 实现"""
+    """StrEnum implementation compatible with Python 3.10."""
     pass
 
 

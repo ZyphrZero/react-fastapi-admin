@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 
 export default {
-    // 认证相关
+    // Authentication APIs.
     auth: {
         login: (data) => request.post('/base/access_token', data, { noNeedToken: true, noAuthRefresh: true }),
         refreshToken: () => request.post('/base/refresh_token', undefined, { noNeedToken: true, noAuthRefresh: true }),
@@ -25,7 +25,7 @@ export default {
         logout: () => request.post('/base/logout'),
     },
 
-    // 系统设置
+    // System settings APIs.
     systemSettings: {
         getApplicationSettings: () => request.get('/system_settings/application'),
         updateApplicationSettings: (data = {}) => request.post('/system_settings/application', data),
@@ -37,7 +37,7 @@ export default {
         updateStorageSettings: (data = {}) => request.post('/system_settings/storage', data),
     },
 
-    // 用户管理
+    // User management APIs.
     users: {
         getList: (params = {}) => request.get('/user/list', { params }),
         getById: (id) => request.get(`/user/get`, { params: { id } }),
@@ -47,7 +47,7 @@ export default {
         resetPassword: (data = {}) => request.post(`/user/reset_password`, data),
     },
 
-    // 角色管理
+    // Role management APIs.
     roles: {
         getList: (params = {}) => request.get('/role/list', { params }),
         getById: (roleId) => request.get('/role/get', { params: { role_id: roleId } }),
@@ -57,7 +57,7 @@ export default {
         delete: (data) => request.delete('/role/delete', { params: data }),
     },
 
-    // API管理
+    // API management APIs.
     apis: {
         getList: (params = {}) => request.get('/api/list', { params }),
         create: (data = {}) => request.post('/api/create', data),
@@ -66,7 +66,7 @@ export default {
         refresh: () => request.post('/api/refresh'),
         getTags: () => request.get('/api/tags'),
     },
-    // 审计日志
+    // Audit log APIs.
     auditLogs: {
         getList: (params = {}) => request.get('/auditlog/list', { params }),
         getDetail: (id) => request.get(`/auditlog/detail/${id}`),
@@ -78,9 +78,9 @@ export default {
         getStatistics: (params = {}) => request.get('/auditlog/statistics', { params }),
     },
 
-    // 文件上传
+    // File upload APIs.
     upload: {
-        // 上传单张图片
+        // Upload a single image.
         uploadImage: (file) => {
             const formData = new FormData()
             formData.append('file', file)
@@ -90,7 +90,7 @@ export default {
                 }
             })
         },
-        // 批量上传文件
+        // Upload multiple files.
         uploadFiles: (files) => {
             const formData = new FormData()
             files.forEach(file => {
@@ -102,9 +102,9 @@ export default {
                 }
             })
         },
-        // 获取文件列表
+        // Get the file list.
         getFiles: (params = {}) => request.get('/upload/list', { params }),
-        // 删除文件
+        // Delete a file.
         deleteFile: (fileKey) => request.delete('/upload/delete', { params: { file_key: fileKey } })
     },
 } 

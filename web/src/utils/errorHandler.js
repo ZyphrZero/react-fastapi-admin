@@ -1,19 +1,19 @@
 /**
- * 错误处理工具函数
- * 处理常见的HTTP错误码和错误消息，明确区分错误类型
+ * Error-handling utilities.
+ * Handles common HTTP status codes and error messages while distinguishing error types explicitly.
  */
 
 import { clearSession } from '@/utils/session'
 
-// 错误类型枚举
+// Error type enumeration.
 export const ERROR_TYPES = {
-    BUSINESS_ERROR: 'business_error',    // 业务逻辑错误
-    NETWORK_ERROR: 'network_error',      // 网络连接错误
-    AUTH_ERROR: 'auth_error',            // 认证授权错误
-    SYSTEM_ERROR: 'system_error',        // 系统错误
+    BUSINESS_ERROR: 'business_error',    // Business-logic error.
+    NETWORK_ERROR: 'network_error',      // Network connectivity error.
+    AUTH_ERROR: 'auth_error',            // Authentication or authorization error.
+    SYSTEM_ERROR: 'system_error',        // System-level error.
 }
 
-// 通用错误映射
+// Common error mapping.
 const ERROR_CODE_MAP = {
     400: '请求参数错误',
     401: '登录已过期，请重新登录',
@@ -29,23 +29,23 @@ const ERROR_CODE_MAP = {
     504: '网关超时',
 }
 
-// 业务错误状态码 (通常这些有正常的响应结构)
+// Business error status codes. These usually keep a normal response shape.
 const BUSINESS_ERROR_CODES = [400, 422, 409, 412]
 
-// 认证错误状态码
+// Authentication error status codes.
 const AUTH_ERROR_CODES = [401, 403]
 
-// 系统错误状态码
+// System error status codes.
 const SYSTEM_ERROR_CODES = [500, 502, 503, 504]
 
 /**
- * 标准化错误对象结构
- * @param {string} type - 错误类型
- * @param {string} message - 错误消息
- * @param {number} code - 错误代码
- * @param {Object} originalError - 原始错误对象
- * @param {any} data - 附加数据
- * @returns {Object} 标准化的错误对象
+ * Standardized error object shape.
+ * @param {string} type - Error type.
+ * @param {string} message - Error message.
+ * @param {number} code - Error code.
+ * @param {Object} originalError - Original error object.
+ * @param {any} data - Additional data.
+ * @returns {Object} Standardized error object.
  */
 export const createStandardError = (type, message, code = 0, originalError = null, data = null) => {
     return {
@@ -59,42 +59,42 @@ export const createStandardError = (type, message, code = 0, originalError = nul
 }
 
 /**
- * 判断错误类型
- * @param {Object} error - 错误对象
- * @returns {string} 错误类型
+ * Resolve the error type.
+ * @param {Object} error - Error object.
+ * @returns {string} Error type.
  */
 export const getErrorType = (error) => {
-    // 网络错误
+    // Network error.
     if (!error.response) {
         return ERROR_TYPES.NETWORK_ERROR
     }
 
     const { status } = error.response
 
-    // 认证错误
+    // Authentication error.
     if (AUTH_ERROR_CODES.includes(status)) {
         return ERROR_TYPES.AUTH_ERROR
     }
 
-    // 业务错误
+    // Business error.
     if (BUSINESS_ERROR_CODES.includes(status)) {
         return ERROR_TYPES.BUSINESS_ERROR
     }
 
-    // 系统错误
+    // System error.
     if (SYSTEM_ERROR_CODES.includes(status)) {
         return ERROR_TYPES.SYSTEM_ERROR
     }
 
-    // 其他HTTP错误默认为业务错误
+    // Treat other HTTP errors as business errors by default.
     return ERROR_TYPES.BUSINESS_ERROR
 }
 
 /**
- * 从响应中提取错误消息
- * @param {Object} response - 响应对象
- * @param {string} defaultMessage - 默认错误消息
- * @returns {string} 错误消息
+ * Extract the error message from a response.
+ * @param {Object} response - Response object.
+ * @param {string} defaultMessage - Default error message.
+ * @returns {string} Error message.
  */
 export const extractErrorMessage = (response, defaultMessage) => {
     if (!response || !response.data) {
@@ -103,25 +103,25 @@ export const extractErrorMessage = (response, defaultMessage) => {
 
     const { data, status } = response
 
-    // 优先使用后端返回的错误消息
+    // Prefer error messages returned by the backend.
     if (data.msg) return data.msg
     if (data.message) return data.message
     if (data.detail) return data.detail
 
-    // 使用通用错误映射
+    // Fall back to the common error mapping.
     return ERROR_CODE_MAP[status] || defaultMessage
 }
 
 /**
- * 处理认证错误
- * @param {number} status - HTTP状态码
- * @returns {boolean} 是否处理了认证错误
+ * Handle authentication errors.
+ * @param {number} status - HTTP status code.
+ * @returns {boolean} Whether the auth error was handled.
  */
 export const handleAuthError = (status) => {
     if (status === 401) {
         clearSession()
 
-        // 避免在登录页重复重定向
+        // Avoid redirecting repeatedly on the login page.
         if (window.location.pathname !== '/login') {
             window.location.href = '/login'
         }
@@ -131,14 +131,14 @@ export const handleAuthError = (status) => {
 }
 
 /**
- * 检查响应是否为业务成功
- * @param {Object} response - 响应对象
- * @returns {boolean} 是否为业务成功
+ * Check whether the response represents business success.
+ * @param {Object} response - Response object.
+ * @returns {boolean} Whether the response represents business success.
  */
 export const isBusinessSuccess = (response) => {
-    // HTTP状态码200-299为成功
+    // HTTP 200-299 is considered successful.
     if (response.status >= 200 && response.status < 300) {
-        // 检查业务状态码（如果存在）
+        // Check the business status code when it exists.
         if (response.data && typeof response.data.code !== 'undefined') {
             return response.data.code === 200 || response.data.code === 0
         }
@@ -148,17 +148,17 @@ export const isBusinessSuccess = (response) => {
 }
 
 /**
- * 检查响应是否为业务错误
- * @param {Object} response - 响应对象
- * @returns {boolean} 是否为业务错误
+ * Check whether the response represents a business error.
+ * @param {Object} response - Response object.
+ * @returns {boolean} Whether the response represents a business error.
  */
 export const isBusinessError = (response) => {
-    // HTTP状态码在业务错误范围内，或者业务状态码表示错误
+    // Business errors can come from HTTP status codes or from business status codes in the payload.
     if (BUSINESS_ERROR_CODES.includes(response.status)) {
         return true
     }
 
-    // 检查业务状态码
+    // Check the business status code.
     if (response.data && typeof response.data.code !== 'undefined') {
         return response.data.code !== 200 && response.data.code !== 0
     }
@@ -167,10 +167,10 @@ export const isBusinessError = (response) => {
 }
 
 /**
- * 解析错误对象
- * @param {Object} error - 原始错误对象
- * @param {string} defaultMessage - 默认错误消息
- * @returns {Object} 标准化的错误对象
+ * Parse an error object.
+ * @param {Object} error - Original error object.
+ * @param {string} defaultMessage - Default error message.
+ * @returns {Object} Standardized error object.
  */
 export const parseError = (error, defaultMessage = '操作失败，请重试') => {
     const errorType = getErrorType(error)
@@ -226,7 +226,7 @@ export const parseError = (error, defaultMessage = '操作失败，请重试') =
 }
 
 /**
- * 全局错误处理器配置
+ * Global error-handler configuration.
  */
 class GlobalErrorHandler {
     constructor() {
@@ -235,50 +235,50 @@ class GlobalErrorHandler {
     }
 
     /**
-     * 注册错误处理器
-     * @param {string} errorType - 错误类型
-     * @param {Function} handler - 处理函数
+     * Register an error handler.
+     * @param {string} errorType - Error type.
+     * @param {Function} handler - Handler function.
      */
     register(errorType, handler) {
         this.handlers.set(errorType, handler)
     }
 
     /**
-     * 设置默认错误处理器
-     * @param {Function} handler - 默认处理函数
+     * Set the default error handler.
+     * @param {Function} handler - Default handler.
      */
     setDefault(handler) {
         this.defaultHandler = handler
     }
 
     /**
-     * 处理错误
-     * @param {Object} error - 标准化错误对象
-     * @param {Function} customHandler - 自定义处理函数
-     * @returns {any} 处理结果
+     * Handle an error.
+     * @param {Object} error - Standardized error object.
+     * @param {Function} customHandler - Custom handler function.
+     * @returns {any} Handler result.
      */
     handle(error, customHandler = null) {
-        // 优先使用自定义处理器
+        // Prefer a custom handler when provided.
         if (customHandler && typeof customHandler === 'function') {
             return customHandler(error)
         }
 
-        // 使用注册的类型处理器
+        // Use a registered type-specific handler.
         const typeHandler = this.handlers.get(error.type)
         if (typeHandler) {
             return typeHandler(error)
         }
 
-        // 使用默认处理器
+        // Fall back to the default handler.
         if (this.defaultHandler) {
             return this.defaultHandler(error)
         }
 
-        // 最后的兜底处理
+        // Final fallback behavior.
         console.error('Unhandled error:', error)
         return error
     }
 }
 
-// 导出全局错误处理器实例
+// Export the global error-handler instance.
 export const globalErrorHandler = new GlobalErrorHandler() 

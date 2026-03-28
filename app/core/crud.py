@@ -17,11 +17,11 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.model = model
 
     async def get(self, id: int) -> Optional[ModelType]:
-        """获取记录，如果不存在返回None"""
+        """Return a record by ID, or `None` if it does not exist."""
         return await self.model.get_or_none(id=id)
 
     async def get_or_raise(self, id: int) -> ModelType:
-        """获取记录，如果不存在抛出异常"""
+        """Return a record by ID or raise when it does not exist."""
         obj = await self.model.get_or_none(id=id)
         if obj is None:
             raise RecordNotFoundError(detail=f"{self.model.__name__} with id {id} not found")
@@ -37,17 +37,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         select_related: list[str] | None = None,
     ) -> Tuple[Total, List[ModelType]]:
         """
-        获取分页列表，包含参数验证和关联查询优化
+        Return a paginated list with parameter validation and relation-query optimization.
 
         Args:
-            page: 页码，从1开始
-            page_size: 每页数量，最大1000
-            search: 查询条件
-            order: 排序字段列表
-            prefetch_related: 预取多对多和反向外键关联（解决N+1问题）
-            select_related: 预取外键关联（JOIN查询）
+            page: Page number, starting at 1.
+            page_size: Page size, up to 1000.
+            search: Search condition.
+            order: Ordering fields.
+            prefetch_related: Prefetch many-to-many and reverse-foreign-key relations to avoid N+1 issues.
+            select_related: Preload foreign-key relations via JOIN queries.
         """
-        # 参数验证
+        # Validate pagination parameters.
         if page < 1:
             raise InvalidParameterError(detail="页码必须大于0")
         if page_size < 1:
@@ -62,20 +62,20 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if select_related is None:
             select_related = []
 
-        # 构建查询
+        # Build the base query.
         query = self.model.filter(search)
 
-        # 获取总数（不需要关联查询优化）
+        # Count the total number of records without relation optimizations.
         total = await query.count()
 
-        # 获取分页数据，应用关联查询优化
+        # Fetch paginated records and apply relation-query optimizations.
         items_query = query.offset((page - 1) * page_size).limit(page_size).order_by(*order)
 
-        # 应用 select_related (外键关联，使用 JOIN)
+        # Apply `select_related` for foreign keys via JOIN queries.
         if select_related:
             items_query = items_query.select_related(*select_related)
 
-        # 应用 prefetch_related (多对多和反向外键，使用额外查询)
+        # Apply `prefetch_related` for many-to-many and reverse-foreign-key relations.
         if prefetch_related:
             items = await items_query.prefetch_related(*prefetch_related)
         else:
@@ -84,7 +84,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return Total(total), items
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
-        """创建新记录"""
+        """Create a new record."""
         if isinstance(obj_in, Dict):
             obj_dict = obj_in
         else:
@@ -94,7 +94,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return obj
 
     async def update(self, id: int, obj_in: Union[UpdateSchemaType, Dict[str, Any]]) -> ModelType:
-        """更新记录，如果记录不存在抛出异常"""
+        """Update a record and raise when it does not exist."""
         obj = await self.get_or_raise(id=id)
 
         if isinstance(obj_in, Dict):
@@ -107,8 +107,8 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return obj
 
     async def remove(self, id: int) -> ModelType:
-        """删除记录，如果记录不存在抛出异常，返回被删除的对象"""
+        """Delete a record, raise when it does not exist, and return the deleted object."""
         obj = await self.get_or_raise(id=id)
-        deleted_obj = obj  # 保存引用用于返回
+        deleted_obj = obj  # Keep a reference for the return value.
         await obj.delete()
         return deleted_obj

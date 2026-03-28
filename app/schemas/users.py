@@ -19,7 +19,7 @@ class BaseUser(BaseModel):
 
 
 class UserOut(BaseModel):
-    """用户输出模型，用于API响应"""
+    """User output model for API responses."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,9 +44,9 @@ class UserCreate(BaseModel):
     role_ids: Optional[List[int]] = Field(default_factory=list)
 
     def create_dict(self):
-        """返回用于数据库创建的字典，排除role_ids和处理空值"""
+        """Return a payload for database creation, excluding `role_ids` and normalizing empty fields."""
         data = self.model_dump(exclude_unset=True, exclude={"role_ids"})
-        # 处理空字符串字段，转换为None以避免数据库约束错误
+        # Convert empty strings to None to avoid database-constraint errors.
         for key, value in data.items():
             if isinstance(value, str) and value.strip() == "":
                 data[key] = None
@@ -65,9 +65,9 @@ class UserUpdate(BaseModel):
     role_ids: Optional[List[int]] = Field(None, description="角色ids")
 
     def update_dict(self):
-        """返回用于数据库更新的字典，排除role_ids和空值字段"""
+        """Return a payload for database updates, excluding `role_ids` and empty fields."""
         data = self.model_dump(exclude_unset=True, exclude={"id", "role_ids"})
-        # 处理空字符串字段，转换为None以避免数据库约束错误
+        # Convert empty strings to None to avoid database-constraint errors.
         for key, value in data.items():
             if isinstance(value, str) and value.strip() == "":
                 data[key] = None
@@ -99,7 +99,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    """用户个人信息更新模型"""
+    """User profile update model."""
 
     nickname: Optional[str] = Field(None, max_length=30, description="昵称")
     avatar: Optional[str] = Field(None, max_length=500, description="头像地址")
@@ -110,7 +110,7 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def validate_phone(cls, v):
         if v is not None and v != "":
-            # 检查是否为11位数字且以1开头，第二位为3-9
+            # Require an 11-digit number starting with 1 and a second digit between 3 and 9.
             if not v.isdigit() or len(v) != 11 or not v.startswith("1") or v[1] not in "3456789":
                 raise ValueError("手机号码必须是11位数字，且格式正确")
         return v

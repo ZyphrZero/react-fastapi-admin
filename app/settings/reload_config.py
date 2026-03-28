@@ -1,85 +1,85 @@
 """
-热重载配置模块
-定义 Granian 服务器热重载时需要忽略的目录和文件模式
+Hot-reload configuration module.
+Defines the directories and file patterns ignored by Granian hot reload.
 """
 
-# 忽略的目录列表
+# Ignored directory list.
 RELOAD_IGNORE_DIRS = [
-    "logs",  # 忽略日志目录
-    "storage",  # 忽略存储目录
-    "__pycache__",  # 忽略 Python 缓存
-    ".git",  # 忽略 git 目录
-    "node_modules",  # 忽略 node_modules
-    "migrations",  # 忽略数据库迁移目录
-    ".pytest_cache",  # 忽略 pytest 缓存
-    ".venv",  # 忽略虚拟环境
-    "venv",  # 忽略虚拟环境
-    "env",  # 忽略环境目录
-    ".mypy_cache",  # 忽略 mypy 缓存
-    ".ruff_cache",  # 忽略 ruff 缓存
-    "dist",  # 忽略构建分发目录
-    "build",  # 忽略构建目录
-    ".coverage",  # 忽略测试覆盖率文件
-    "htmlcov",  # 忽略覆盖率报告目录
-    "tests",  # 忽略测试目录
-    "logs",  # 忽略日志目录
+    "logs",  # Ignore log directories.
+    "storage",  # Ignore storage directories.
+    "__pycache__",  # Ignore Python caches.
+    ".git",  # Ignore the git directory.
+    "node_modules",  # Ignore node_modules.
+    "migrations",  # Ignore database migrations.
+    ".pytest_cache",  # Ignore pytest caches.
+    ".venv",  # Ignore virtual environments.
+    "venv",  # Ignore virtual environments.
+    "env",  # Ignore environment directories.
+    ".mypy_cache",  # Ignore mypy caches.
+    ".ruff_cache",  # Ignore ruff caches.
+    "dist",  # Ignore build distribution output.
+    "build",  # Ignore build directories.
+    ".coverage",  # Ignore coverage data files.
+    "htmlcov",  # Ignore coverage report directories.
+    "tests",  # Ignore test directories.
+    "logs",  # Ignore log directories.
 ]
 
-# 忽略的文件模式（正则表达式）
+# Ignored file patterns (regular expressions).
 RELOAD_IGNORE_PATTERNS = [
-    # 日志文件
+    # Log files.
     r".*\.log$",
     r".*\.log\.\d+$",
-    # 数据库文件
+    # Database files.
     r".*\.sqlite3.*",
     r".*\.db$",
     r".*\.db-.*$",
-    # Python 相关
+    # Python-related files.
     r".*\.pyc$",
     r".*\.pyo$",
     r".*\.pyd$",
-    # 临时文件
+    # Temporary files.
     r".*\.tmp$",
     r".*\.temp$",
     r".*\.swp$",
     r".*\.swo$",
     r".*~$",
-    # 系统文件
+    # System files.
     r".*\.DS_Store$",
     r".*Thumbs\.db$",
     r".*\.directory$",
-    # 编辑器文件
+    # Editor files.
     r".*\.vscode.*",
     r".*\.idea.*",
-    # 测试和覆盖率
+    # Tests and coverage artifacts.
     r".*\.coverage$",
     r".*\.pytest_cache.*",
-    # 构建文件
+    # Build artifacts.
     r".*\.egg-info.*",
     r".*\.wheel$",
     r".*\.whl$",
-    # 版本控制
+    # Version-control files.
     r".*\.git.*",
     r".*\.gitignore$",
     r".*\.gitkeep$",
-    # 配置文件备份
+    # Backup configuration files.
     r".*\.bak$",
     r".*\.backup$",
     r".*\.orig$",
-    # 锁文件
+    # Lock and PID files.
     r".*\.lock$",
     r".*\.pid$",
 ]
 
-# 监视的路径（只监视应用相关代码）
+# Watched paths. Only application code is monitored.
 RELOAD_WATCH_PATHS = [
-    "app",  # 应用主目录
+    "app",  # Main application directory.
 ]
 
-# 热重载配置
+# Hot-reload configuration.
 RELOAD_CONFIG = {
     "reload_ignore_dirs": RELOAD_IGNORE_DIRS,
     "reload_ignore_patterns": RELOAD_IGNORE_PATTERNS,
     "reload_paths": RELOAD_WATCH_PATHS,
-    "reload_tick": 100,  # 监视频率（毫秒）
+    "reload_tick": 100,  # Watch interval in milliseconds.
 }

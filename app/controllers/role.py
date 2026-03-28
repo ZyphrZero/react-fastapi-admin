@@ -4,7 +4,7 @@ from app.schemas.roles import RoleCreate, RoleUpdate
 
 
 class RoleController(CRUDBase[Role, RoleCreate, RoleUpdate]):
-    """角色控制器 - 提供基本的角色CRUD功能"""
+    """Role controller providing basic role CRUD operations."""
 
     def __init__(self):
         super().__init__(model=Role)
@@ -13,16 +13,16 @@ class RoleController(CRUDBase[Role, RoleCreate, RoleUpdate]):
         return await self.model.filter(name=name).exists()
 
     async def get_role_with_stats(self, role: Role) -> dict:
-        """获取包含统计信息的角色数据"""
+        """Return role data enriched with statistics."""
         from app.models.admin import User
 
-        # 获取基础角色信息
+        # Fetch the base role data.
         role_data = await role.to_dict()
 
-        # 获取用户数量（通过User模型查询）
+        # Fetch the number of users through the User model.
         user_count = await User.filter(roles=role.id).count()
 
-        # 添加统计信息
+        # Attach statistics.
         role_data["user_count"] = user_count
 
         return role_data

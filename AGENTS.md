@@ -42,4 +42,6 @@ Keep the `type` lowercase, make the `scope` short and lowercase when used, and w
 PRs should explain the change, note any migration or `.env` impact, link related issues, and include screenshots for UI updates. Review generated migrations before committing them, and prefer adding a new migration over rewriting migration history that may already have been applied elsewhere.
 
 ## Security & Configuration Tips
-Copy `.env.example` to `.env` for local setup. Do not commit secrets, local database files, or temporary caches. Commit Aerich migration files, but keep local SQLite database artifacts such as `db.sqlite3` out of version control. The initial admin account is controlled by `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD`; if the password is left blank, first bootstrap generates a one-time password that should be rotated outside development.
+Copy `.env.example` to `.env` for local setup. Do not commit secrets, local database files, or temporary caches. Commit Aerich migration files, but keep local SQLite database artifacts such as `db.sqlite3` out of version control. The initial admin account is controlled by `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD`.
+
+When using the `agent-browser` skill for page-level reproduction, read the login credentials from `.env` first. In this workspace, the local default initial admin credentials are `admin` / `Admin@123` unless `.env` has been changed. If `INITIAL_ADMIN_PASSWORD` is left blank, first bootstrap generates a one-time password that should be rotated outside development.

@@ -10,10 +10,10 @@ from tortoise.transactions import in_transaction
 @asynccontextmanager
 async def managed_transaction() -> AsyncIterator[None]:
     """
-    在存在数据库上下文时启用事务。
+    Enable a transaction when a database context exists.
 
-    单元测试中大量使用仓库 mock，不会初始化 TortoiseContext；
-    这种情况下退化为 no-op，避免把纯业务测试强行绑定到数据库。
+    Unit tests often use repository mocks and do not initialize `TortoiseContext`.
+    In that case this degrades to a no-op so pure business tests are not forced to depend on the database.
     """
     try:
         require_context()

@@ -6,9 +6,9 @@ const MESSAGE_DEDUPE_WINDOW_MS = 2000
 const messageShownAt = new Map()
 
 /**
- * 错误处理Hook
- * 基于 sonner 封装统一消息提示与错误处理
- * 支持自定义错误处理器和全局错误处理
+ * Error-handling hook.
+ * Wraps sonner with unified notifications and error handling.
+ * Supports custom error handlers and a global error handler.
  */
 export const useErrorHandler = () => {
     const message = useMemo(() => ({
@@ -43,8 +43,8 @@ export const useErrorHandler = () => {
     }, [message])
 
     /**
-     * 默认错误处理逻辑
-     * @param {Object} standardError - 标准化错误对象
+     * Default error-handling logic.
+     * @param {Object} standardError - Standardized error object.
      */
     const handleDefaultError = useCallback((standardError) => {
         const errorKey = `error:${standardError.code}:${standardError.message}`
@@ -68,25 +68,25 @@ export const useErrorHandler = () => {
     }, [showDedupedMessage])
 
     /**
-     * 处理API错误的通用方法
-     * @param {Object} error - 原始错误对象
-     * @param {string} defaultMessage - 默认错误消息
-     * @param {Function} customHandler - 自定义错误处理函数
-     * @returns {Object} 标准化的错误对象
+     * Generic helper for API errors.
+     * @param {Object} error - Original error object.
+     * @param {string} defaultMessage - Default error message.
+     * @param {Function} customHandler - Custom error handler.
+     * @returns {Object} Standardized error object.
      */
     const handleError = useCallback((error, defaultMessage = '操作失败，请重试', customHandler = null) => {
-        // 解析错误对象
+        // Parse the error object.
         const standardError = parseError(error, defaultMessage)
 
-        // 如果有自定义处理器，使用自定义处理器
+        // Use the custom handler when one is provided.
         if (customHandler && typeof customHandler === 'function') {
             return customHandler(standardError)
         }
 
-        // 使用全局错误处理器
+        // Use the global error handler.
         const result = globalErrorHandler.handle(standardError)
 
-        // 如果全局处理器没有处理，使用默认处理逻辑
+        // Fall back to the default handler when the global handler does not consume the error.
         if (result === standardError) {
             handleDefaultError(standardError)
         }
@@ -95,11 +95,11 @@ export const useErrorHandler = () => {
     }, [handleDefaultError])
 
     /**
-     * 处理业务错误（始终显示错误消息）
-     * @param {Object} error - 错误对象
-     * @param {string} defaultMessage - 默认错误消息
-     * @param {Function} customHandler - 自定义错误处理函数
-     * @returns {Object} 标准化的错误对象
+     * Handle business errors and always show a message.
+     * @param {Object} error - Error object.
+     * @param {string} defaultMessage - Default error message.
+     * @param {Function} customHandler - Custom error handler.
+     * @returns {Object} Standardized error object.
      */
     const handleBusinessError = useCallback((error, defaultMessage = '操作失败，请重试', customHandler = null) => {
         const standardError = parseError(error, defaultMessage)
@@ -115,20 +115,20 @@ export const useErrorHandler = () => {
     }, [showDedupedMessage])
 
     /**
-     * 静默处理错误（不显示消息）
-     * @param {Object} error - 错误对象
-     * @param {string} defaultMessage - 默认错误消息
-     * @returns {Object} 标准化的错误对象
+     * Handle errors silently without showing a message.
+     * @param {Object} error - Error object.
+     * @param {string} defaultMessage - Default error message.
+     * @returns {Object} Standardized error object.
      */
     const handleSilentError = useCallback((error, defaultMessage = '操作失败，请重试') => {
         return parseError(error, defaultMessage)
     }, [])
 
     /**
-     * 处理网络错误
-     * @param {Object} error - 错误对象
-     * @param {Function} customHandler - 自定义错误处理函数
-     * @returns {Object} 标准化的错误对象
+     * Handle network errors.
+     * @param {Object} error - Error object.
+     * @param {Function} customHandler - Custom error handler.
+     * @returns {Object} Standardized error object.
      */
     const handleNetworkError = useCallback((error, customHandler = null) => {
         const standardError = parseError(error, '网络连接失败，请检查网络设置')
@@ -147,73 +147,73 @@ export const useErrorHandler = () => {
     }, [showDedupedMessage])
 
     /**
-     * 注册全局错误处理器
-     * @param {string} errorType - 错误类型
-     * @param {Function} handler - 处理函数
+     * Register a global error handler.
+     * @param {string} errorType - Error type.
+     * @param {Function} handler - Handler function.
      */
     const registerGlobalHandler = useCallback((errorType, handler) => {
         globalErrorHandler.register(errorType, handler)
     }, [])
 
     /**
-     * 设置默认全局错误处理器
-     * @param {Function} handler - 默认处理函数
+     * Set the default global error handler.
+     * @param {Function} handler - Default handler.
      */
     const setDefaultGlobalHandler = useCallback((handler) => {
         globalErrorHandler.setDefault(handler)
     }, [])
 
     /**
-     * 显示成功消息
-     * @param {string} msg - 成功消息
+     * Show a success message.
+     * @param {string} msg - Success message.
      */
     const showSuccess = useCallback((msg) => {
         message.success(msg)
     }, [message])
 
     /**
-     * 显示警告消息
-     * @param {string} msg - 警告消息
+     * Show a warning message.
+     * @param {string} msg - Warning message.
      */
     const showWarning = useCallback((msg) => {
         message.warning(msg)
     }, [message])
 
     /**
-     * 显示信息消息
-     * @param {string} msg - 信息消息
+     * Show an informational message.
+     * @param {string} msg - Informational message.
      */
     const showInfo = useCallback((msg) => {
         message.info(msg)
     }, [message])
 
     /**
-     * 显示加载消息
-     * @param {string} msg - 加载消息
-     * @param {number} duration - 持续时间
+     * Show a loading message.
+     * @param {string} msg - Loading message.
+     * @param {number} duration - Duration.
      */
     const showLoading = useCallback((msg = '加载中...', duration = 0) => {
         return message.loading(msg, duration)
     }, [message])
 
     return useMemo(() => ({
-        // 错误处理方法
+        // Error-handling methods.
         handleError,
         handleBusinessError,
         handleSilentError,
         handleNetworkError,
 
-        // 全局错误处理器管理
+        // Global error-handler management.
         registerGlobalHandler,
         setDefaultGlobalHandler,
 
-        // 消息显示方法
+        // Message display helpers.
         showSuccess,
         showWarning,
         showInfo,
         showLoading,
 
-        // 原始API（备用）
+        // Raw API access (fallback).
         message,
     }), [
         handleBusinessError,

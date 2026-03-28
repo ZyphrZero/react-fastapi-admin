@@ -13,17 +13,17 @@ from app.utils.jwt_utils import decode_token
 
 
 class AuthControl:
-    """身份验证控制器"""
+    """Authentication controller."""
 
-    # 从配置文件加载IP白名单
+    # Load the IP allowlist from the current settings.
     _ip_whitelist: Set[str] = set(settings.ip_whitelist)
     _trusted_proxy_ips: Set[str] = set(settings.trusted_proxy_ips)
     _trust_proxy_headers: bool = settings.TRUST_PROXY_HEADERS
 
     @classmethod
     async def initialize(cls):
-        """初始化身份验证控制器"""
-        # 加载白名单
+        """Initialize the authentication controller."""
+        # Reload allowlist configuration.
         cls._ip_whitelist = set(settings.ip_whitelist)
         cls._trusted_proxy_ips = set(settings.trusted_proxy_ips)
         cls._trust_proxy_headers = settings.TRUST_PROXY_HEADERS
@@ -31,14 +31,14 @@ class AuthControl:
 
     @classmethod
     async def _clear_expired_data(cls, current_time: int) -> None:
-        """清理过期的频率限制数据"""
+        """Clear expired rate-limit data."""
         await RateLimitBucket.filter(expires_at__lt=current_time).delete()
 
     @classmethod
     async def enforce_rate_limit(cls, key: str) -> None:
         """
-        检查请求频率限制
-        :param key: 限流键
+        Enforce request rate limiting.
+        :param key: Rate-limit bucket key.
         """
         if not settings.RATE_LIMIT_ENABLED:
             return
@@ -66,14 +66,14 @@ class AuthControl:
 
     @classmethod
     def check_ip_whitelist(cls, client_ip: str) -> bool:
-        """检查IP是否在白名单中，如果白名单为空则不检查"""
+        """Return whether the IP is allowed. An empty allowlist means allow all."""
         if not cls._ip_whitelist:
             return True
         return client_ip in cls._ip_whitelist
 
     @classmethod
     def _get_client_ip(cls, request: Optional[Request]) -> str:
-        """获取客户端IP地址"""
+        """Return the client IP address."""
         if not request or not request.client:
             return "0.0.0.0"
 
@@ -113,10 +113,10 @@ class AuthControl:
     @classmethod
     def _validate_access_token(cls, token: str) -> dict:
         """
-        验证JWT token并返回用户ID
-        :param token: JWT token
-        :return: 解码后的载荷
-        :raises AuthenticationError: 当token无效时抛出异常
+        Validate a JWT access token and return the decoded payload.
+        :param token: JWT token.
+        :return: Decoded payload.
+        :raises AuthenticationError: Raised when the token is invalid.
         """
         try:
             decode_data = decode_token(token, expected_type="access")
@@ -126,7 +126,7 @@ class AuthControl:
                 raise AuthenticationError("Token中缺少会话版本")
             return decode_data
 
-        # 按照异常的具体程度排序，先处理具体异常，再处理通用异常
+        # Handle the most specific exceptions first, then the generic token error.
         except jwt.ExpiredSignatureError:
             raise AuthenticationError("登录已过期")
         except jwt.InvalidAlgorithmError:
@@ -143,10 +143,10 @@ class AuthControl:
         cls, request: Request, authorization: str = Header(..., description="Bearer access token")
     ) -> User:
         """
-        身份验证主方法
-        :param authorization: Bearer token
-        :param request: 请求对象
-        :return: 用户对象
+        Main authentication entrypoint.
+        :param authorization: Bearer token.
+        :param request: Request object.
+        :return: Authenticated user.
         """
         try:
             client_ip = cls._get_client_ip(request)
@@ -177,7 +177,7 @@ class AuthControl:
 
 
 class PermissionControl:
-    """基于角色聚合 API 权限的权限控制器"""
+    """Permission controller based on role-aggregated API permissions."""
 
     @classmethod
     def build_permission_code(cls, request: Request) -> str:
@@ -188,9 +188,9 @@ class PermissionControl:
     @classmethod
     async def has_permission(cls, request: Request, current_user: User = Depends(AuthControl.is_authed)) -> None:
         """
-        基于角色聚合后的 API 权限检查
-        :param request: 请求对象
-        :param current_user: 当前用户
+        Check API permissions after role aggregation.
+        :param request: Request object.
+        :param current_user: Current user.
         """
         if current_user.is_superuser:
             return
@@ -218,10 +218,10 @@ async def get_page_params(
     page_size: int = Query(10, description="每页数量", ge=1, le=100),
 ) -> dict[str, int]:
     """
-    页码参数依赖，用于分页查询
-    :param page: 页码，从1开始
-    :param page_size: 每页数量，最大100
-    :return: 分页参数字典
+    Pagination dependency used by list endpoints.
+    :param page: Page number, starting at 1.
+    :param page_size: Page size, up to 100.
+    :return: Pagination parameter dictionary.
     """
     return {"page": page, "page_size": page_size}
 

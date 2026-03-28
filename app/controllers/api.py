@@ -11,15 +11,15 @@ class ApiController(CRUDBase[Api, ApiCreate, ApiUpdate]):
         super().__init__(model=Api)
 
     async def refresh_api(self):
-        """刷新API列表 - 扫描应用程序路由并同步到数据库"""
+        """Refresh the API catalog by scanning application routes and syncing them to the database."""
         route_definitions = build_api_catalog_route_definitions()
         await api_repository.sync_routes(route_definitions)
-        logger.info("API 元数据已刷新")
+        logger.info("API metadata refreshed")
 
     async def get_all_tags(self):
-        """获取所有API标签"""
+        """Return all API tags."""
         try:
-            # 查询所有不重复的标签
+            # Collect all unique tags.
             apis = await Api.all()
             tags = set()
             for api in apis:
@@ -27,13 +27,13 @@ class ApiController(CRUDBase[Api, ApiCreate, ApiUpdate]):
                     tags.add(api.tags)
             return sorted(list(tags))
         except Exception as e:
-            logger.error(f"获取API标签失败: {str(e)}")
+            logger.error(f"Failed to fetch API tags: {str(e)}")
             return []
 
     async def _delete_api_permission(self, api_obj):
-        """删除API对应的权限记录 - 已简化，不再需要权限管理"""
-        # 权限系统已被移除，此方法保留为空以保持兼容性
-        logger.debug(f"API删除: {api_obj.method} {api_obj.path} (权限系统已简化)")
+        """Delete the permission record for an API. Kept as a no-op for compatibility after permission simplification."""
+        # The permission system has been removed. This method remains as a compatibility no-op.
+        logger.debug(f"API deleted: {api_obj.method} {api_obj.path} (permission system simplified)")
 
 
 api_controller = ApiController()

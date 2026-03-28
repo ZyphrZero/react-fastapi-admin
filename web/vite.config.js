@@ -17,7 +17,7 @@ export default defineConfig({
     forwardConsole: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:9999', // 使用 127.0.0.1 避免 IPv6 问题
+        target: 'http://127.0.0.1:9999', // Use 127.0.0.1 to avoid IPv6 issues.
         changeOrigin: true,
         rewrite: (urlPath) => urlPath.replace(/^\/api/, '/api/v1'),
       },

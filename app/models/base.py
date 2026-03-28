@@ -15,20 +15,20 @@ from app.settings.config import settings
 
 class BaseModel(models.Model):
     """
-    基础模型类 - 提供通用字段和序列化功能
+    Base model class with shared fields and serialization helpers.
     """
 
     id = fields.IntField(primary_key=True, description="ID")
 
     def _format_field_value(self, value: Any) -> Any:
         """
-        格式化字段值，处理特殊类型转换
+        Format a field value and normalize special types.
 
         Args:
-            value: 原始字段值
+            value: Raw field value.
 
         Returns:
-            Any: 格式化后的值
+            Any: Formatted value.
         """
         if isinstance(value, datetime):
             return value.strftime(settings.DATETIME_FORMAT)
@@ -39,36 +39,36 @@ class BaseModel(models.Model):
 
     async def to_dict(self, m2m: bool = False, exclude_fields: list[str] | None = None) -> Dict[str, Any]:
         """
-        将模型实例转换为字典
+        Convert a model instance to a dictionary.
 
         Args:
-            m2m: 是否包含多对多字段
-            exclude_fields: 需要排除的字段列表
+            m2m: Whether to include many-to-many fields.
+            exclude_fields: Fields to exclude.
 
         Returns:
-            Dict[str, Any]: 模型数据字典
+            Dict[str, Any]: Model data as a dictionary.
         """
         if exclude_fields is None:
             exclude_fields = []
 
         data = {}
 
-        # 处理数据库字段
+        # Serialize regular database fields.
         for field in self._meta.db_fields:
             if field not in exclude_fields:
                 value = getattr(self, field)
                 data[field] = self._format_field_value(value)
 
-        # 处理多对多字段
+        # Serialize many-to-many fields when requested.
         if m2m:
-            # 获取需要处理的 M2M 字段
+            # Resolve the M2M fields that should be included.
             m2m_fields = [field for field in self._meta.m2m_fields if field not in exclude_fields]
             if m2m_fields:
-                # 并发获取所有多对多字段的值
+                # Fetch all M2M values concurrently.
                 tasks = [self.__fetch_m2m_field(field) for field in m2m_fields]
                 results = await asyncio.gather(*tasks)
 
-                # 使用 dict.update 简化合并
+                # Merge the results into the response payload.
                 for field, values in results:
                     data[field] = values
 
@@ -76,15 +76,15 @@ class BaseModel(models.Model):
 
     async def __fetch_m2m_field(self, field: str) -> tuple[str, list[Dict[str, Any]]]:
         """
-        异步获取多对多字段的值（仅负责数据获取，不参与字段过滤）
+        Fetch a many-to-many field asynchronously without applying extra filtering.
 
         Args:
-            field: M2M 字段名称
+            field: M2M field name.
 
         Returns:
-            tuple: (字段名, 格式化后的值列表)
+            tuple: (field name, formatted value list)
         """
-        # 直接获取所有相关对象的字典数据
+        # Fetch dictionary data for all related objects directly.
         values = await getattr(self, field).all().values()
         formatted_values = []
 
@@ -98,15 +98,15 @@ class BaseModel(models.Model):
 
     async def to_json(self, m2m: bool = False, exclude_fields: list[str] | None = None, **kwargs) -> str:
         """
-        将模型实例转换为 JSON 字符串
+        Convert a model instance to a JSON string.
 
         Args:
-            m2m: 是否包含多对多字段
-            exclude_fields: 需要排除的字段列表
-            **kwargs: json.dumps 的额外参数
+            m2m: Whether to include many-to-many fields.
+            exclude_fields: Fields to exclude.
+            **kwargs: Extra `json.dumps` arguments.
 
         Returns:
-            str: JSON 字符串
+            str: JSON string.
         """
         data = await self.to_dict(m2m=m2m, exclude_fields=exclude_fields)
         return json.dumps(data, ensure_ascii=False, default=str, **kwargs)
@@ -116,19 +116,19 @@ class BaseModel(models.Model):
         cls, exclude_fields: list[str] | None = None, include_relations: bool = True
     ) -> Type[PydanticBaseModel]:
         """
-        获取模型对应的 Pydantic 模型类
+        Return the Pydantic model class for this model.
 
         Args:
-            exclude_fields: 需要排除的字段列表
-            include_relations: 是否包含关联字段
+            exclude_fields: Fields to exclude.
+            include_relations: Whether to include relation fields.
 
         Returns:
-            Type[PydanticBaseModel]: Pydantic 模型类
+            Type[PydanticBaseModel]: Pydantic model class.
         """
         if exclude_fields is None:
             exclude_fields = []
 
-        # 使用 tortoise 的 pydantic_model_creator 创建 Pydantic 模型
+        # Build the Pydantic model with tortoise's `pydantic_model_creator`.
         pydantic_model = pydantic_model_creator(
             cls,
             exclude=tuple(exclude_fields) if exclude_fields else None,
@@ -140,23 +140,23 @@ class BaseModel(models.Model):
 
     async def get_pydantic_schema(self, m2m: bool = False, exclude_fields: list[str] | None = None) -> Dict[str, Any]:
         """
-        获取 Pydantic 兼容的数据结构
+        Return a Pydantic-compatible data structure.
 
         Args:
-            m2m: 是否包含多对多字段
-            exclude_fields: 需要排除的字段列表
+            m2m: Whether to include many-to-many fields.
+            exclude_fields: Fields to exclude.
 
         Returns:
-            Dict[str, Any]: Pydantic 兼容的数据字典
+            Dict[str, Any]: Pydantic-compatible dictionary.
         """
         return await self.to_dict(m2m=m2m, exclude_fields=exclude_fields)
 
     def __str__(self) -> str:
-        """字符串表示"""
+        """Return the string representation."""
         return f"<{self.__class__.__name__}(id={getattr(self, 'id', 'None')})>"
 
     def __repr__(self) -> str:
-        """开发者友好的字符串表示"""
+        """Return the developer-friendly string representation."""
         return self.__str__()
 
     class Meta:
@@ -164,25 +164,25 @@ class BaseModel(models.Model):
 
 
 class TimestampMixin:
-    """时间戳混合类 - 为已有模型添加时间戳字段"""
+    """Mixin that adds timestamp fields to an existing model."""
 
     created_at = fields.DatetimeField(auto_now_add=True, description="创建时间")
     updated_at = fields.DatetimeField(auto_now=True, description="更新时间")
 
 
 class UUIDModel:
-    """UUID混合类 - 提供UUID字段支持"""
+    """Mixin that adds UUID field support."""
 
     uuid = fields.CharField(max_length=36, unique=True, db_index=True, description="UUID标识")
 
 
 class SoftDeleteMixin:
-    """软删除混合类 - 提供软删除功能"""
+    """Mixin that adds soft-delete support."""
 
     is_deleted = fields.BooleanField(default=False, description="是否已删除")
     deleted_at = fields.DatetimeField(null=True, description="删除时间")
 
     def soft_delete(self):
-        """软删除"""
+        """Mark the record as soft-deleted."""
         self.is_deleted = True
         self.deleted_at = datetime.now()

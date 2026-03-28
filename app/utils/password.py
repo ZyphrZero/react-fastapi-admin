@@ -26,10 +26,10 @@ def get_password_policy() -> Dict[str, Union[int, bool]]:
 
 def validate_bcrypt_password_length(password: str) -> Tuple[bool, str]:
     """
-    验证 bcrypt 支持的密码字节长度上限
+    Validate bcrypt's maximum supported password byte length.
 
-    bcrypt 5.0.0 开始，超过 72 字节的密码会直接抛出 ValueError。
-    这里统一做前置校验，避免请求在哈希阶段变成 500。
+    Starting with bcrypt 5.0.0, passwords longer than 72 bytes raise ValueError directly.
+    We perform a single pre-check here to avoid turning a hashing failure into a 500 response.
     """
     password_bytes = password.encode("utf-8")
     if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
@@ -39,13 +39,13 @@ def validate_bcrypt_password_length(password: str) -> Tuple[bool, str]:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    验证密码
-    :param plain_password: 明文密码
-    :param hashed_password: 哈希后的密码
-    :return: 验证结果
+    Verify a password.
+    :param plain_password: Plain-text password.
+    :param hashed_password: Hashed password.
+    :return: Verification result.
     """
     try:
-        # 将字符串转换为字节
+        # Convert strings to bytes.
         plain_bytes = plain_password.encode("utf-8")
         hashed_bytes = hashed_password.encode("utf-8")
         return bcrypt.checkpw(plain_bytes, hashed_bytes)
@@ -55,15 +55,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """
-    获取密码哈希值
-    :param password: 明文密码
-    :return: 哈希后的密码
+    Return the password hash.
+    :param password: Plain-text password.
+    :return: Hashed password.
     """
     is_valid, message = validate_bcrypt_password_length(password)
     if not is_valid:
         raise ValueError(message)
 
-    # 生成盐值并哈希密码
+    # Generate a salt and hash the password.
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
     return hashed.decode("utf-8")
@@ -71,17 +71,17 @@ def get_password_hash(password: str) -> str:
 
 def generate_password(length: Optional[int] = None) -> str:
     """
-    生成随机密码
-    :param length: 密码长度
-    :return: 随机密码
+    Generate a random password.
+    :param length: Password length.
+    :return: Random password.
     """
     min_length = settings.PASSWORD_MIN_LENGTH
     actual_length = length if length and length >= min_length else min_length
 
-    # 根据配置决定生成密码的字符集
-    characters = string.ascii_lowercase  # 基础字符集（小写字母）
+    # Determine the character set from the configured policy.
+    characters = string.ascii_lowercase  # Base character set (lowercase letters).
 
-    # 根据配置添加字符类型
+    # Add character classes required by the current policy.
     if settings.PASSWORD_REQUIRE_UPPERCASE:
         characters += string.ascii_uppercase
     if settings.PASSWORD_REQUIRE_DIGITS:
@@ -89,10 +89,10 @@ def generate_password(length: Optional[int] = None) -> str:
     if settings.PASSWORD_REQUIRE_SPECIAL:
         characters += '!@#$%^&*(),.?":{}|<>'
 
-    # 确保密码包含必需的字符类型
+    # Ensure the password includes each required character class.
     password_chars = []
 
-    # 如果需要特定字符类型，先添加至少一个
+    # Add at least one character from each required class first.
     if settings.PASSWORD_REQUIRE_LOWERCASE:
         password_chars.append(secrets.choice(string.ascii_lowercase))
     if settings.PASSWORD_REQUIRE_UPPERCASE:
@@ -102,12 +102,12 @@ def generate_password(length: Optional[int] = None) -> str:
     if settings.PASSWORD_REQUIRE_SPECIAL:
         password_chars.append(secrets.choice('!@#$%^&*(),.?":{}|<>'))
 
-    # 用随机字符填充剩余长度
+    # Fill the remaining length with random characters.
     remaining_length = actual_length - len(password_chars)
     for _ in range(remaining_length):
         password_chars.append(secrets.choice(characters))
 
-    # 打乱字符顺序
+    # Shuffle the characters to remove predictable ordering.
     secrets.SystemRandom().shuffle(password_chars)
 
     return "".join(password_chars)
@@ -115,9 +115,9 @@ def generate_password(length: Optional[int] = None) -> str:
 
 def generate_bootstrap_admin_password(length: int = BOOTSTRAP_ADMIN_PASSWORD_LENGTH) -> str:
     """
-    生成首次引导专用管理员密码。
+    Generate the bootstrap-only administrator password.
 
-    该密码仅使用数字和符号，避免依赖常规密码策略配置。
+    This password uses only digits and symbols to avoid depending on the regular password policy configuration.
     """
     if length < 2:
         raise ValueError("首次引导密码长度不能少于2个字符")
@@ -136,32 +136,32 @@ def generate_bootstrap_admin_password(length: int = BOOTSTRAP_ADMIN_PASSWORD_LEN
 
 def validate_password_strength(password: str) -> Tuple[bool, str]:
     """
-    验证密码强度
-    :param password: 要验证的密码
-    :return: (是否通过验证, 失败原因)
+    Validate password strength.
+    :param password: Password to validate.
+    :return: (whether validation passed, failure reason)
     """
-    # 检查长度
+    # Check the length.
     if len(password) < settings.PASSWORD_MIN_LENGTH:
         return False, f"密码长度不能少于{settings.PASSWORD_MIN_LENGTH}个字符"
 
-    # 检查 bcrypt 字节长度上限
+    # Check the bcrypt byte-length limit.
     is_valid, message = validate_bcrypt_password_length(password)
     if not is_valid:
         return False, message
 
-    # 检查大写字母
+    # Check uppercase letters.
     if settings.PASSWORD_REQUIRE_UPPERCASE and not re.search(r"[A-Z]", password):
         return False, "密码必须包含至少一个大写字母"
 
-    # 检查小写字母
+    # Check lowercase letters.
     if settings.PASSWORD_REQUIRE_LOWERCASE and not re.search(r"[a-z]", password):
         return False, "密码必须包含至少一个小写字母"
 
-    # 检查数字
+    # Check digits.
     if settings.PASSWORD_REQUIRE_DIGITS and not re.search(r"\d", password):
         return False, "密码必须包含至少一个数字"
 
-    # 检查特殊字符
+    # Check special characters.
     if settings.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         return False, "密码必须包含至少一个特殊字符"
 
@@ -170,22 +170,22 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
 
 def get_password_strength_score(password: str) -> Dict[str, Union[int, List[str]]]:
     """
-    获取密码强度评分和建议
-    :param password: 密码
-    :return: 强度评分（0-100）和改进建议
+    Return a password-strength score and improvement suggestions.
+    :param password: Password.
+    :return: Strength score (0-100) and improvement suggestions.
     """
     score = 0
     suggestions = []
 
-    # 基础长度得分（最高40分）
+    # Base length score, capped at 40 points.
     length_score = min(40, len(password) * 4)
     score += length_score
 
-    # 如果长度不足，添加建议
+    # Add a suggestion when the password is too short.
     if len(password) < settings.PASSWORD_MIN_LENGTH:
         suggestions.append(f"密码长度至少应为{settings.PASSWORD_MIN_LENGTH}个字符")
 
-    # 字符类型多样性得分（每种类型15分，最高60分）
+    # Character-class diversity score, 15 points per class and 60 points max.
     if re.search(r"[a-z]", password):
         score += 15
     else:
@@ -206,5 +206,5 @@ def get_password_strength_score(password: str) -> Dict[str, Union[int, List[str]
     else:
         suggestions.append("添加特殊字符可以提高密码强度")
 
-    # 返回评分和建议
+    # Return the score and suggestions.
     return {"score": score, "suggestions": suggestions}

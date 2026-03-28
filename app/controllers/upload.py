@@ -11,7 +11,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from app.settings.config import settings
 from app.services.system_setting_service import system_setting_service
 
-# 条件导入 oss2，如果不存在则设为 None
+# Conditionally import oss2 and fall back to None when it is unavailable.
 try:
     import oss2
     OSS_AVAILABLE = True
@@ -21,19 +21,19 @@ except ImportError:
 
 
 class UploadController:
-    """文件上传控制器"""
+    """File upload controller."""
 
     def ensure_storage_directory(self, path: str) -> None:
         """
-        确保存储目录存在（仅在需要时创建）
+        Ensure the storage directory exists and create it only when needed.
 
         Args:
-            path: 需要创建的目录路径
+            path: Directory path to create.
         """
         os.makedirs(path, exist_ok=True)
 
     def get_file_extension(self, filename: str) -> str:
-        """获取文件扩展名"""
+        """Return the file extension."""
         return os.path.splitext(filename)[1] if "." in filename else ""
 
     async def get_storage_settings(self) -> dict:
@@ -49,14 +49,14 @@ class UploadController:
         return file_key.startswith("/static/") or (local_full_url and file_key.startswith(local_full_url))
 
     def generate_oss_file_name(self, original_filename: str, extension_override: str | None = None) -> str:
-        """生成对象存储中的文件名，基于时间和UUID"""
+        """Generate an object-storage filename based on the current time and a UUID."""
         ext = extension_override or self.get_file_extension(original_filename)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         random_uuid = str(uuid.uuid4()).replace("-", "")[:8]
         return f"{timestamp}_{random_uuid}{ext}"
 
     def convert_avatar_to_webp(self, file_content: bytes, max_edge: int = 512, quality: int = 82) -> bytes:
-        """将头像图片统一转为 WebP，并控制最终尺寸。"""
+        """Convert an avatar image to WebP and constrain the final dimensions."""
         try:
             with Image.open(BytesIO(file_content)) as image:
                 image = ImageOps.exif_transpose(image)
@@ -78,62 +78,62 @@ class UploadController:
 
     def generate_oss_path(self, upload_dir: str, file_type: str = "common") -> str:
         """
-        根据文件类型和当前日期生成对象存储路径
+        Generate an object-storage path based on file type and the current date.
 
         Args:
-            upload_dir: 对象存储上传目录
-            file_type: 文件类型，用于分类存储，如image、document等
+            upload_dir: Upload directory in object storage.
+            file_type: File category used for classification, such as image or document.
 
         Returns:
-            str: 对象存储路径
+            str: Object-storage path.
         """
         today = datetime.now()
-        date_str = today.strftime("%Y%m%d")  # 使用连续的年月日格式
+        date_str = today.strftime("%Y%m%d")  # Use a compact YYYYMMDD date format.
 
-        # 对象存储使用正斜杠，Windows 下 os.path.join 会生成反斜杠，因此统一替换。
+        # Object storage always uses forward slashes. Replace Windows backslashes after joining.
         path = os.path.join(upload_dir, file_type, date_str)
         return path.replace("\\", "/")
 
     def generate_local_path(self, storage_settings: dict, file_type: str = "common") -> str:
         """
-        根据文件类型和当前日期生成本地存储路径
+        Generate a local-storage path based on file type and the current date.
 
         Args:
-            storage_settings: 当前存储配置
-            file_type: 文件类型，用于分类存储，如image、document等
+            storage_settings: Current storage configuration.
+            file_type: File category used for classification, such as image or document.
 
         Returns:
-            tuple: (本地文件系统路径, URL路径)
+            tuple: (local filesystem path, URL path)
         """
         today = datetime.now()
-        date_str = today.strftime("%Y%m%d")  # 使用连续的年月日格式
+        date_str = today.strftime("%Y%m%d")  # Use a compact YYYYMMDD date format.
         local_upload_dir = storage_settings["local_upload_dir"]
         local_url_prefix = storage_settings["local_url_prefix"]
 
-        # 本地文件系统路径
+        # Local filesystem path.
         fs_path = os.path.join(settings.storage_root_path, local_upload_dir, file_type, date_str)
-        # URL路径
+        # URL path.
         url_path = os.path.join(local_url_prefix, file_type, date_str).replace("\\", "/")
 
-        # 仅在实际需要时确保目录存在
+        # Ensure the directory exists only when it is actually needed.
         self.ensure_storage_directory(fs_path)
 
         return fs_path, url_path
 
     async def check_image_file(self, file: UploadFile) -> bytes:
         """
-        检查图片文件是否符合要求
+        Validate an uploaded image file.
 
         Args:
-            file: 上传的文件
+            file: Uploaded file.
 
         Returns:
-            bytes: 文件内容
+            bytes: File contents.
 
         Raises:
-            HTTPException: 文件不符合要求时抛出异常
+            HTTPException: Raised when the file is invalid.
         """
-        # 检查文件类型
+        # Validate the file type.
         file_extension = self.get_file_extension(file.filename).lower()
         allowed_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
@@ -143,10 +143,10 @@ class UploadController:
                 detail=f"不支持的图片格式，仅支持: {', '.join(allowed_extensions)}",
             )
 
-        # 读取文件内容
+        # Read the file contents.
         file_content = await file.read()
 
-        # 检查文件大小（限制为10MB）
+        # Validate the file size with a 10 MB limit.
         max_size = 10 * 1024 * 1024  # 10MB
         if len(file_content) > max_size:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"文件大小超出限制，最大允许10MB")
@@ -155,21 +155,21 @@ class UploadController:
 
     async def check_file(self, file: UploadFile) -> bytes:
         """
-        检查普通文件是否符合要求
+        Validate a generic uploaded file.
 
         Args:
-            file: 上传的文件
+            file: Uploaded file.
 
         Returns:
-            bytes: 文件内容
+            bytes: File contents.
 
         Raises:
-            HTTPException: 文件不符合要求时抛出异常
+            HTTPException: Raised when the file is invalid.
         """
-        # 读取文件内容
+        # Read the file contents.
         file_content = await file.read()
 
-        # 检查文件大小（限制为10MB）
+        # Validate the file size with a 10 MB limit.
         max_size = 10 * 1024 * 1024  # 10MB
         if len(file_content) > max_size:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"文件大小超出限制，最大允许10MB")
@@ -216,39 +216,39 @@ class UploadController:
         file_type: str = "common",
     ) -> str:
         """
-        上传文件到本地存储
+        Upload a file to local storage.
 
         Args:
-            file_content: 文件内容
-            filename: 文件名
-            storage_settings: 当前存储配置
-            file_type: 文件类型，如image、document等
+            file_content: File contents.
+            filename: File name.
+            storage_settings: Current storage configuration.
+            file_type: File category, such as image or document.
 
         Returns:
-            str: 文件的URL
+            str: File URL.
 
         Raises:
-            HTTPException: 上传失败时抛出异常
+            HTTPException: Raised when the upload fails.
         """
         try:
-            # 获取本地存储路径
+            # Resolve the local storage path.
             local_storage_full_url = storage_settings["local_full_url"]
             local_upload_dir = storage_settings["local_upload_dir"]
             fs_path, url_path = self.generate_local_path(storage_settings, file_type)
 
-            # 文件完整路径
+            # Full file path.
             file_path = os.path.join(fs_path, filename)
 
-            # 写入文件
+            # Write the file to disk.
             with open(file_path, "wb") as f:
                 f.write(file_content)
 
-            # 返回文件URL
+            # Build the returned file URL.
             if local_storage_full_url:
                 relative_path = url_path[len("/static/") :].lstrip("/")
                 file_url = f"{local_storage_full_url.rstrip('/')}/{relative_path}/{filename}"
             else:
-                # 否则使用相对路径
+                # Otherwise, return a relative path.
                 file_url = f"{url_path}/{filename}"
 
             return file_url
@@ -260,18 +260,18 @@ class UploadController:
 
     async def upload_to_oss(self, file_content: bytes, oss_file_name: str, file_type: str = "common") -> str:
         """
-        上传文件到对象存储或本地存储
+        Upload a file to object storage or local storage.
 
         Args:
-            file_content: 文件内容
-            oss_file_name: 对象存储中的文件名
-            file_type: 文件类型，如image、document等
+            file_content: File contents.
+            oss_file_name: File name in object storage.
+            file_type: File category, such as image or document.
 
         Returns:
-            str: 文件的URL
+            str: File URL.
 
         Raises:
-            HTTPException: 上传失败时抛出异常
+            HTTPException: Raised when the upload fails.
         """
         storage_settings = await self.get_storage_settings()
         if not self.is_object_storage_enabled(storage_settings):
@@ -279,15 +279,15 @@ class UploadController:
 
         bucket = self.build_oss_bucket(storage_settings)
 
-        # 构建完整的OSS文件路径，增加按日期分类的目录结构
+        # Build the final OSS object path, including date-based directory segmentation.
         upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
         oss_path = self.generate_oss_path(upload_dir, file_type)
-        # 使用os.path.join连接路径，然后转换为OSS格式
+        # Join the path with os.path.join, then normalize it to OSS path format.
         oss_file_path = os.path.join(oss_path, oss_file_name).replace("\\", "/")
 
-        # 上传文件
+        # Upload the file.
         try:
-            # 上传文件并设置ACL为公共读，确保文件可以被公开访问
+            # Upload the file and set the ACL to public-read so it can be accessed publicly.
             headers = {"x-oss-object-acl": "public-read"}
             bucket.put_object(oss_file_path, file_content, headers=headers)
 
@@ -301,35 +301,35 @@ class UploadController:
 
     async def upload_image(self, file: UploadFile) -> Dict:
         """
-        上传单个图片到对象存储或本地存储
+        Upload a single image to object storage or local storage.
 
         Args:
-            file: 上传的图片文件
+            file: Uploaded image file.
 
         Returns:
-            Dict: 包含上传结果的字典
+            Dict: Upload result payload.
         """
-        # 检查文件
+        # Validate the file.
         file_content = await self.check_image_file(file)
 
-        # 生成文件名
+        # Generate the target file name.
         file_name = self.generate_oss_file_name(file.filename)
 
-        # 上传文件，根据配置选择对象存储或本地存储
+        # Upload the file according to the configured storage provider.
         file_url = await self.upload_to_oss(file_content, file_name, file_type="image")
 
-        # 返回结果
+        # Return the upload result.
         return {"url": file_url, "name": file.filename, "size": len(file_content)}
 
     async def upload_avatar(self, file: UploadFile) -> Dict:
         """
-        上传头像图片，统一转码为 WebP 再存储。
+        Upload an avatar image and normalize it to WebP before storing it.
 
         Args:
-            file: 上传的头像文件
+            file: Uploaded avatar file.
 
         Returns:
-            Dict: 包含上传结果的字典
+            Dict: Upload result payload.
         """
         file_content = await self.check_image_file(file)
         webp_content = self.convert_avatar_to_webp(file_content)
@@ -340,18 +340,18 @@ class UploadController:
 
     async def upload_files(self, files: List[UploadFile]) -> List[Dict]:
         """
-        批量上传文件到对象存储或本地存储
+        Upload multiple files to object storage or local storage.
 
         Args:
-            files: 上传的文件列表
+            files: Uploaded files.
 
         Returns:
-            List[Dict]: 包含上传结果的字典列表
+            List[Dict]: Upload result payload list.
         """
         if not files:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="没有提供要上传的文件")
 
-        # 限制最大上传数量
+        # Enforce the maximum number of uploaded files.
         max_files = 10
         if len(files) > max_files:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"一次最多上传{max_files}个文件")
@@ -359,17 +359,17 @@ class UploadController:
         result = []
 
         for file in files:
-            # 检查文件
+            # Validate the file.
             file_content = await self.check_file(file)
 
-            # 生成文件名
+            # Generate the target file name.
             file_name = self.generate_oss_file_name(file.filename)
 
-            # 根据文件扩展名决定文件类型
+            # Resolve the file type from its extension.
             file_extension = self.get_file_extension(file.filename).lower()
             file_type = "common"
 
-            # 根据扩展名确定文件类型
+            # Map the extension to a storage category.
             if file_extension in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
                 file_type = "image"
             elif file_extension in [".doc", ".docx", ".pdf", ".txt", ".xls", ".xlsx"]:
@@ -377,7 +377,7 @@ class UploadController:
             elif file_extension in [".mp4", ".avi", ".mov", ".wmv"]:
                 file_type = "video"
 
-            # 上传文件，根据配置选择对象存储或本地存储
+            # Upload the file according to the configured storage provider.
             file_url = await self.upload_to_oss(file_content, file_name, file_type=file_type)
 
             result.append({"url": file_url, "name": file.filename, "size": len(file_content)})
@@ -386,14 +386,14 @@ class UploadController:
 
     async def list_files(self, prefix: str = None, max_keys: int = 100) -> List[Dict]:
         """
-        获取对象存储中的文件列表
+        Return the file list from object storage.
 
         Args:
-            prefix: 路径前缀，例如 "image/"
-            max_keys: 最大返回数量，默认100
+            prefix: Path prefix, for example `"image/"`.
+            max_keys: Maximum number of items to return. Defaults to 100.
 
         Returns:
-            List[Dict]: 文件信息列表
+            List[Dict]: File metadata list.
         """
         storage_settings = await self.get_storage_settings()
         if not self.is_object_storage_enabled(storage_settings):
@@ -402,17 +402,17 @@ class UploadController:
         try:
             bucket = self.build_oss_bucket(storage_settings)
 
-            # 构建完整的前缀，使用os.path.join处理路径
+            # Build the full prefix with os.path.join and normalize separators.
             upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
             if prefix:
                 full_prefix = os.path.join(upload_dir, prefix).replace("\\", "/")
             else:
                 full_prefix = upload_dir
 
-            # 列举文件
+            # Enumerate files.
             result = []
             for obj in oss2.ObjectIterator(bucket, prefix=full_prefix, max_keys=max_keys):
-                if not obj.key.endswith("/"):  # 排除目录
+                if not obj.key.endswith("/"):  # Exclude directory placeholders.
                     file_name = os.path.basename(obj.key)
 
                     result.append(
@@ -432,17 +432,17 @@ class UploadController:
 
     async def delete_local_file(self, file_path: str, storage_settings: dict) -> bool:
         """
-        删除本地存储中的文件
+        Delete a file from local storage.
 
         Args:
-            file_path: 文件的相对路径或完整URL
-            storage_settings: 当前存储配置
+            file_path: Relative file path or full URL.
+            storage_settings: Current storage configuration.
 
         Returns:
-            bool: 是否删除成功
+            bool: Whether deletion succeeded.
         """
         try:
-            print(f"尝试删除本地文件: {file_path}")
+            print(f"Attempting to delete local file: {file_path}")
             local_storage_full_url = storage_settings["local_full_url"].rstrip("/")
 
             if local_storage_full_url and file_path.startswith(local_storage_full_url):
@@ -454,33 +454,33 @@ class UploadController:
 
             full_path = os.path.join(settings.storage_root_path, relative_path)
 
-            print(f"解析后的完整路径: {full_path}")
+            print(f"Resolved full path: {full_path}")
 
-            # 检查文件是否存在
+            # Check whether the file exists.
             if os.path.isfile(full_path):
                 os.remove(full_path)
-                print(f"文件删除成功: {full_path}")
+                print(f"File deleted successfully: {full_path}")
                 return True
 
-            # 如果文件不存在，记录错误信息但不抛出异常
-            print(f"文件不存在: {full_path}")
+            # If the file does not exist, log the condition without raising.
+            print(f"File does not exist: {full_path}")
             return False
 
         except HTTPException:
             raise
         except Exception as e:
-            print(f"删除本地文件失败: {str(e)}")
+            print(f"Failed to delete local file: {str(e)}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除本地文件失败: {str(e)}")
 
     async def delete_file(self, file_key: str) -> bool:
         """
-        删除OSS或本地存储中的文件
+        Delete a file from OSS or local storage.
 
         Args:
-            file_key: 文件的OSS键值或本地存储路径
+            file_key: OSS object key or local storage path.
 
         Returns:
-            bool: 是否删除成功
+            bool: Whether deletion succeeded.
         """
         storage_settings = await self.get_storage_settings()
         if not self.is_object_storage_enabled(storage_settings) or self.is_local_file_key(file_key, storage_settings):
@@ -489,7 +489,7 @@ class UploadController:
         try:
             bucket = self.build_oss_bucket(storage_settings)
 
-            # 删除文件
+            # Delete the object.
             bucket.delete_object(file_key)
             return True
 
@@ -498,13 +498,13 @@ class UploadController:
 
     async def set_public_acl(self, prefix: str = None) -> Dict:
         """
-        批量设置指定前缀下的文件ACL为公共读
+        Set public-read ACL on files under the given prefix.
 
         Args:
-            prefix: 路径前缀，例如 "image/"
+            prefix: Path prefix, for example `"image/"`.
 
         Returns:
-            Dict: 处理结果
+            Dict: Operation result.
         """
         storage_settings = await self.get_storage_settings()
         if not self.is_object_storage_enabled(storage_settings):
@@ -518,22 +518,22 @@ class UploadController:
         try:
             bucket = self.build_oss_bucket(storage_settings)
 
-            # 构建完整的前缀
+            # Build the full prefix.
             upload_dir = storage_settings.get("oss_upload_dir") or "uploads"
             if prefix:
                 full_prefix = os.path.join(upload_dir, prefix).replace("\\", "/")
             else:
                 full_prefix = upload_dir
 
-            # 处理计数
+            # Track success and failure counts.
             count = 0
             error_count = 0
 
-            # 列举文件并设置ACL
+            # Enumerate files and set ACL values.
             for obj in oss2.ObjectIterator(bucket, prefix=full_prefix):
-                if not obj.key.endswith("/"):  # 排除目录
+                if not obj.key.endswith("/"):  # Exclude directory placeholders.
                     try:
-                        # 设置文件ACL为公共读
+                        # Set the file ACL to public-read.
                         bucket.put_object_acl(obj.key, oss2.OBJECT_ACL_PUBLIC_READ)
                         count += 1
                     except Exception:

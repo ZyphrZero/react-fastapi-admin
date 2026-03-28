@@ -7,12 +7,12 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
     return """
         CREATE TABLE IF NOT EXISTS "api" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "path" VARCHAR(100) NOT NULL /* API路径 */,
-    "method" VARCHAR(6) NOT NULL /* 请求方法 */,
-    "summary" VARCHAR(500) NOT NULL /* 请求简介 */,
-    "tags" VARCHAR(100) NOT NULL /* API标签 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "path" VARCHAR(100) NOT NULL /* API path */,
+    "method" VARCHAR(6) NOT NULL /* Request method */,
+    "summary" VARCHAR(500) NOT NULL /* Request summary */,
+    "tags" VARCHAR(100) NOT NULL /* API tag */
 );
 CREATE INDEX IF NOT EXISTS "idx_api_path_9ed611" ON "api" ("path");
 CREATE INDEX IF NOT EXISTS "idx_api_method_a46dfb" ON "api" ("method");
@@ -20,23 +20,23 @@ CREATE INDEX IF NOT EXISTS "idx_api_summary_400f73" ON "api" ("summary");
 CREATE INDEX IF NOT EXISTS "idx_api_tags_04ae27" ON "api" ("tags");
 CREATE TABLE IF NOT EXISTS "audit_log" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "user_id" INT NOT NULL /* 用户ID */,
-    "username" VARCHAR(64) NOT NULL /* 用户名称 */,
-    "module" VARCHAR(64) NOT NULL /* 功能模块 */,
-    "summary" VARCHAR(128) NOT NULL /* 请求描述 */,
-    "method" VARCHAR(10) NOT NULL /* 请求方法 */,
-    "path" VARCHAR(255) NOT NULL /* 请求路径 */,
-    "status" INT NOT NULL /* 状态码 */,
-    "response_time" INT NOT NULL /* 响应时间(单位ms) */,
-    "request_args" JSON /* 请求参数 */,
-    "response_body" JSON /* 返回数据 */,
-    "ip_address" VARCHAR(64) NOT NULL /* IP地址 */,
-    "user_agent" VARCHAR(512) NOT NULL /* 用户代理 */,
-    "operation_type" VARCHAR(32) NOT NULL /* 操作类型 */,
-    "log_level" VARCHAR(16) NOT NULL /* 日志级别 */,
-    "is_deleted" INT NOT NULL /* 是否已删除 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "user_id" INT NOT NULL /* User ID */,
+    "username" VARCHAR(64) NOT NULL /* Username */,
+    "module" VARCHAR(64) NOT NULL /* Module */,
+    "summary" VARCHAR(128) NOT NULL /* Request summary */,
+    "method" VARCHAR(10) NOT NULL /* Request method */,
+    "path" VARCHAR(255) NOT NULL /* Request path */,
+    "status" INT NOT NULL /* Status code */,
+    "response_time" INT NOT NULL /* Response time (ms) */,
+    "request_args" JSON /* Request arguments */,
+    "response_body" JSON /* Response body */,
+    "ip_address" VARCHAR(64) NOT NULL /* IP address */,
+    "user_agent" VARCHAR(512) NOT NULL /* User agent */,
+    "operation_type" VARCHAR(32) NOT NULL /* Operation type */,
+    "log_level" VARCHAR(16) NOT NULL /* Log level */,
+    "is_deleted" INT NOT NULL /* Deleted flag */
 );
 CREATE INDEX IF NOT EXISTS "idx_audit_log_user_id_d5b3c4" ON "audit_log" ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_audit_log_usernam_b6341e" ON "audit_log" ("username");
@@ -58,48 +58,48 @@ CREATE INDEX IF NOT EXISTS "idx_audit_log_created_10447f" ON "audit_log" ("creat
 CREATE INDEX IF NOT EXISTS "idx_audit_log_created_9d86a1" ON "audit_log" ("created_at", "log_level");
 CREATE TABLE IF NOT EXISTS "rate_limit_bucket" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "bucket_key" VARCHAR(255) NOT NULL UNIQUE /* 限流桶键 */,
-    "count" INT NOT NULL /* 窗口内请求次数 */,
-    "expires_at" BIGINT NOT NULL /* 过期时间戳 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "bucket_key" VARCHAR(255) NOT NULL UNIQUE /* Rate-limit bucket key */,
+    "count" INT NOT NULL /* Request count within window */,
+    "expires_at" BIGINT NOT NULL /* Expiration timestamp */
 );
 CREATE INDEX IF NOT EXISTS "idx_rate_limit__bucket__ce63af" ON "rate_limit_bucket" ("bucket_key");
 CREATE INDEX IF NOT EXISTS "idx_rate_limit__expires_eac77b" ON "rate_limit_bucket" ("expires_at");
 CREATE TABLE IF NOT EXISTS "role" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "name" VARCHAR(20) NOT NULL UNIQUE /* 角色名称 */,
-    "desc" VARCHAR(500) /* 角色描述 */,
-    "menu_paths" JSON NOT NULL /* 菜单权限路径 */,
-    "api_ids" JSON NOT NULL /* API权限ID列表 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "name" VARCHAR(20) NOT NULL UNIQUE /* Role name */,
+    "desc" VARCHAR(500) /* Role description */,
+    "menu_paths" JSON NOT NULL /* Menu permission paths */,
+    "api_ids" JSON NOT NULL /* API permission ID list */
 );
 CREATE INDEX IF NOT EXISTS "idx_role_name_e5618b" ON "role" ("name");
 CREATE TABLE IF NOT EXISTS "system_setting" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "key" VARCHAR(100) NOT NULL UNIQUE /* 配置键 */,
-    "value" JSON NOT NULL /* 配置值 */,
-    "description" VARCHAR(255) /* 配置说明 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "key" VARCHAR(100) NOT NULL UNIQUE /* Setting key */,
+    "value" JSON NOT NULL /* Setting value */,
+    "description" VARCHAR(255) /* Setting description */
 );
 CREATE INDEX IF NOT EXISTS "idx_system_sett_key_ed06a3" ON "system_setting" ("key");
 CREATE TABLE IF NOT EXISTS "user" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL /* ID */,
-    "created_at" TIMESTAMP NOT NULL /* 创建时间 */,
-    "updated_at" TIMESTAMP NOT NULL /* 更新时间 */,
-    "username" VARCHAR(20) NOT NULL UNIQUE /* 用户名称 */,
-    "nickname" VARCHAR(30) /* 昵称 */,
-    "avatar" VARCHAR(500) /* 头像地址 */,
-    "email" VARCHAR(255) UNIQUE /* 邮箱 */,
-    "phone" VARCHAR(20) /* 电话 */,
-    "password" VARCHAR(128) /* 密码 */,
-    "is_active" INT NOT NULL /* 是否激活 */,
-    "is_superuser" INT NOT NULL /* 是否为超级管理员 */,
-    "last_login" TIMESTAMP /* 最后登录时间 */,
-    "session_version" INT NOT NULL /* 会话版本 */,
-    "refresh_token_jti" VARCHAR(32) /* 当前刷新令牌标识 */
+    "created_at" TIMESTAMP NOT NULL /* Created at */,
+    "updated_at" TIMESTAMP NOT NULL /* Updated at */,
+    "username" VARCHAR(20) NOT NULL UNIQUE /* Username */,
+    "nickname" VARCHAR(30) /* Nickname */,
+    "avatar" VARCHAR(500) /* Avatar URL */,
+    "email" VARCHAR(255) UNIQUE /* Email */,
+    "phone" VARCHAR(20) /* Phone */,
+    "password" VARCHAR(128) /* Password */,
+    "is_active" INT NOT NULL /* Active flag */,
+    "is_superuser" INT NOT NULL /* Superuser flag */,
+    "last_login" TIMESTAMP /* Last login time */,
+    "session_version" INT NOT NULL /* Session version */,
+    "refresh_token_jti" VARCHAR(32) /* Current refresh token identifier */
 );
 CREATE INDEX IF NOT EXISTS "idx_user_usernam_9987ab" ON "user" ("username");
 CREATE INDEX IF NOT EXISTS "idx_user_nicknam_579938" ON "user" ("nickname");

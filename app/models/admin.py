@@ -72,7 +72,7 @@ class AuditLog(BaseModel, TimestampMixin):
     class Meta:
         table = "audit_log"
         indexes = [
-            # 创建复合索引以提高查询性能
+            # Create compound indexes to improve query performance.
             ("created_at", "username"),
             ("created_at", "module"),
             ("created_at", "status"),
@@ -81,7 +81,7 @@ class AuditLog(BaseModel, TimestampMixin):
         ]
 
     async def to_dict(self):
-        """转换为字典"""
+        """Convert the model to a dictionary."""
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -104,7 +104,7 @@ class AuditLog(BaseModel, TimestampMixin):
 
     @classmethod
     async def get_logs_by_date_range(cls, start_date, end_date, **filters):
-        """根据日期范围和过滤条件获取日志"""
+        """Return logs for the given date range and filters."""
         q = Q(created_at__range=[start_date, end_date])
         for key, value in filters.items():
             if value:
@@ -116,7 +116,7 @@ class AuditLog(BaseModel, TimestampMixin):
 
     @classmethod
     async def get_logs_statistics(cls, days=7):
-        """获取最近n天的日志统计信息"""
+        """Return log statistics for the most recent `n` days."""
         import datetime
 
         today = datetime.date.today()
@@ -137,5 +137,5 @@ class AuditLog(BaseModel, TimestampMixin):
 
     @classmethod
     async def batch_delete(cls, ids):
-        """批量删除日志(软删除)"""
+        """Soft-delete logs in batch."""
         return await cls.filter(id__in=ids).update(is_deleted=True)

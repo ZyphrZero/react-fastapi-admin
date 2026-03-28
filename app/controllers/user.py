@@ -24,9 +24,9 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
 
     async def validate_password(self, password: str) -> Tuple[bool, str]:
         """
-        验证密码强度
-        :param password: 要验证的密码
-        :return: (是否通过验证, 失败原因)
+        Validate password strength.
+        :param password: Password to validate.
+        :return: (whether validation passed, failure reason)
         """
         return validate_password_strength(password)
 
@@ -45,19 +45,19 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
         await user.save()
 
     async def authenticate(self, credentials: CredentialsSchema) -> Optional["User"]:
-        # 获取用户
+        # Fetch the user.
         user = await self.model.filter(username=credentials.username).first()
         if not user:
-            # 为了防止用户枚举攻击，不明确指出用户不存在
+            # Avoid revealing whether the user exists to reduce enumeration risk.
             raise HTTPException(status_code=400, detail="用户名或密码错误")
 
-        # 验证密码
+        # Verify the password.
         verified = verify_password(credentials.password, user.password)
         if not verified:
-            # 为了防止用户枚举攻击，不明确指出密码错误
+            # Avoid revealing whether the password was wrong to reduce enumeration risk.
             raise HTTPException(status_code=400, detail="用户名或密码错误")
 
-        # 检查用户状态
+        # Check the user status.
         if not user.is_active:
             raise HTTPException(status_code=400, detail="用户已被禁用")
 
@@ -69,14 +69,14 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
             role_obj = await role_controller.get(id=role_id)
             await user.roles.add(role_obj)
 
-        # 权限缓存已移除 - 系统简化后不再需要缓存清理
+        # The permission cache has been removed, so no cache invalidation is required anymore.
 
     async def reset_password(self, user_id: int, new_password: str = "123456", current_user_id: Optional[int] = None):
         user_obj = await self.get(id=user_id)
         if user_obj.is_superuser and current_user_id != user_id:
             raise HTTPException(status_code=403, detail="不允许重置其他超级管理员密码")
 
-        # 验证新密码强度（除非是默认密码）
+        # Validate the new password unless the default password is being used.
         is_valid, message = await self.validate_password(new_password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=f"密码强度不足: {message}")
