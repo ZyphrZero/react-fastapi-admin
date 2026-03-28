@@ -61,6 +61,10 @@
   </tr>
 </table>
 
+## 预览图
+![login_light_dark_diagonal_preview.png](https://cdn.pixelpunk.cc/f/01c51f0211f647ef/login_light_dark_diagonal_preview.png)  
+![dashboard_light_dark_diagonal_preview.png](https://cdn.pixelpunk.cc/f/4735f2fde4244262/dashboard_light_dark_diagonal_preview.png)
+
 ## 技术栈
 
 | 层级 | 技术 |
