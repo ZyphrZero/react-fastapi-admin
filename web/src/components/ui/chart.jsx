@@ -25,14 +25,19 @@ function ChartContainer({
   id,
   className,
   children,
-  config,
+  config = {},
   ...props
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const contextValue = React.useMemo(() => ({ config }), [config])
+  const chartContent =
+    React.Children.count(children) === 1 && React.isValidElement(children) && children.props.accessibilityLayer === undefined
+      ? React.cloneElement(children, { accessibilityLayer: false })
+      : children
 
   return (
-    <ChartContext.Provider value={{ config }}>
+    <ChartContext.Provider value={contextValue}>
       <div
         data-slot="chart"
         data-chart={chartId}
@@ -48,7 +53,7 @@ function ChartContainer({
           minWidth={0}
           initialDimension={{ width: 320, height: 192 }}
         >
-          {children}
+          {chartContent}
         </RechartsPrimitive.ResponsiveContainer>
       </div>
     </ChartContext.Provider>
@@ -57,7 +62,7 @@ function ChartContainer({
 
 const ChartStyle = ({
   id,
-  config
+  config = {}
 }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color)
 
@@ -70,7 +75,7 @@ const ChartStyle = ({
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart="${id}"] {
 ${colorConfig
 .map(([key, itemConfig]) => {
 const color =
@@ -86,7 +91,17 @@ return color ? `  --color-${key}: ${color};` : null
   );
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+function ChartTooltip({
+  isAnimationActive = false,
+  ...props
+}) {
+  return (
+    <RechartsPrimitive.Tooltip
+      isAnimationActive={isAnimationActive}
+      {...props}
+    />
+  )
+}
 
 function ChartTooltipContent({
   active,
@@ -99,6 +114,7 @@ function ChartTooltipContent({
   labelFormatter,
   labelClassName,
   formatter,
+  valueFormatter,
   color,
   nameKey,
   labelKey
@@ -161,6 +177,10 @@ function ChartTooltipContent({
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color || item.payload.fill || item.color
+            const formattedValue =
+              item.value === undefined || item.value === null
+                ? null
+                : valueFormatter?.(item.value, item.name, item, index, item.payload) ?? item.value.toLocaleString()
 
             return (
               <div
@@ -204,9 +224,9 @@ function ChartTooltipContent({
                           {itemConfig?.label || item.name}
                         </span>
                       </div>
-                      {item.value && (
+                      {formattedValue !== null && (
                         <span className="font-mono font-medium text-foreground tabular-nums">
-                          {item.value.toLocaleString()}
+                          {formattedValue}
                         </span>
                       )}
                     </div>

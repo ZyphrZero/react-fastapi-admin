@@ -292,7 +292,7 @@ const TrendLineChart = ({ items }) => {
               <ChartTooltipContent
                 indicator="line"
                 labelFormatter={(_, payload) => formatShortDateLabel(payload?.[0]?.payload?.date)}
-                formatter={(value) => `${value} 次`}
+                valueFormatter={(value) => `${value} 次`}
               />
             }
           />
@@ -349,7 +349,7 @@ const DistributionChart = ({
 
   return (
     <ChartContainer config={distributionChartConfig} className="h-80 w-full">
-      <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 32, top: 4, bottom: 4 }} barCategoryGap={14}>
+        <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 32, top: 4, bottom: 4 }} barCategoryGap={14}>
         <CartesianGrid horizontal={false} />
         <XAxis type="number" hide />
         <YAxis
@@ -365,7 +365,7 @@ const DistributionChart = ({
             <ChartTooltipContent
               hideIndicator
               labelFormatter={(_, payload) => payload?.[0]?.payload?.label || '--'}
-              formatter={(value, _, item) => `${value} ${countSuffix} · 占比 ${item.payload.share}%`}
+              valueFormatter={(value, _, item) => `${value} ${countSuffix} · 占比 ${item.payload.share}%`}
             />
           }
         />
@@ -403,7 +403,7 @@ const Dashboard = () => {
           setOverview(response.data || null)
         }
       } catch (error) {
-        console.error('获取概览数据失败:', error)
+        console.error('Failed to fetch overview data:', error)
 
         if (!cancelled) {
           setOverview(null)
@@ -437,7 +437,7 @@ const Dashboard = () => {
     color: statusDistributionStyleMap[item.key]?.color || 'var(--color-chart-2)',
   }))
   const environment = system.environment || 'unknown'
-  const environmentVariant = String(environment).toLowerCase() === 'production' ? 'destructive' : 'secondary'
+  const environmentVariant = String(environment).toLowerCase() === 'prod' ? 'destructive' : 'secondary'
   const chartActivityTotal = moduleActivity.reduce((sum, item) => sum + item.count, 0)
 
   const statistics = [
