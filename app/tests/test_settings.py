@@ -75,6 +75,36 @@ class SettingsEnvParsingTestCase(unittest.TestCase):
                 """
             )
 
+    def test_login_page_image_env_values_are_ignored(self) -> None:
+        settings = self.load_settings(
+            """
+            APP_ENV=dev
+            LOGIN_PAGE_IMAGE_URL=https://example.com/login-cover.png
+            LOGIN_PAGE_IMAGE_MODE=cover
+            LOGIN_PAGE_IMAGE_ZOOM=2
+            LOGIN_PAGE_IMAGE_POSITION_X=12
+            LOGIN_PAGE_IMAGE_POSITION_Y=88
+            """
+        )
+
+        self.assertEqual(settings.LOGIN_PAGE_IMAGE_URL, "")
+        self.assertEqual(settings.LOGIN_PAGE_IMAGE_MODE, "contain")
+        self.assertEqual(settings.LOGIN_PAGE_IMAGE_ZOOM, 1.0)
+        self.assertEqual(settings.LOGIN_PAGE_IMAGE_POSITION_X, 50.0)
+        self.assertEqual(settings.LOGIN_PAGE_IMAGE_POSITION_Y, 50.0)
+
+    def test_jwt_audience_and_issuer_env_values_are_ignored(self) -> None:
+        settings = self.load_settings(
+            """
+            APP_ENV=dev
+            JWT_AUDIENCE=custom-audience
+            JWT_ISSUER=custom-issuer
+            """
+        )
+
+        self.assertFalse(hasattr(settings, "JWT_AUDIENCE"))
+        self.assertFalse(hasattr(settings, "JWT_ISSUER"))
+
 
 if __name__ == "__main__":
     unittest.main()

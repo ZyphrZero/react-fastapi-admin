@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import jwt
 from fastapi import FastAPI
 from fastapi.responses import Response
 from starlette.requests import Request
@@ -10,8 +11,9 @@ from starlette.requests import Request
 from app.core.dependency import AuthControl, PermissionControl
 from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.core.middlewares import HttpAuditLogMiddleware
+from app.settings import settings
 from app.services.auth_service import auth_service
-from app.utils.jwt_utils import create_access_token, create_refresh_token
+from app.utils.jwt_utils import JWT_TOKEN_AUDIENCE, JWT_TOKEN_ISSUER, create_access_token, create_refresh_token
 
 
 class DummyUser:
@@ -164,6 +166,24 @@ class AuthServiceRefreshTokenTestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class AuthControlSecurityTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_access_token_uses_fixed_audience_and_issuer(self) -> None:
+        token = create_access_token(
+            user_id=1,
+            username="admin",
+            is_superuser=True,
+            session_version=1,
+        )
+
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_signature": False, "verify_exp": False},
+        )
+
+        self.assertEqual(payload["aud"], JWT_TOKEN_AUDIENCE)
+        self.assertEqual(payload["iss"], JWT_TOKEN_ISSUER)
+
     async def test_initialize_clears_rate_limit_buckets(self) -> None:
         bucket_queryset = SimpleNamespace(delete=AsyncMock())
 

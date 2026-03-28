@@ -36,6 +36,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["app_description"], settings.APP_DESCRIPTION)
         self.assertEqual(data["login_page_image_url"], settings.LOGIN_PAGE_IMAGE_URL)
         self.assertEqual(data["login_page_image_mode"], settings.LOGIN_PAGE_IMAGE_MODE)
+        self.assertEqual(data["login_page_image_zoom"], settings.LOGIN_PAGE_IMAGE_ZOOM)
+        self.assertEqual(data["login_page_image_position_x"], settings.LOGIN_PAGE_IMAGE_POSITION_X)
+        self.assertEqual(data["login_page_image_position_y"], settings.LOGIN_PAGE_IMAGE_POSITION_Y)
         self.assertEqual(data["notification_position"], settings.NOTIFICATION_POSITION)
         self.assertEqual(data["notification_duration"], settings.NOTIFICATION_DURATION)
         self.assertEqual(data["notification_visible_toasts"], settings.NOTIFICATION_VISIBLE_TOASTS)
@@ -117,6 +120,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
         original_debug = settings.DEBUG
         original_login_page_image_url = settings.LOGIN_PAGE_IMAGE_URL
         original_login_page_image_mode = settings.LOGIN_PAGE_IMAGE_MODE
+        original_login_page_image_zoom = settings.LOGIN_PAGE_IMAGE_ZOOM
+        original_login_page_image_position_x = settings.LOGIN_PAGE_IMAGE_POSITION_X
+        original_login_page_image_position_y = settings.LOGIN_PAGE_IMAGE_POSITION_Y
         original_notification_position = settings.NOTIFICATION_POSITION
         original_notification_duration = settings.NOTIFICATION_DURATION
         original_notification_visible_toasts = settings.NOTIFICATION_VISIBLE_TOASTS
@@ -136,6 +142,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             debug=False,
             login_page_image_url="/static/uploads/image/20260326/login.webp",
             login_page_image_mode="cover",
+            login_page_image_zoom=1.45,
+            login_page_image_position_x=38.5,
+            login_page_image_position_y=62.0,
             notification_position="bottom-left",
             notification_duration=6500,
             notification_visible_toasts=5,
@@ -164,6 +173,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(saved_payload["debug"])
             self.assertEqual(saved_payload["login_page_image_url"], "/static/uploads/image/20260326/login.webp")
             self.assertEqual(saved_payload["login_page_image_mode"], "cover")
+            self.assertEqual(saved_payload["login_page_image_zoom"], 1.45)
+            self.assertEqual(saved_payload["login_page_image_position_x"], 38.5)
+            self.assertEqual(saved_payload["login_page_image_position_y"], 62.0)
             self.assertEqual(saved_payload["notification_position"], "bottom-left")
             self.assertEqual(saved_payload["notification_duration"], 6500)
             self.assertEqual(saved_payload["notification_visible_toasts"], 5)
@@ -173,6 +185,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(settings.DEBUG)
             self.assertEqual(settings.LOGIN_PAGE_IMAGE_URL, "/static/uploads/image/20260326/login.webp")
             self.assertEqual(settings.LOGIN_PAGE_IMAGE_MODE, "cover")
+            self.assertEqual(settings.LOGIN_PAGE_IMAGE_ZOOM, 1.45)
+            self.assertEqual(settings.LOGIN_PAGE_IMAGE_POSITION_X, 38.5)
+            self.assertEqual(settings.LOGIN_PAGE_IMAGE_POSITION_Y, 62.0)
             self.assertEqual(settings.NOTIFICATION_POSITION, "bottom-left")
             self.assertEqual(settings.NOTIFICATION_DURATION, 6500)
             self.assertEqual(settings.NOTIFICATION_VISIBLE_TOASTS, 5)
@@ -181,6 +196,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data["app_title"], "Control Hub")
             self.assertEqual(data["login_page_image_url"], "/static/uploads/image/20260326/login.webp")
             self.assertEqual(data["login_page_image_mode"], "cover")
+            self.assertEqual(data["login_page_image_zoom"], 1.45)
+            self.assertEqual(data["login_page_image_position_x"], 38.5)
+            self.assertEqual(data["login_page_image_position_y"], 62.0)
             self.assertEqual(data["notification_position"], "bottom-left")
             self.assertEqual(data["notification_duration"], 6500)
             self.assertEqual(data["notification_visible_toasts"], 5)
@@ -191,6 +209,9 @@ class SystemSettingServiceTestCase(unittest.IsolatedAsyncioTestCase):
             settings.DEBUG = original_debug
             settings.LOGIN_PAGE_IMAGE_URL = original_login_page_image_url
             settings.LOGIN_PAGE_IMAGE_MODE = original_login_page_image_mode
+            settings.LOGIN_PAGE_IMAGE_ZOOM = original_login_page_image_zoom
+            settings.LOGIN_PAGE_IMAGE_POSITION_X = original_login_page_image_position_x
+            settings.LOGIN_PAGE_IMAGE_POSITION_Y = original_login_page_image_position_y
             settings.NOTIFICATION_POSITION = original_notification_position
             settings.NOTIFICATION_DURATION = original_notification_duration
             settings.NOTIFICATION_VISIBLE_TOASTS = original_notification_visible_toasts

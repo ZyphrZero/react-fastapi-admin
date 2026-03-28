@@ -1,3 +1,16 @@
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /build/web
+
+COPY web/package.json web/pnpm-lock.yaml ./
+
+RUN corepack enable \
+    && pnpm install --frozen-lockfile
+
+COPY web ./
+
+RUN pnpm build
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,9 +25,12 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY app ./app
 COPY migrations ./migrations
+COPY web/package.json ./web/package.json
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install .
+
+COPY --from=frontend-builder /build/web/dist ./web/dist
 
 RUN mkdir -p /app/storage /app/app/logs
 

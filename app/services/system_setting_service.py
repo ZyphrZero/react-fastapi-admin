@@ -37,6 +37,9 @@ class SystemSettingService:
             "debug": settings.DEBUG,
             "login_page_image_url": settings.LOGIN_PAGE_IMAGE_URL,
             "login_page_image_mode": settings.LOGIN_PAGE_IMAGE_MODE,
+            "login_page_image_zoom": settings.LOGIN_PAGE_IMAGE_ZOOM,
+            "login_page_image_position_x": settings.LOGIN_PAGE_IMAGE_POSITION_X,
+            "login_page_image_position_y": settings.LOGIN_PAGE_IMAGE_POSITION_Y,
             "notification_position": settings.NOTIFICATION_POSITION,
             "notification_duration": settings.NOTIFICATION_DURATION,
             "notification_visible_toasts": settings.NOTIFICATION_VISIBLE_TOASTS,
@@ -121,6 +124,9 @@ class SystemSettingService:
         settings.DEBUG = payload["debug"]
         settings.LOGIN_PAGE_IMAGE_URL = payload["login_page_image_url"]
         settings.LOGIN_PAGE_IMAGE_MODE = payload["login_page_image_mode"]
+        settings.LOGIN_PAGE_IMAGE_ZOOM = payload["login_page_image_zoom"]
+        settings.LOGIN_PAGE_IMAGE_POSITION_X = payload["login_page_image_position_x"]
+        settings.LOGIN_PAGE_IMAGE_POSITION_Y = payload["login_page_image_position_y"]
         settings.NOTIFICATION_POSITION = payload["notification_position"]
         settings.NOTIFICATION_DURATION = payload["notification_duration"]
         settings.NOTIFICATION_VISIBLE_TOASTS = payload["notification_visible_toasts"]

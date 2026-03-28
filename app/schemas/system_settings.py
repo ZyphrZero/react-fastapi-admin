@@ -96,6 +96,9 @@ class ApplicationSettingsUpdate(BaseModel):
         default=LoginPageImageMode.CONTAIN,
         description="登录页图片显示模式",
     )
+    login_page_image_zoom: float = Field(default=1.0, ge=1.0, le=3.0, description="登录页图片缩放比例")
+    login_page_image_position_x: float = Field(default=50.0, ge=0.0, le=100.0, description="登录页图片水平位置百分比")
+    login_page_image_position_y: float = Field(default=50.0, ge=0.0, le=100.0, description="登录页图片垂直位置百分比")
     notification_position: NotificationPosition = Field(
         default=NotificationPosition.TOP_RIGHT,
         description="前端通知显示位置",

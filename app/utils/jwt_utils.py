@@ -4,6 +4,9 @@ from uuid import uuid4
 
 from app.settings.config import settings
 
+JWT_TOKEN_AUDIENCE = "react-fastapi-admin"
+JWT_TOKEN_ISSUER = "react-fastapi-admin"
+
 
 def _build_common_claims(
     *,
@@ -22,12 +25,9 @@ def _build_common_claims(
         "iat": now,
         "exp": expire_at,
         "jti": token_jti or uuid4().hex,
+        "aud": JWT_TOKEN_AUDIENCE,
+        "iss": JWT_TOKEN_ISSUER,
     }
-
-    if settings.JWT_AUDIENCE:
-        payload["aud"] = settings.JWT_AUDIENCE
-    if settings.JWT_ISSUER:
-        payload["iss"] = settings.JWT_ISSUER
 
     return payload
 
@@ -61,15 +61,15 @@ def decode_token(token: str, *, expected_type: str) -> dict:
     options = {
         "verify_signature": True,
         "verify_exp": True,
-        "verify_aud": bool(settings.JWT_AUDIENCE),
-        "verify_iss": bool(settings.JWT_ISSUER),
+        "verify_aud": True,
+        "verify_iss": True,
     }
     payload = jwt.decode(
         token,
         settings.SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
-        audience=settings.JWT_AUDIENCE if settings.JWT_AUDIENCE else None,
-        issuer=settings.JWT_ISSUER if settings.JWT_ISSUER else None,
+        audience=JWT_TOKEN_AUDIENCE,
+        issuer=JWT_TOKEN_ISSUER,
         options=options,
     )
     if payload.get("token_type") != expected_type:

@@ -225,6 +225,9 @@ const Login = () => {
                 <LoginPageImageStage
                   src={appMeta.login_page_image_url}
                   mode={appMeta.login_page_image_mode || 'contain'}
+                  zoom={appMeta.login_page_image_zoom ?? 1}
+                  positionX={appMeta.login_page_image_position_x ?? 50}
+                  positionY={appMeta.login_page_image_position_y ?? 50}
                   fillParent
                 />
               </div>

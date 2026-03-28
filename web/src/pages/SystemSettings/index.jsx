@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 
 import api from '@/api'
-import { LoginPageImageStage } from '@/components/LoginPageImageStage'
+import LoginPageImageEditor from '@/components/LoginPageImageEditor'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { dispatchAppMetaUpdated } from '@/utils/appMeta'
+import { LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM } from '@/utils/loginPageImageLayout'
 
 const defaultApplicationValues = {
   app_title: 'React FastAPI Admin',
@@ -34,6 +35,9 @@ const defaultApplicationValues = {
   environment: 'dev',
   login_page_image_url: '',
   login_page_image_mode: 'contain',
+  login_page_image_zoom: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.zoom,
+  login_page_image_position_x: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionX,
+  login_page_image_position_y: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionY,
   notification_position: 'top-right',
   notification_duration: '4000',
   notification_visible_toasts: '3',
@@ -233,6 +237,13 @@ const SystemSettings = () => {
         environment: applicationData.environment || defaultApplicationValues.environment,
         login_page_image_url: applicationData.login_page_image_url || '',
         login_page_image_mode: applicationData.login_page_image_mode || defaultApplicationValues.login_page_image_mode,
+        login_page_image_zoom: Number(applicationData.login_page_image_zoom ?? defaultApplicationValues.login_page_image_zoom),
+        login_page_image_position_x: Number(
+          applicationData.login_page_image_position_x ?? defaultApplicationValues.login_page_image_position_x
+        ),
+        login_page_image_position_y: Number(
+          applicationData.login_page_image_position_y ?? defaultApplicationValues.login_page_image_position_y
+        ),
         notification_position: applicationData.notification_position || defaultApplicationValues.notification_position,
         notification_duration: String(applicationData.notification_duration || defaultApplicationValues.notification_duration),
         notification_visible_toasts: String(
@@ -317,6 +328,9 @@ const SystemSettings = () => {
         debug: applicationValues.debug,
         login_page_image_url: applicationValues.login_page_image_url.trim(),
         login_page_image_mode: applicationValues.login_page_image_mode || defaultApplicationValues.login_page_image_mode,
+        login_page_image_zoom: Number(applicationValues.login_page_image_zoom),
+        login_page_image_position_x: Number(applicationValues.login_page_image_position_x),
+        login_page_image_position_y: Number(applicationValues.login_page_image_position_y),
         notification_position: applicationValues.notification_position || defaultApplicationValues.notification_position,
         notification_duration: Number(applicationValues.notification_duration),
         notification_visible_toasts: Number(applicationValues.notification_visible_toasts),
@@ -332,6 +346,13 @@ const SystemSettings = () => {
         debug: Boolean(data.debug),
         login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
         login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
+        login_page_image_zoom: Number(data.login_page_image_zoom ?? payload.login_page_image_zoom),
+        login_page_image_position_x: Number(
+          data.login_page_image_position_x ?? payload.login_page_image_position_x
+        ),
+        login_page_image_position_y: Number(
+          data.login_page_image_position_y ?? payload.login_page_image_position_y
+        ),
         notification_position: data.notification_position || payload.notification_position,
         notification_duration: String(data.notification_duration || payload.notification_duration),
         notification_visible_toasts: String(data.notification_visible_toasts || payload.notification_visible_toasts),
@@ -342,6 +363,9 @@ const SystemSettings = () => {
         app_description: data.app_description || payload.app_description,
         login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
         login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
+        login_page_image_zoom: data.login_page_image_zoom ?? payload.login_page_image_zoom,
+        login_page_image_position_x: data.login_page_image_position_x ?? payload.login_page_image_position_x,
+        login_page_image_position_y: data.login_page_image_position_y ?? payload.login_page_image_position_y,
         notification_position: data.notification_position || payload.notification_position,
         notification_duration: data.notification_duration || payload.notification_duration,
         notification_visible_toasts: data.notification_visible_toasts || payload.notification_visible_toasts,
@@ -472,7 +496,13 @@ const SystemSettings = () => {
   }
 
   const restoreDefaultLoginImage = () => {
-    updateApplicationField('login_page_image_url', '')
+    setApplicationValues((current) => ({
+      ...current,
+      login_page_image_url: '',
+      login_page_image_zoom: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.zoom,
+      login_page_image_position_x: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionX,
+      login_page_image_position_y: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionY,
+    }))
   }
 
   const handleLoginImageUpload = async (event) => {
@@ -503,7 +533,13 @@ const SystemSettings = () => {
         return
       }
 
-      updateApplicationField('login_page_image_url', nextUrl)
+      setApplicationValues((current) => ({
+        ...current,
+        login_page_image_url: nextUrl,
+        login_page_image_zoom: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.zoom,
+        login_page_image_position_x: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionX,
+        login_page_image_position_y: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionY,
+      }))
       showSuccess('登录页图片上传成功')
     } catch (error) {
       handleBusinessError(error, '登录页图片上传失败')
@@ -521,6 +557,7 @@ const SystemSettings = () => {
         label: '图片模式',
         value: loginPageImageModeOptions.find((item) => item.value === applicationValues.login_page_image_mode)?.label || '适应',
       },
+      { label: '图片缩放', value: `${Number(applicationValues.login_page_image_zoom).toFixed(2)}x` },
       {
         label: '通知位置',
         value: notificationPositionOptions.find((item) => item.value === applicationValues.notification_position)?.label || '右上角',
@@ -540,6 +577,7 @@ const SystemSettings = () => {
       applicationValues.environment,
       applicationValues.login_page_image_url,
       applicationValues.login_page_image_mode,
+      applicationValues.login_page_image_zoom,
       applicationValues.notification_position,
       loggingValues.logs_root,
       provider,
@@ -756,19 +794,29 @@ const SystemSettings = () => {
                         </div>
 
                         <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                          预览与登录页右侧卡片使用同一套展示比例和图片模式。填充会覆盖显示区域，适应会完整显示，拉伸会强制铺满，平铺会以固定块尺寸重复显示。上传图片会使用当前系统存储配置，本地存储和对象存储都可直接回填 URL。
+                          预览与登录页右侧卡片使用同一套展示比例、图片模式与布局参数。上传后可以直接在预览区域拖动调整位置，并通过滚轮或滑杆缩放。上传图片会使用当前系统存储配置，本地存储和对象存储都可直接回填 URL。
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-3">
                         <div className="text-sm font-medium">预览</div>
-                        <div className="mx-auto flex aspect-[10/13] w-full max-w-[20rem] items-stretch justify-stretch overflow-hidden rounded-2xl border bg-stone-100/60 dark:bg-muted/10">
-                          <LoginPageImageStage
-                            src={loginPageImagePreview}
-                            mode={applicationValues.login_page_image_mode}
-                            alt="登录页图片预览"
-                            fillParent
-                          />
+                        <LoginPageImageEditor
+                          src={loginPageImagePreview}
+                          mode={applicationValues.login_page_image_mode}
+                          zoom={applicationValues.login_page_image_zoom}
+                          positionX={applicationValues.login_page_image_position_x}
+                          positionY={applicationValues.login_page_image_position_y}
+                          onChange={(nextTransform) => {
+                            setApplicationValues((current) => ({
+                              ...current,
+                              login_page_image_zoom: nextTransform.zoom,
+                              login_page_image_position_x: nextTransform.positionX,
+                              login_page_image_position_y: nextTransform.positionY,
+                            }))
+                          }}
+                        />
+                        <div className="rounded-lg border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                          当前布局会在保存基础设置后同步到登录页右侧展示图。
                         </div>
                       </div>
                     </CardContent>

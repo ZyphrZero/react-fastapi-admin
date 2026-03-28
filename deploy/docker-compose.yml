@@ -1,8 +1,14 @@
 # =============================================================================
-# React FastAPI Admin Docker Compose - Named Volume Version
+# React FastAPI Admin Docker Compose
 # =============================================================================
-# This configuration uses Docker named volumes.
-# For easier migration and backup, prefer docker-compose.local.yml.
+# Quick Start:
+#   1. Copy .env.example to .env
+#   2. Edit secrets and database password
+#   3. docker compose up -d
+#   4. docker compose exec api python -m app bootstrap
+#
+# Access:
+#   http://YOUR_SERVER_IP:${APP_PORT:-8080}
 # =============================================================================
 
 services:
@@ -13,9 +19,15 @@ services:
     container_name: react-fastapi-admin-api
     restart: unless-stopped
     ports:
-      - "${BIND_HOST:-0.0.0.0}:${APP_PORT:-9999}:9999"
+      - "${BIND_HOST:-0.0.0.0}:${APP_PORT:-8080}:9999"
     env_file:
       - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_DATABASE: ${POSTGRES_DB}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,32 +59,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-
-  bootstrap:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    container_name: react-fastapi-admin-bootstrap
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["python", "-m", "app", "bootstrap"]
-    profiles: ["ops"]
-
-  upgrade:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    container_name: react-fastapi-admin-upgrade
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["python", "-m", "app", "db", "upgrade"]
-    profiles: ["ops"]
 
 volumes:
   storage_data:

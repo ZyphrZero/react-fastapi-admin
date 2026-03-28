@@ -2,7 +2,7 @@ import secrets
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic import Field, PrivateAttr, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,14 +38,19 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = Field(default="React FastAPI Admin", description="项目名称")
     APP_DESCRIPTION: str = Field(default="React FastAPI Admin Description", description="应用描述")
     DEBUG: bool = Field(default=False, description="调试模式")
-    LOGIN_PAGE_IMAGE_URL: str = Field(default="", description="登录页展示图片地址")
-    LOGIN_PAGE_IMAGE_MODE: str = Field(default="contain", description="登录页图片显示模式")
     NOTIFICATION_POSITION: str = Field(default="top-right", description="前端通知显示位置")
     NOTIFICATION_DURATION: int = Field(default=4000, description="前端通知显示时长（毫秒）")
     NOTIFICATION_VISIBLE_TOASTS: int = Field(default=3, description="前端同时显示通知数量")
     HOST: str = Field(default="0.0.0.0", description="服务监听地址")
     PORT: int = Field(default=9999, description="服务监听端口")
     SERVER_RELOAD: Optional[bool] = Field(default=None, description="是否启用服务热重载")
+
+    # Runtime-managed UI settings. These are intentionally not loaded from environment variables.
+    _login_page_image_url: str = PrivateAttr(default="")
+    _login_page_image_mode: str = PrivateAttr(default="contain")
+    _login_page_image_zoom: float = PrivateAttr(default=1.0)
+    _login_page_image_position_x: float = PrivateAttr(default=50.0)
+    _login_page_image_position_y: float = PrivateAttr(default=50.0)
 
     # CORS settings.
     CORS_ORIGINS: List[str] = Field(default=["*"], description="CORS 允许的来源")
@@ -68,8 +73,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT 算法")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, description="JWT 访问令牌过期时间（分钟）")
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="JWT 刷新令牌过期时间（天）")
-    JWT_AUDIENCE: str = Field(default="react-fastapi-admin", description="JWT 受众")
-    JWT_ISSUER: str = Field(default="react-fastapi-admin", description="JWT 签发者")
     REFRESH_TOKEN_COOKIE_NAME: str = Field(default="refresh_token", description="刷新令牌 Cookie 名称")
     REFRESH_TOKEN_COOKIE_SECURE: Optional[bool] = Field(default=None, description="刷新令牌 Cookie 是否仅限 HTTPS")
     REFRESH_TOKEN_COOKIE_SAMESITE: str = Field(default="lax", description="刷新令牌 Cookie SameSite 策略")
@@ -223,6 +226,57 @@ class Settings(BaseSettings):
         if self.REFRESH_TOKEN_COOKIE_SECURE is not None:
             return self.REFRESH_TOKEN_COOKIE_SECURE
         return self.is_production
+
+    @property
+    def LOGIN_PAGE_IMAGE_URL(self) -> str:
+        """Return the runtime login-page image URL."""
+        return self._login_page_image_url
+
+    @LOGIN_PAGE_IMAGE_URL.setter
+    def LOGIN_PAGE_IMAGE_URL(self, value: object) -> None:
+        self._login_page_image_url = "" if value is None else str(value).strip()
+
+    @property
+    def LOGIN_PAGE_IMAGE_MODE(self) -> str:
+        """Return the runtime login-page image mode."""
+        return self._login_page_image_mode
+
+    @LOGIN_PAGE_IMAGE_MODE.setter
+    def LOGIN_PAGE_IMAGE_MODE(self, value: object) -> None:
+        if value is None:
+            normalized = ""
+        elif hasattr(value, "value"):
+            normalized = str(value.value).strip()
+        else:
+            normalized = str(value).strip()
+        self._login_page_image_mode = normalized or "contain"
+
+    @property
+    def LOGIN_PAGE_IMAGE_ZOOM(self) -> float:
+        """Return the runtime login-page image zoom."""
+        return self._login_page_image_zoom
+
+    @LOGIN_PAGE_IMAGE_ZOOM.setter
+    def LOGIN_PAGE_IMAGE_ZOOM(self, value: object) -> None:
+        self._login_page_image_zoom = 1.0 if value is None else float(value)
+
+    @property
+    def LOGIN_PAGE_IMAGE_POSITION_X(self) -> float:
+        """Return the runtime login-page image horizontal position."""
+        return self._login_page_image_position_x
+
+    @LOGIN_PAGE_IMAGE_POSITION_X.setter
+    def LOGIN_PAGE_IMAGE_POSITION_X(self, value: object) -> None:
+        self._login_page_image_position_x = 50.0 if value is None else float(value)
+
+    @property
+    def LOGIN_PAGE_IMAGE_POSITION_Y(self) -> float:
+        """Return the runtime login-page image vertical position."""
+        return self._login_page_image_position_y
+
+    @LOGIN_PAGE_IMAGE_POSITION_Y.setter
+    def LOGIN_PAGE_IMAGE_POSITION_Y(self, value: object) -> None:
+        self._login_page_image_position_y = 50.0 if value is None else float(value)
 
     @computed_field
     @property

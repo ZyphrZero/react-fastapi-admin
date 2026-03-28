@@ -55,8 +55,8 @@
       支持本地存储与对象存储，头像上传支持裁剪并统一转换为 WebP。
     </td>
     <td width="33%">
-      <strong>开箱即看文档</strong><br>
-      启动后根路径自动跳转到 <code>/docs</code>，可直接查看 OpenAPI 文档。
+      <strong>界面与文档一体化交付</strong><br>
+      生产镜像会同时提供管理界面与 <code>/docs</code> 文档入口，部署路径更简单。
     </td>
   </tr>
 </table>
@@ -265,9 +265,58 @@ uv run python -m app bootstrap
 
 ## Docker 说明
 
-当前仓库中的 `Dockerfile` 仍引用 `deploy/entrypoint.sh` 与 `deploy/web.conf`，但仓库内未包含 `deploy/` 目录，因此暂不建议直接按旧文档进行容器构建。
+- `deploy/.env.example`：Docker 环境变量示例
+- `deploy/docker-compose.yml`：应用 + PostgreSQL 的 Docker Compose 配置
+- `deploy/install.sh`：一键安装脚本
 
-如果后续补齐 `deploy/` 目录，再补充完整的 Docker 构建与运行说明会更合理。
+### 部署定位
+
+- 单个应用容器同时提供前端页面与后端 API
+- PostgreSQL 通过 Compose 一起部署
+- 访问根路径即可打开管理界面，base_url + `/docs` 仍可查看 OpenAPI 文档
+
+### 一键安装
+
+```bash
+cd deploy
+chmod +x install.sh
+./install.sh
+```
+
+安装脚本会自动完成以下操作：
+
+- 生成 `deploy/.env`
+- 自动填充 `SECRET_KEY`、数据库密码和初始管理员密码
+- 构建并启动容器
+- 执行 `python -m app bootstrap`
+- 输出访问地址与管理员账号
+
+### 手动部署
+
+```bash
+cd deploy
+cp .env.example .env
+docker compose --env-file .env up -d
+```
+
+首次初始化数据库、默认角色、管理员账号和 API 元数据：
+
+```bash
+docker compose --env-file .env exec api python -m app bootstrap
+```
+
+后续升级数据库迁移：
+
+```bash
+docker compose --env-file .env exec api python -m app db upgrade
+```
+
+查看服务状态与日志：
+
+```bash
+docker compose --env-file .env ps
+docker compose --env-file .env logs -f api
+```
 
 ## License
 
