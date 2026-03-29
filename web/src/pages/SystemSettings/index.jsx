@@ -28,9 +28,9 @@ import { dispatchAppMetaUpdated } from '@/utils/appMeta'
 import { LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM } from '@/utils/loginPageImageLayout'
 
 const defaultApplicationValues = {
-  app_title: 'React FastAPI Admin',
-  project_name: 'React FastAPI Admin',
-  app_description: 'React FastAPI Admin Description',
+  app_title: 'React Go Admin',
+  project_name: 'React Go Admin',
+  app_description: 'React Go Admin Description',
   debug: false,
   environment: 'dev',
   login_page_image_url: '',
@@ -61,7 +61,7 @@ const notificationPositionOptions = [
 ]
 
 const defaultLoggingValues = {
-  logs_root: 'app/logs',
+  logs_root: 'logs',
   log_retention_days: '7',
   log_rotation: '1 day',
   log_max_file_size: '10 MB',

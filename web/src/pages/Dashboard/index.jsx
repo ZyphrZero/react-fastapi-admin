@@ -479,7 +479,7 @@ const Dashboard = () => {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{system.app_title || 'React FastAPI Admin'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{system.app_title || 'React Go Admin'}</h1>
           <p className="text-sm text-muted-foreground">
             系统概览、运行状态、分布图表和最近操作都集中在这里，便于快速判断当前活跃度。
           </p>

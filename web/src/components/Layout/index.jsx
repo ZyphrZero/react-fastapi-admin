@@ -441,7 +441,7 @@ const AppLayout = () => {
 
   useEffect(() => {
     const currentPageLabel = breadcrumbItems[breadcrumbItems.length - 1]?.label
-    const appTitle = appMeta.app_title || 'React FastAPI Admin'
+    const appTitle = appMeta.app_title || 'React Go Admin'
 
     document.title = currentPageLabel && currentPageLabel !== appTitle
       ? `${currentPageLabel} - ${appTitle}`
@@ -542,7 +542,7 @@ const AppLayout = () => {
                     markClassName="!size-10"
                     titleClassName="text-[15px]"
                     subtitleClassName="text-[10px] tracking-[0.24em]"
-                    title={appMeta.app_title || 'React FastAPI Admin'}
+                    title={appMeta.app_title || 'React Go Admin'}
                     subtitle={appMeta.project_name && appMeta.project_name !== appMeta.app_title ? appMeta.project_name : 'CONTROL CENTER'}
                   />
                 </Link>

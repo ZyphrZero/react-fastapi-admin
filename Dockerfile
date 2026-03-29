@@ -11,32 +11,41 @@ COPY web ./
 
 RUN pnpm build
 
-FROM python:3.11-slim
+FROM golang:1.26 AS backend-builder
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    APP_ENV=prod \
+WORKDIR /build
+
+COPY go.mod go.sum ./
+
+RUN go mod download
+
+COPY app ./app
+COPY .env.example ./.env.example
+
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o /out/react-go-admin ./app
+
+FROM debian:bookworm-slim
+
+ENV APP_ENV=prod \
+    TZ=Asia/Shanghai \
     HOST=0.0.0.0 \
     PORT=9999
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY app ./app
-COPY migrations ./migrations
-COPY web/package.json ./web/package.json
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip \
-    && python -m pip install .
-
+COPY --from=backend-builder /out/react-go-admin /app/react-go-admin
 COPY --from=frontend-builder /build/web/dist ./web/dist
+COPY .env.example ./.env.example
 
-RUN mkdir -p /app/storage /app/app/logs
+RUN mkdir -p /app/storage /app/logs
 
 EXPOSE 9999
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9999/health', timeout=3)"
+  CMD curl -fsS http://127.0.0.1:9999/health >/dev/null || exit 1
 
-CMD ["python", "-m", "app", "serve"]
+ENTRYPOINT ["/app/react-go-admin"]

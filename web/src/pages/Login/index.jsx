@@ -75,7 +75,7 @@ const Login = () => {
   )
 
   useEffect(() => {
-    document.title = `登录 - ${appMeta.app_title || 'React FastAPI Admin'}`
+    document.title = `登录 - ${appMeta.app_title || 'React Go Admin'}`
   }, [appMeta.app_title])
 
   const updateField = (name, value) => {
@@ -145,7 +145,7 @@ const Login = () => {
                 <BrandLogo
                   className="items-start"
                   markClassName="size-10"
-                  title={appMeta.app_title || 'React FastAPI Admin'}
+                  title={appMeta.app_title || 'React Go Admin'}
                   subtitle={appMeta.project_name && appMeta.project_name !== appMeta.app_title ? appMeta.project_name : 'CONTROL CENTER'}
                 />
 
@@ -159,7 +159,7 @@ const Login = () => {
                         WelcomeBack
                       </h1>
                       <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                        使用你的账户继续进入 {appMeta.app_title || 'React FastAPI Admin'} 管理台。
+                        使用你的账户继续进入 {appMeta.app_title || 'React Go Admin'} 管理台。
                       </p>
                     </div>
                   </div>

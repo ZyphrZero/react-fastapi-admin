@@ -1,4 +1,4 @@
-# React FastAPI Admin - React 前端
+# React Go Admin - React 前端
 
 一个基于 **React 18 + Ant Design 5 + Tailwind CSS 4 + Vite 8** 构建的现代化管理系统前端。
 
@@ -151,7 +151,7 @@ npm run preview
 
 ## 🔗 与后端集成
 
-确保 FastAPI 后端服务运行在 `http://localhost:9999`，前端将通过代理访问后端 API。
+确保 Go 后端服务运行在 `http://localhost:9999`，前端将通过代理访问后端 API。
 
 ## 🤝 开发规范
 

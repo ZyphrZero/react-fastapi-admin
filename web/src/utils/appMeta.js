@@ -1,9 +1,9 @@
 export const APP_META_UPDATED_EVENT = 'app:meta-updated'
 
 export const defaultAppMeta = {
-  app_title: 'React FastAPI Admin',
-  project_name: 'React FastAPI Admin',
-  app_description: 'React FastAPI Admin Description',
+  app_title: 'React Go Admin',
+  project_name: 'React Go Admin',
+  app_description: 'React Go Admin Description',
   login_page_image_url: '',
   login_page_image_mode: 'contain',
   login_page_image_zoom: 1,

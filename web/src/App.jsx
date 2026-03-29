@@ -30,7 +30,7 @@ function App() {
   const notificationPosition = appMeta.notification_position || 'top-right'
 
   return (
-    <ThemeProvider defaultTheme="system" storageKey="react-fastapi-admin-theme">
+    <ThemeProvider defaultTheme="system" storageKey="react-go-admin-theme">
       <TooltipProvider>
         <RouterProvider router={router} />
         <Toaster

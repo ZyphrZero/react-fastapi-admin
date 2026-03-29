@@ -74,7 +74,7 @@ const BrandLogo = ({
   markClassName,
   titleClassName,
   subtitleClassName,
-  title = 'React FastAPI Admin',
+  title = 'React Go Admin',
   subtitle = 'CONTROL CENTER',
   compact = false,
 }) => (

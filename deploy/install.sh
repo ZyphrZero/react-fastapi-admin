@@ -23,12 +23,12 @@ random_hex() {
     return
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -c "import secrets; print(secrets.token_hex(${bytes}))"
+  if command -v od >/dev/null 2>&1; then
+    od -vAn -N"${bytes}" -tx1 /dev/urandom | tr -d ' \n'
     return
   fi
 
-  echo "Neither openssl nor python3 is available for secret generation." >&2
+  echo "Neither openssl nor od is available for secret generation." >&2
   exit 1
 }
 
@@ -53,11 +53,15 @@ docker_compose() {
   docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
+compose_up() {
+  docker_compose up -d --build --remove-orphans
+}
+
 wait_for_api() {
   local attempts=0
   local max_attempts=60
 
-  until docker_compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9999/health', timeout=3)" >/dev/null 2>&1; do
+  until docker_compose exec -T api curl -fsS "http://127.0.0.1:9999/health" >/dev/null 2>&1; do
     attempts=$((attempts + 1))
     if [ "${attempts}" -ge "${max_attempts}" ]; then
       echo "API service did not become ready in time." >&2
@@ -98,8 +102,9 @@ print_summary() {
   admin_password="$(read_env INITIAL_ADMIN_PASSWORD)"
 
   echo
-  echo "React FastAPI Admin is ready."
+  echo "React Go Admin is ready."
   echo "URL: http://${bind_host}:${app_port}"
+  echo "Health: http://${bind_host}:${app_port}/health"
   echo "Admin username: ${admin_user}"
   echo "Admin password: ${admin_password}"
   echo
@@ -109,9 +114,8 @@ install() {
   require_command docker
   prepare_env
 
-  docker_compose up -d --build
+  compose_up
   wait_for_api
-  docker_compose exec -T api python -m app bootstrap
   print_summary
 }
 
@@ -123,9 +127,13 @@ upgrade() {
     exit 1
   fi
 
-  docker_compose up -d --build
+  compose_up
   wait_for_api
-  docker_compose exec -T api python -m app db upgrade
+}
+
+status() {
+  require_command docker
+  docker_compose ps
 }
 
 logs() {
@@ -148,11 +156,14 @@ case "${command}" in
   logs)
     logs
     ;;
+  status)
+    status
+    ;;
   down)
     down
     ;;
   *)
-    echo "Usage: $0 [install|upgrade|logs|down]" >&2
+    echo "Usage: $0 [install|upgrade|logs|status|down]" >&2
     exit 1
     ;;
 esac
