@@ -6,7 +6,7 @@
   <strong>一个基于 FastAPI + React + shadcn/ui 的现代化后台管理系统</strong>
 </p>
 
-**Go重构版本**：https://github.com/ZyphrZero/react-go-admin
+**Go重构版本(Go + Gin + GORM + React + Vite + Bun)**：https://github.com/ZyphrZero/react-go-admin
 
 <p>
   默认使用 SQLite 启动，采用显式运维命令管理数据库与种子数据，内置 JWT 认证、RBAC 权限控制、审计日志、文件/图像上传能力。
