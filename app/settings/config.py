@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = Field(default="", description="数据库密码")
     DB_DATABASE: str = Field(default="fastapi_admin", description="数据库名称")
 
+    # Redis 配置
+    REDIS_ENABLED: bool = Field(default=False, description="是否启用 Redis")
+    REDIS_HOST: str = Field(default="127.0.0.1", description="Redis 主机")
+    REDIS_PORT: int = Field(default=63790, description="Redis 端口")
+    REDIS_DB: int = Field(default=5, description="Redis 数据库索引")
+    REDIS_PASSWORD: str = Field(default="123456", description="Redis 密码")
+    REDIS_PREFIX: str = Field(default="react-fastapi:", description="Redis 前缀")
+
     # Date and time formatting.
     DATETIME_FORMAT: str = Field(default="%Y-%m-%d %H:%M:%S", description="日期时间格式")
 

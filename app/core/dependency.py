@@ -2,7 +2,8 @@ import time
 from typing import Annotated, Optional, Set
 
 import jwt
-from fastapi import Depends, Header, Request, Query
+from fastapi import Depends, Query, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from tortoise.expressions import F
 
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
@@ -16,6 +17,7 @@ class AuthControl:
     """Authentication controller."""
 
     # Load the IP allowlist from the current settings.
+    _bearer_scheme = HTTPBearer(auto_error=False)
     _ip_whitelist: Set[str] = set(settings.ip_whitelist)
     _trusted_proxy_ips: Set[str] = set(settings.trusted_proxy_ips)
     _trust_proxy_headers: bool = settings.TRUST_PROXY_HEADERS
@@ -140,11 +142,12 @@ class AuthControl:
 
     @classmethod
     async def is_authed(
-        cls, request: Request, authorization: str = Header(..., description="Bearer access token")
+        cls,
+        request: Request,
+        _credentials: HTTPAuthorizationCredentials | None = Security(_bearer_scheme),
     ) -> User:
         """
         Main authentication entrypoint.
-        :param authorization: Bearer token.
         :param request: Request object.
         :return: Authenticated user.
         """
@@ -153,6 +156,7 @@ class AuthControl:
             if not cls.check_ip_whitelist(client_ip):
                 raise AuthorizationError("IP地址未授权访问")
 
+            authorization = request.headers.get("authorization", "")
             token = cls.extract_bearer_token(authorization)
             payload = cls._validate_access_token(token)
             user_id = int(payload["user_id"])

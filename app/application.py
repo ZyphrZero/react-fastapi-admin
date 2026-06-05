@@ -78,6 +78,7 @@ def create_app() -> FastAPI:
         description=settings.APP_DESCRIPTION,
         version=settings.VERSION,
         openapi_url="/openapi.json",
+        swagger_ui_parameters={"persistAuthorization": True},
         middleware=make_middlewares(),
         lifespan=lifespan,
         redirect_slashes=False,

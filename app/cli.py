@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import platform
 from collections.abc import Awaitable, Callable, Sequence
 
 from granian import Granian
@@ -28,14 +29,33 @@ async def run_with_database_context(operation: AsyncOperation) -> None:
 
 
 def serve() -> None:
+    server_options = build_server_options()
     Granian(
         "app.asgi:app",
         interface="asgi",
         address=settings.HOST,
         port=settings.PORT,
         reload=settings.server_reload_enabled,
+        **server_options,
         **RELOAD_CONFIG,
     ).serve()
+
+
+def build_server_options() -> dict[str, int]:
+    current_platform = platform.system().lower()
+
+    if current_platform == "windows":
+        return {"workers": 1}
+
+    if current_platform == "linux":
+        return {
+            "workers": 8,
+            "runtime_threads": 10,
+            "runtime_blocking_threads": 4,
+            "blocking_threads": 1,
+        }
+
+    return {}
 
 
 def build_parser() -> argparse.ArgumentParser:
