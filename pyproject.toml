@@ -18,7 +18,7 @@ dependencies = [
     "python-dotenv==1.2.2",
     "python-multipart==0.0.22",
     "starlette==0.52.1",
-    "tortoise-orm==1.1.6",
+    "tortoise-orm==0.25.4",
     "pillow==11.1.0",
 ]
 
@@ -28,7 +28,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = false
-override-dependencies = ["tortoise-orm==1.1.6"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

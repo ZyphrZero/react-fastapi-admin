@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from aerich import Command
-from tortoise.context import require_context
+from tortoise import Tortoise
 
 from app.api.catalog import build_api_catalog_route_definitions
 from app.core.navigation import get_default_role_menu_paths
@@ -18,9 +18,8 @@ from app.utils.password import generate_bootstrap_admin_password, get_password_h
 
 
 async def ensure_database_connection() -> None:
-    """Ensure the current execution flow is explicitly bound to a database context."""
-    context = require_context()
-    if not context.inited:
+    """Ensure Tortoise has been initialized for the current operation."""
+    if not getattr(Tortoise, "_inited", False):
         raise RuntimeError("Database context is not initialized")
 
 
@@ -31,7 +30,7 @@ async def bootstrap_database() -> None:
     migrations_dir = Path(settings.BASE_DIR) / "migrations" / "models"
     has_migration_files = migrations_dir.exists() and any(migrations_dir.glob("*.py"))
     if not has_migration_files:
-        raise FileNotFoundError(f"Migration directory does not exist or is empty: {migrations_dir}")
+        raise FileNotFoundError(f"迁移目录不存在或为空: {migrations_dir}")
 
     command = Command(tortoise_config=settings.tortoise_orm)
     try:

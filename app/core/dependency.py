@@ -156,8 +156,14 @@ class AuthControl:
             if not cls.check_ip_whitelist(client_ip):
                 raise AuthorizationError("IP地址未授权访问")
 
-            authorization = request.headers.get("authorization", "")
-            token = cls.extract_bearer_token(authorization)
+            if isinstance(_credentials, HTTPAuthorizationCredentials):
+                token = cls.extract_bearer_token(f"{_credentials.scheme} {_credentials.credentials}")
+            elif _credentials is not None:
+                token = cls.extract_bearer_token(str(_credentials))
+            else:
+                authorization = request.headers.get("authorization", "")
+                token = cls.extract_bearer_token(authorization)
+
             payload = cls._validate_access_token(token)
             user_id = int(payload["user_id"])
             session_version = int(payload["session_version"])

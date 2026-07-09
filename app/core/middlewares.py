@@ -47,7 +47,7 @@ class BackGroundTaskMiddleware(SimpleBaseMiddleware):
 
 
 class DatabaseContextMiddleware(BaseHTTPMiddleware):
-    """Explicitly bind `TortoiseContext` for each request."""
+    """Ensure requests run after the database runtime has been initialized."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         db_runtime = getattr(request.app.state, "db_runtime", None)
