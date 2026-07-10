@@ -12,7 +12,13 @@ export default {
         getUserApi: () => request.get('/base/userapi'),
         getPasswordPolicy: () => request.get('/base/password_policy'),
         updatePassword: (data = {}) => request.post('/base/update_password', data),
-        updateProfile: (data = {}) => request.post('/base/update_profile', data),
+        updateProfile: (data = {}) => request.post('/base/update_profile', data, data instanceof FormData
+            ? {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            }
+            : undefined),
         uploadAvatar: (file) => {
             const formData = new FormData()
             formData.append('file', file)
@@ -28,7 +34,13 @@ export default {
     // System settings APIs.
     systemSettings: {
         getApplicationSettings: () => request.get('/system_settings/application'),
-        updateApplicationSettings: (data = {}) => request.post('/system_settings/application', data),
+        updateApplicationSettings: (data = {}) => request.post('/system_settings/application', data, data instanceof FormData
+            ? {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            }
+            : undefined),
         getLoggingSettings: () => request.get('/system_settings/logging'),
         updateLoggingSettings: (data = {}) => request.post('/system_settings/logging', data),
         getSecuritySettings: () => request.get('/system_settings/security'),

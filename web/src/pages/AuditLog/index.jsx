@@ -40,7 +40,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { getStoredUserInfo } from '@/utils/session'
+import { getAccessToken, getStoredUserInfo } from '@/utils/session'
 
 const DEFAULT_PAGE_SIZE = 100
 const PAGE_SIZE_OPTIONS = ['20', '50', '100', '200']
@@ -64,6 +64,91 @@ const formatJsonBlock = (value) => {
   } catch {
     return String(value)
   }
+}
+
+const resolveCurlBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    return 'http://127.0.0.1:9999'
+  }
+
+  const { protocol, hostname, port, origin } = window.location
+  if (port === '5173') {
+    return `${protocol}//${hostname}:9999`
+  }
+
+  return origin
+}
+
+const appendQueryToPath = (path, requestArgs) => {
+  if (!requestArgs || typeof requestArgs !== 'object' || Array.isArray(requestArgs)) {
+    return path
+  }
+
+  const searchParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(requestArgs)) {
+    if (value === null || typeof value === 'undefined' || value === '') {
+      continue
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => searchParams.append(key, String(item)))
+      continue
+    }
+    searchParams.append(key, String(value))
+  }
+
+  const queryString = searchParams.toString()
+  if (!queryString) {
+    return path
+  }
+  return `${path}?${queryString}`
+}
+
+const formatCurlData = (requestArgs) => {
+  if (requestArgs === null || typeof requestArgs === 'undefined' || requestArgs === '') {
+    return ''
+  }
+
+  if (typeof requestArgs === 'string') {
+    return requestArgs
+  }
+
+  try {
+    return JSON.stringify(requestArgs)
+  } catch {
+    return String(requestArgs)
+  }
+}
+
+const escapeSingleQuotes = (value) => String(value).replaceAll("'", "'\"'\"'")
+
+const buildCurlCommand = (log, accessToken) => {
+  if (!log?.method || !log?.path) {
+    return ''
+  }
+
+  const method = String(log.method).toUpperCase()
+  const requestArgs = log.request_args
+  const requestPath = method === 'GET'
+    ? appendQueryToPath(log.path, requestArgs)
+    : log.path
+
+  const lines = [
+    `curl --request ${method} '${resolveCurlBaseUrl()}${requestPath}'`,
+  ]
+
+  if (accessToken) {
+    lines.push(`  --header 'Authorization: Bearer ${escapeSingleQuotes(accessToken)}'`)
+  }
+
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const body = formatCurlData(requestArgs)
+    if (body) {
+      lines.push(`  --header 'Content-Type: application/json'`)
+      lines.push(`  --data-raw '${escapeSingleQuotes(body)}'`)
+    }
+  }
+
+  return lines.join(' \\\n')
 }
 
 const normalizeDateTimeLocal = (value) => {
@@ -164,6 +249,9 @@ const AuditLogTableRow = memo(function AuditLogTableRow({
           <Checkbox checked={isSelected} onCheckedChange={(checked) => onToggleSelectedRow(log.id, Boolean(checked))} />
         </TableCell>
       ) : null}
+      <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+        {log.id || '-'}
+      </TableCell>
       <TableCell className="whitespace-normal">
         <div className="flex flex-col gap-1">
           <div className="font-medium">{formatDateTime(log.created_at)}</div>
@@ -503,6 +591,22 @@ const AuditLog = () => {
     }
   }
 
+  const handleCopyCurlCommand = async (log) => {
+    const command = buildCurlCommand(log, getAccessToken())
+    if (!command) {
+      showWarning('当前日志无法生成 cURL 请求')
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(command)
+      showSuccess('cURL 请求已复制')
+    } catch (error) {
+      handleSilentError(error, 'cURL 请求复制失败')
+      showWarning('cURL 请求复制失败')
+    }
+  }
+
   const toggleSelectedRow = useCallback((id, checked) => {
     setSelectedRowKeys((current) =>
       checked ? (current.includes(id) ? current : [...current, id]) : current.filter((key) => key !== id),
@@ -546,6 +650,7 @@ const AuditLog = () => {
                     />
                   </TableHead>
                 ) : null}
+                <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">ID</TableHead>
                 <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">时间</TableHead>
                 <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">操作人</TableHead>
                 <TableHead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border))]">模块 / 摘要</TableHead>
@@ -675,15 +780,26 @@ const AuditLog = () => {
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">当前请求的入参快照</div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-sm"
-                          onClick={() => void handleCopyDetailContent(activeLog.request_args, '请求参数')}
-                        >
-                          <CopyIcon />
-                          <span className="sr-only">复制请求参数</span>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleCopyCurlCommand(activeLog)}
+                          >
+                            <CopyIcon data-icon="inline-start" />
+                            复制 cURL
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            onClick={() => void handleCopyDetailContent(activeLog.request_args, '请求参数')}
+                          >
+                            <CopyIcon />
+                            <span className="sr-only">复制请求参数</span>
+                          </Button>
+                        </div>
                       </div>
                       <DetailCodeBlock value={activeLog.request_args} />
                     </div>

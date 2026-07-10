@@ -26,8 +26,19 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+
+const DEFAULT_PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = ['20', '50', '100']
 
 const getMethodVariant = (method) => {
   if (method === 'GET') return 'secondary'
@@ -72,7 +83,7 @@ const ApiManagement = () => {
   const [apis, setApis] = useState([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [searchValues, setSearchValues] = useState({ path: '', summary: '', tags: [] })
   const [searchParams, setSearchParams] = useState({})
   const [availableTags, setAvailableTags] = useState([])
@@ -126,7 +137,7 @@ const ApiManagement = () => {
   }, [handleError])
 
   useEffect(() => {
-    void fetchApis(1, 10, {})
+    void fetchApis(1, DEFAULT_PAGE_SIZE, {})
     void fetchAllTags()
   }, [fetchAllTags, fetchApis])
 
@@ -150,6 +161,12 @@ const ApiManagement = () => {
 
   const handlePageChange = async (page) => {
     await fetchApis(page, pageSize, searchParams)
+  }
+
+  const handlePageSizeChange = async (value) => {
+    const size = Number(value)
+    setPageSize(size)
+    await fetchApis(1, size, searchParams)
   }
 
   const openModal = (apiItem) => {
@@ -397,7 +414,22 @@ const ApiManagement = () => {
                 <div className="text-sm text-muted-foreground">
                   第 {currentPage} / {totalPages} 页，共 {total} 条
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">每页</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => void handlePageSizeChange(value)}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {PAGE_SIZE_OPTIONS.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {value} 条
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                   <Button variant="outline" disabled={currentPage <= 1 || loading} onClick={() => void handlePageChange(currentPage - 1)}>
                     上一页
                   </Button>

@@ -19,9 +19,20 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+
+const DEFAULT_PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = ['20', '50', '100']
 
 const validateRoleForm = (values) => {
   const errors = {}
@@ -103,12 +114,25 @@ const renderMenuTree = (nodes, checkedMenuPaths, toggleMenuSelection, depth = 0)
     )
   })
 
+const collectAllApiIds = (apiGroups) => {
+  if (!Array.isArray(apiGroups)) {
+    return []
+  }
+
+  return [...new Set(apiGroups.flatMap((group) => (group.items || []).map((item) => item.id)))]
+}
+
+const collectGroupApiIds = (items) => [...new Set((items || []).map((item) => item.id))]
+
+const countCheckedApiIds = (apiIds, checkedApiIds) =>
+  apiIds.filter((apiId) => checkedApiIds.includes(apiId)).length
+
 const RoleManagement = () => {
   const [loading, setLoading] = useState(false)
   const [roles, setRoles] = useState([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [searchValue, setSearchValue] = useState('')
   const [searchParams, setSearchParams] = useState({})
 
@@ -128,9 +152,10 @@ const RoleManagement = () => {
   const { handleError, handleBusinessError, showSuccess } = useErrorHandler()
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const allApiIds = collectAllApiIds(permissionOptions.api_groups)
 
   const fetchRoles = useCallback(
-    async (page = 1, size = 10, search = {}) => {
+    async (page = 1, size = DEFAULT_PAGE_SIZE, search = {}) => {
       setLoading(true)
       try {
         const response = await api.roles.getList({
@@ -164,7 +189,7 @@ const RoleManagement = () => {
   }, [handleError])
 
   useEffect(() => {
-    void fetchRoles(1, 10, {})
+    void fetchRoles(1, DEFAULT_PAGE_SIZE, {})
     void fetchPermissionOptions()
   }, [fetchPermissionOptions, fetchRoles])
 
@@ -248,6 +273,22 @@ const RoleManagement = () => {
     setCheckedApiIds((current) =>
       checked ? [...new Set([...current, apiId])] : current.filter((item) => item !== apiId),
     )
+  }
+
+  const handleSelectAllApis = () => {
+    setCheckedApiIds(allApiIds)
+  }
+
+  const handleClearAllApis = () => {
+    setCheckedApiIds([])
+  }
+
+  const handleSelectApiGroup = (apiIds) => {
+    setCheckedApiIds((current) => [...new Set([...current, ...apiIds])])
+  }
+
+  const handleClearApiGroup = (apiIds) => {
+    setCheckedApiIds((current) => current.filter((item) => !apiIds.includes(item)))
   }
 
   const handleSaveRole = async (event) => {
@@ -392,7 +433,22 @@ const RoleManagement = () => {
                 <div className="text-sm text-muted-foreground">
                   第 {currentPage} / {totalPages} 页，共 {total} 条
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">每页</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => void handlePageChange(1, Number(value))}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {PAGE_SIZE_OPTIONS.map((size) => (
+                          <SelectItem key={size} value={size}>
+                            {size} 条
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                   <Button variant="outline" disabled={currentPage <= 1 || loading} onClick={() => void handlePageChange(currentPage - 1)}>
                     上一页
                   </Button>
@@ -490,36 +546,95 @@ const RoleManagement = () => {
 
                 <Card size="sm">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <WaypointsIcon className="size-4" />
-                      API 权限
-                    </CardTitle>
-                    <CardDescription>按接口分组分配访问权限</CardDescription>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <WaypointsIcon className="size-4" />
+                          API 权限
+                        </CardTitle>
+                        <CardDescription>按接口分组分配访问权限</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          已选 {checkedApiIds.length} / {allApiIds.length}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={permissionOptionsLoading || allApiIds.length === 0 || checkedApiIds.length === allApiIds.length}
+                          onClick={handleSelectAllApis}
+                        >
+                          全选
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={permissionOptionsLoading || checkedApiIds.length === 0}
+                          onClick={handleClearAllApis}
+                        >
+                          清空
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="max-h-[28rem] overflow-y-auto">
                     {permissionOptionsLoading ? (
                       <div className="text-sm text-muted-foreground">加载权限资源中...</div>
                     ) : permissionOptions.api_groups?.length ? (
                       <div className="flex flex-col gap-4">
-                        {permissionOptions.api_groups.map((group) => (
-                          <div key={group.tag} className="rounded-lg border p-3">
-                            <div className="mb-3 text-sm font-medium">{group.tag} ({group.items?.length || 0})</div>
-                            <div className="flex flex-col gap-2">
-                              {(group.items || []).map((item) => (
-                                <Label key={item.id} className="items-start">
-                                  <Checkbox
-                                    checked={checkedApiIds.includes(item.id)}
-                                    onCheckedChange={(checked) => toggleApiId(item.id, Boolean(checked))}
-                                  />
-                                  <div className="flex flex-col gap-1">
-                                    <span className="font-mono text-xs text-muted-foreground">{item.method} {item.path}</span>
-                                    <span>{item.summary || '未命名接口'}</span>
-                                  </div>
-                                </Label>
-                              ))}
+                        {permissionOptions.api_groups.map((group) => {
+                          const groupApiIds = collectGroupApiIds(group.items)
+                          const checkedCount = countCheckedApiIds(groupApiIds, checkedApiIds)
+
+                          return (
+                            <div key={group.tag} className="rounded-lg border p-3">
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-sm font-medium">
+                                  {group.tag} ({group.items?.length || 0})
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    已选 {checkedCount} / {groupApiIds.length}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={groupApiIds.length === 0 || checkedCount === groupApiIds.length}
+                                    onClick={() => handleSelectApiGroup(groupApiIds)}
+                                  >
+                                    全选
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={checkedCount === 0}
+                                    onClick={() => handleClearApiGroup(groupApiIds)}
+                                  >
+                                    清空
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                {(group.items || []).map((item) => (
+                                  <Label key={item.id} className="items-start">
+                                    <Checkbox
+                                      checked={checkedApiIds.includes(item.id)}
+                                      onCheckedChange={(checked) => toggleApiId(item.id, Boolean(checked))}
+                                    />
+                                    <div className="flex flex-col gap-1">
+                                      <span className="font-mono text-xs text-muted-foreground">{item.method} {item.path}</span>
+                                      <span>{item.summary || '未命名接口'}</span>
+                                    </div>
+                                  </Label>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ) : (
                       <Empty className="border bg-muted/20 py-8">

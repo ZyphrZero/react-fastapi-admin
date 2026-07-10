@@ -89,6 +89,8 @@ const Profile = () => {
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false)
   const [avatarEditorSrc, setAvatarEditorSrc] = useState('')
   const [avatarEditorFileName, setAvatarEditorFileName] = useState('')
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null)
+  const [pendingAvatarPreviewUrl, setPendingAvatarPreviewUrl] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(null)
   const [profileValues, setProfileValues] = useState({
@@ -173,14 +175,17 @@ const Profile = () => {
 
   useEffect(
     () => () => {
+      if (pendingAvatarPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pendingAvatarPreviewUrl)
+      }
       if (avatarEditorSrc.startsWith('blob:')) {
         URL.revokeObjectURL(avatarEditorSrc)
       }
     },
-    [avatarEditorSrc],
+    [avatarEditorSrc, pendingAvatarPreviewUrl],
   )
 
-  const avatarPreviewUrl = resolveAvatarUrl(profileValues.avatar)
+  const avatarPreviewUrl = pendingAvatarPreviewUrl || resolveAvatarUrl(profileValues.avatar)
 
   const triggerAvatarUpload = () => {
     avatarInputRef.current?.click()
@@ -196,6 +201,13 @@ const Profile = () => {
   }
 
   const handleRemoveAvatar = () => {
+    setPendingAvatarFile(null)
+    setPendingAvatarPreviewUrl((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
+      }
+      return ''
+    })
     updateProfileValue('avatar', '')
   }
 
@@ -231,24 +243,15 @@ const Profile = () => {
     const baseName = avatarEditorFileName.replace(/\.[^.]+$/, '') || 'avatar'
     const avatarFile = new File([blob], `${baseName}.webp`, { type: 'image/webp' })
 
-    setAvatarUploading(true)
-    try {
-      const response = await api.auth.uploadAvatar(avatarFile)
-      const avatarUrl = response.data?.url || ''
-
-      if (!avatarUrl) {
-        showWarning('头像上传成功，但没有返回可用地址')
-        return
+    setPendingAvatarFile(avatarFile)
+    setPendingAvatarPreviewUrl((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
       }
-
-      updateProfileValue('avatar', avatarUrl)
-      closeAvatarEditor()
-      showSuccess('头像上传成功，保存后生效')
-    } catch (error) {
-      handleBusinessError(error, '头像上传失败')
-    } finally {
-      setAvatarUploading(false)
-    }
+      return URL.createObjectURL(avatarFile)
+    })
+    closeAvatarEditor()
+    showSuccess('头像已更新，保存后生效')
   }
 
   const updatePasswordValue = (field, value) => {
@@ -266,15 +269,18 @@ const Profile = () => {
     }
 
     setLoading(true)
+    setAvatarUploading(Boolean(pendingAvatarFile))
     try {
-      const processedValues = {
-        avatar: profileValues.avatar.trim() || null,
-        nickname: profileValues.nickname.trim() || undefined,
-        email: profileValues.email.trim() || undefined,
-        phone: profileValues.phone.trim() || undefined,
+      const formData = new FormData()
+      formData.append('nickname', profileValues.nickname.trim())
+      formData.append('email', profileValues.email.trim())
+      formData.append('phone', profileValues.phone.trim())
+      formData.append('avatar_mode', pendingAvatarFile ? 'replace' : (profileValues.avatar.trim() ? 'keep' : 'remove'))
+      if (pendingAvatarFile) {
+        formData.append('avatar_file', pendingAvatarFile)
       }
 
-      await api.auth.updateProfile(processedValues)
+      await api.auth.updateProfile(formData)
       showSuccess('个人信息更新成功')
 
       const response = await api.auth.getUserInfo()
@@ -288,10 +294,18 @@ const Profile = () => {
         email: nextUserInfo.email || '',
         phone: nextUserInfo.phone || '',
       })
+      setPendingAvatarFile(null)
+      setPendingAvatarPreviewUrl((current) => {
+        if (current.startsWith('blob:')) {
+          URL.revokeObjectURL(current)
+        }
+        return ''
+      })
     } catch (error) {
       handleBusinessError(error, '更新失败，请重试')
     } finally {
       setLoading(false)
+      setAvatarUploading(false)
     }
   }
 
@@ -467,14 +481,14 @@ const Profile = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" disabled={avatarUploading || loading} onClick={triggerAvatarUpload}>
+                      <Button type="button" variant="outline" disabled={avatarEditorOpen || loading} onClick={triggerAvatarUpload}>
                         <UploadIcon data-icon="inline-start" />
-                        {avatarUploading ? '上传中...' : '上传头像'}
+                        选择头像
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
-                        disabled={avatarUploading || loading || !profileValues.avatar}
+                        disabled={loading || (!profileValues.avatar && !pendingAvatarPreviewUrl)}
                         onClick={handleRemoveAvatar}
                       >
                         <Trash2Icon data-icon="inline-start" />
