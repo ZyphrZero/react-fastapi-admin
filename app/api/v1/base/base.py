@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Cookie, File, Request, Response, UploadFile
+from pydantic import ValidationError as PydanticValidationError
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.core.dependency import AuthControl, CurrentUser
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, ValidationError
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema
 from app.schemas.users import ProfileUpdate, UpdatePassword
@@ -111,9 +113,54 @@ async def update_user_password(req_in: UpdatePassword, current_user: CurrentUser
     return Success(msg="修改成功")
 
 
+def _form_str_or_none(form, key: str) -> str | None:
+    """Read a text field from multipart form data, treating blanks as None."""
+    value = form.get(key)
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    return trimmed or None
+
+
+def _build_profile_update(data: dict) -> ProfileUpdate:
+    try:
+        return ProfileUpdate.model_validate(data)
+    except PydanticValidationError as exc:
+        errors = exc.errors()
+        message = errors[0].get("msg") if errors else "数据验证失败"
+        raise ValidationError(str(message)) from exc
+
+
 @router.post("/update_profile", summary="更新个人信息")
-async def update_user_profile(req_in: ProfileUpdate, current_user: CurrentUser):
-    await auth_service.update_current_user_profile(current_user, req_in)
+async def update_user_profile(request: Request, current_user: CurrentUser):
+    """Update the current user's profile.
+
+    Accepts either JSON (avatar handled via the `avatar` URL) or multipart form-data
+    (avatar handled via `avatar_mode` + `avatar_file`, matching the deferred-upload flow).
+    """
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        profile_data: dict = {
+            "nickname": _form_str_or_none(form, "nickname"),
+            "email": _form_str_or_none(form, "email"),
+            "phone": _form_str_or_none(form, "phone"),
+        }
+        avatar_mode = (str(form.get("avatar_mode") or "keep")).strip().lower()
+        if avatar_mode == "replace":
+            avatar_file = form.get("avatar_file")
+            if not isinstance(avatar_file, StarletteUploadFile):
+                raise ValidationError("请选择要上传的头像文件")
+            upload_result = await upload_service.upload_avatar(avatar_file)
+            profile_data["avatar"] = upload_result["url"]
+        elif avatar_mode == "remove":
+            profile_data["avatar"] = ""
+        # avatar_mode == "keep": leave avatar untouched
+        payload = _build_profile_update(profile_data)
+    else:
+        payload = _build_profile_update(await request.json())
+
+    await auth_service.update_current_user_profile(current_user, payload)
     return Success(msg="个人信息更新成功")
 
 

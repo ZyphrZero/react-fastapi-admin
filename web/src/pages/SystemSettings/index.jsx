@@ -207,12 +207,23 @@ const SystemSettings = () => {
   const [loading, setLoading] = useState(false)
   const [savingSection, setSavingSection] = useState('')
   const [uploadingLoginImage, setUploadingLoginImage] = useState(false)
+  const [pendingLoginImageFile, setPendingLoginImageFile] = useState(null)
+  const [pendingLoginImagePreviewUrl, setPendingLoginImagePreviewUrl] = useState('')
   const loginImageInputRef = useRef(null)
 
   const { handleBusinessError, handleError, showSuccess, showWarning } = useErrorHandler()
   const provider = storageValues.provider || 'local'
   const whitelistCount = useMemo(() => normalizeWhitelistItems(securityValues.ip_whitelist).length, [securityValues.ip_whitelist])
-  const loginPageImagePreview = applicationValues.login_page_image_url?.trim() || defaultLoginPageImage
+  const loginPageImagePreview = pendingLoginImagePreviewUrl || applicationValues.login_page_image_url?.trim() || defaultLoginPageImage
+
+  useEffect(
+    () => () => {
+      if (pendingLoginImagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pendingLoginImagePreviewUrl)
+      }
+    },
+    [pendingLoginImagePreviewUrl],
+  )
 
   const fetchSystemSettings = useCallback(async () => {
     setLoading(true)
@@ -249,6 +260,13 @@ const SystemSettings = () => {
         notification_visible_toasts: String(
           applicationData.notification_visible_toasts || defaultApplicationValues.notification_visible_toasts
         ),
+      })
+      setPendingLoginImageFile(null)
+      setPendingLoginImagePreviewUrl((current) => {
+        if (current.startsWith('blob:')) {
+          URL.revokeObjectURL(current)
+        }
+        return ''
       })
       setLoggingValues({
         logs_root: loggingData.logs_root || defaultLoggingValues.logs_root,
@@ -296,6 +314,17 @@ const SystemSettings = () => {
     setApplicationErrors((current) => ({ ...current, [field]: undefined }))
   }
 
+  const updateLoginPageImageUrl = (value) => {
+    setPendingLoginImageFile(null)
+    setPendingLoginImagePreviewUrl((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
+      }
+      return ''
+    })
+    updateApplicationField('login_page_image_url', value)
+  }
+
   const updateLoggingField = (field, value) => {
     setLoggingValues((current) => ({ ...current, [field]: value }))
     setLoggingErrors((current) => ({ ...current, [field]: undefined }))
@@ -320,61 +349,77 @@ const SystemSettings = () => {
     }
 
     setSavingSection('application')
+    setUploadingLoginImage(Boolean(pendingLoginImageFile))
     try {
-      const payload = {
-        app_title: applicationValues.app_title.trim(),
-        project_name: applicationValues.project_name.trim(),
-        app_description: applicationValues.app_description.trim(),
-        debug: applicationValues.debug,
-        login_page_image_url: applicationValues.login_page_image_url.trim(),
-        login_page_image_mode: applicationValues.login_page_image_mode || defaultApplicationValues.login_page_image_mode,
-        login_page_image_zoom: Number(applicationValues.login_page_image_zoom),
-        login_page_image_position_x: Number(applicationValues.login_page_image_position_x),
-        login_page_image_position_y: Number(applicationValues.login_page_image_position_y),
-        notification_position: applicationValues.notification_position || defaultApplicationValues.notification_position,
-        notification_duration: Number(applicationValues.notification_duration),
-        notification_visible_toasts: Number(applicationValues.notification_visible_toasts),
+      const payload = new FormData()
+      payload.append('app_title', applicationValues.app_title.trim())
+      payload.append('project_name', applicationValues.project_name.trim())
+      payload.append('app_description', applicationValues.app_description.trim())
+      payload.append('debug', String(applicationValues.debug))
+      payload.append('login_page_image_url', applicationValues.login_page_image_url.trim())
+      payload.append('login_page_image_mode', applicationValues.login_page_image_mode || defaultApplicationValues.login_page_image_mode)
+      payload.append('login_page_image_zoom', String(Number(applicationValues.login_page_image_zoom)))
+      payload.append('login_page_image_position_x', String(Number(applicationValues.login_page_image_position_x)))
+      payload.append('login_page_image_position_y', String(Number(applicationValues.login_page_image_position_y)))
+      payload.append('notification_position', applicationValues.notification_position || defaultApplicationValues.notification_position)
+      payload.append('notification_duration', String(Number(applicationValues.notification_duration)))
+      payload.append('notification_visible_toasts', String(Number(applicationValues.notification_visible_toasts)))
+      if (pendingLoginImageFile) {
+        payload.append('login_page_image_action', 'replace')
+        payload.append('login_page_image_file', pendingLoginImageFile)
+      } else if (!applicationValues.login_page_image_url.trim()) {
+        payload.append('login_page_image_action', 'remove')
+      } else {
+        payload.append('login_page_image_action', 'keep')
       }
       const response = await api.systemSettings.updateApplicationSettings(payload)
-      const data = response.data || payload
+      const data = response.data || {}
 
       setApplicationValues((current) => ({
         ...current,
-        app_title: data.app_title || payload.app_title,
-        project_name: data.project_name || payload.project_name,
-        app_description: data.app_description || payload.app_description,
+        app_title: data.app_title || applicationValues.app_title.trim(),
+        project_name: data.project_name || applicationValues.project_name.trim(),
+        app_description: data.app_description || applicationValues.app_description.trim(),
         debug: Boolean(data.debug),
-        login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
-        login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
-        login_page_image_zoom: Number(data.login_page_image_zoom ?? payload.login_page_image_zoom),
+        login_page_image_url: data.login_page_image_url || '',
+        login_page_image_mode: data.login_page_image_mode || applicationValues.login_page_image_mode,
+        login_page_image_zoom: Number(data.login_page_image_zoom ?? applicationValues.login_page_image_zoom),
         login_page_image_position_x: Number(
-          data.login_page_image_position_x ?? payload.login_page_image_position_x
+          data.login_page_image_position_x ?? applicationValues.login_page_image_position_x
         ),
         login_page_image_position_y: Number(
-          data.login_page_image_position_y ?? payload.login_page_image_position_y
+          data.login_page_image_position_y ?? applicationValues.login_page_image_position_y
         ),
-        notification_position: data.notification_position || payload.notification_position,
-        notification_duration: String(data.notification_duration || payload.notification_duration),
-        notification_visible_toasts: String(data.notification_visible_toasts || payload.notification_visible_toasts),
+        notification_position: data.notification_position || applicationValues.notification_position,
+        notification_duration: String(data.notification_duration || applicationValues.notification_duration),
+        notification_visible_toasts: String(data.notification_visible_toasts || applicationValues.notification_visible_toasts),
       }))
+      setPendingLoginImageFile(null)
+      setPendingLoginImagePreviewUrl((current) => {
+        if (current.startsWith('blob:')) {
+          URL.revokeObjectURL(current)
+        }
+        return ''
+      })
       dispatchAppMetaUpdated({
-        app_title: data.app_title || payload.app_title,
-        project_name: data.project_name || payload.project_name,
-        app_description: data.app_description || payload.app_description,
-        login_page_image_url: data.login_page_image_url || payload.login_page_image_url,
-        login_page_image_mode: data.login_page_image_mode || payload.login_page_image_mode,
-        login_page_image_zoom: data.login_page_image_zoom ?? payload.login_page_image_zoom,
-        login_page_image_position_x: data.login_page_image_position_x ?? payload.login_page_image_position_x,
-        login_page_image_position_y: data.login_page_image_position_y ?? payload.login_page_image_position_y,
-        notification_position: data.notification_position || payload.notification_position,
-        notification_duration: data.notification_duration || payload.notification_duration,
-        notification_visible_toasts: data.notification_visible_toasts || payload.notification_visible_toasts,
+        app_title: data.app_title || applicationValues.app_title.trim(),
+        project_name: data.project_name || applicationValues.project_name.trim(),
+        app_description: data.app_description || applicationValues.app_description.trim(),
+        login_page_image_url: data.login_page_image_url || '',
+        login_page_image_mode: data.login_page_image_mode || applicationValues.login_page_image_mode,
+        login_page_image_zoom: data.login_page_image_zoom ?? Number(applicationValues.login_page_image_zoom),
+        login_page_image_position_x: data.login_page_image_position_x ?? Number(applicationValues.login_page_image_position_x),
+        login_page_image_position_y: data.login_page_image_position_y ?? Number(applicationValues.login_page_image_position_y),
+        notification_position: data.notification_position || applicationValues.notification_position,
+        notification_duration: data.notification_duration || Number(applicationValues.notification_duration),
+        notification_visible_toasts: data.notification_visible_toasts || Number(applicationValues.notification_visible_toasts),
       })
       showSuccess('基础设置已保存')
     } catch (error) {
       handleBusinessError(error, '保存基础设置失败')
     } finally {
       setSavingSection('')
+      setUploadingLoginImage(false)
     }
   }
 
@@ -496,6 +541,13 @@ const SystemSettings = () => {
   }
 
   const restoreDefaultLoginImage = () => {
+    setPendingLoginImageFile(null)
+    setPendingLoginImagePreviewUrl((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
+      }
+      return ''
+    })
     setApplicationValues((current) => ({
       ...current,
       login_page_image_url: '',
@@ -523,36 +575,27 @@ const SystemSettings = () => {
       return
     }
 
-    setUploadingLoginImage(true)
-    try {
-      const response = await api.upload.uploadImage(file)
-      const nextUrl = response.data?.url || ''
-
-      if (!nextUrl) {
-        showWarning('图片上传成功，但没有返回可用地址')
-        return
+    setPendingLoginImageFile(file)
+    setPendingLoginImagePreviewUrl((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current)
       }
-
-      setApplicationValues((current) => ({
-        ...current,
-        login_page_image_url: nextUrl,
-        login_page_image_zoom: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.zoom,
-        login_page_image_position_x: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionX,
-        login_page_image_position_y: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionY,
-      }))
-      showSuccess('登录页图片上传成功')
-    } catch (error) {
-      handleBusinessError(error, '登录页图片上传失败')
-    } finally {
-      setUploadingLoginImage(false)
-    }
+      return URL.createObjectURL(file)
+    })
+    setApplicationValues((current) => ({
+      ...current,
+      login_page_image_zoom: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.zoom,
+      login_page_image_position_x: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionX,
+      login_page_image_position_y: LOGIN_PAGE_IMAGE_DEFAULT_TRANSFORM.positionY,
+    }))
+    showSuccess('登录页图片已选择，保存后生效')
   }
 
   const statusBadges = useMemo(
     () => [
       { label: '当前环境', value: applicationValues.environment || defaultApplicationValues.environment },
       { label: '调试模式', value: applicationValues.debug ? '已启用' : '已关闭' },
-      { label: '登录页图片', value: applicationValues.login_page_image_url ? '已自定义' : '默认插画' },
+      { label: '登录页图片', value: pendingLoginImageFile ? '待保存' : (applicationValues.login_page_image_url ? '已自定义' : '默认插画') },
       {
         label: '图片模式',
         value: loginPageImageModeOptions.find((item) => item.value === applicationValues.login_page_image_mode)?.label || '适应',
@@ -581,6 +624,7 @@ const SystemSettings = () => {
       applicationValues.notification_position,
       loggingValues.logs_root,
       provider,
+      pendingLoginImageFile,
       securityValues.rate_limit_enabled,
       securityValues.rate_limit_max_requests,
       securityValues.rate_limit_window_seconds,
@@ -740,7 +784,7 @@ const SystemSettings = () => {
                             id="login-page-image-url"
                             value={applicationValues.login_page_image_url}
                             placeholder="支持 https://... 或 /static/... 地址"
-                            onChange={(event) => updateApplicationField('login_page_image_url', event.target.value)}
+                            onChange={(event) => updateLoginPageImageUrl(event.target.value)}
                           />
                         </Field>
                         <Field>
@@ -780,7 +824,7 @@ const SystemSettings = () => {
                             disabled={uploadingLoginImage}
                           >
                             <ImageUpIcon data-icon="inline-start" />
-                            {uploadingLoginImage ? '上传中...' : '上传图片到存储'}
+                            {uploadingLoginImage ? '保存中...' : '选择图片'}
                           </Button>
                           <Button
                             type="button"
@@ -794,7 +838,7 @@ const SystemSettings = () => {
                         </div>
 
                         <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                          预览与登录页右侧卡片使用同一套展示比例、图片模式与布局参数。上传后可以直接在预览区域拖动调整位置，并通过滚轮或滑杆缩放。上传图片会使用当前系统存储配置，本地存储和对象存储都可直接回填 URL。
+                          预览与登录页右侧卡片使用同一套展示比例、图片模式与布局参数。选择图片后可以直接在预览区域拖动调整位置，并通过滚轮或滑杆缩放；真正保存基础设置时，系统才会把图片上传到当前存储。
                         </div>
                       </div>
 
