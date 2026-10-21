@@ -103,10 +103,23 @@ export const extractErrorMessage = (response, defaultMessage) => {
 
     const { data, status } = response
 
-    // Prefer error messages returned by the backend.
-    if (data.msg) return data.msg
-    if (data.message) return data.message
-    if (data.detail) return data.detail
+    // Prefer error messages returned by the backend (must be a string; a non-string
+    // payload rendered by React would crash the whole tree — React error #31).
+    if (typeof data.msg === 'string' && data.msg) return data.msg
+    if (typeof data.message === 'string' && data.message) return data.message
+
+    // FastAPI validation errors (422) return detail as an array of
+    // {type, loc, msg, input} objects; flatten it into readable text.
+    if (Array.isArray(data.detail)) {
+        const parts = data.detail.map((item) => {
+            if (typeof item === 'string') return item
+            const loc = Array.isArray(item?.loc) ? item.loc.join('.') : ''
+            const msg = typeof item?.msg === 'string' ? item.msg : '校验失败'
+            return loc ? `${msg}（${loc}）` : msg
+        })
+        return `${ERROR_CODE_MAP[status] || '数据验证失败'}：${parts.join('；')}`
+    }
+    if (typeof data.detail === 'string' && data.detail) return data.detail
 
     // Fall back to the common error mapping.
     return ERROR_CODE_MAP[status] || defaultMessage

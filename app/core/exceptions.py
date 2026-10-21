@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.schemas.base import ApiResponse
@@ -75,10 +76,67 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     return ApiResponse.error(msg="服务器内部错误", data=None)
 
 
+# 请求参数校验错误的字段名中文映射（未映射字段原样展示；业务项目可按需补充条目）
+VALIDATION_FIELD_LABELS = {}
+
+# 校验错误类型的中文描述
+VALIDATION_TYPE_MESSAGES = {
+    "string_pattern_mismatch": "格式不正确",
+    "string_too_short": "长度不足",
+    "string_too_long": "长度超限",
+    "missing": "为必填项，不能为空",
+    "value_error": "取值无效",
+    "int_parsing": "应为数字",
+    "bool_parsing": "应为布尔值",
+    "json_invalid": "应为合法 JSON",
+}
+
+
+def _validation_message(errors: list) -> str:
+    """把 Pydantic 校验错误列表转为用户可读中文提示（哪个参数、什么问题）。
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-10-12 20:35:00  # 北京时间 UTC+8
+
+    Args:
+        errors: FastAPI RequestValidationError.errors() 列表
+
+    Returns:
+        中文提示（多错误以；拼接，最多 3 条）
+    """
+    parts: list[str] = []
+    for err in errors[:3]:
+        field_path = ".".join(str(loc) for loc in err.get("loc", []) if str(loc) != "body")
+        label = VALIDATION_FIELD_LABELS.get(field_path, field_path or "请求参数")
+        reason = VALIDATION_TYPE_MESSAGES.get(err.get("type"), "不正确")
+        parts.append(f"「{label}」{reason}")
+    return "请求参数有误：" + "；".join(parts) + "。请检查后重试"
+
+
+async def validation_exception_handler(request: Request, exc) -> JSONResponse:
+    """
+    请求参数校验失败（422）统一转中文可读提示（替代 FastAPI 原始 detail 数组）。
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-10-12 20:35:00  # 北京时间 UTC+8
+
+    Args:
+        request: 请求
+        exc: RequestValidationError
+
+    Returns:
+        统一业务错误响应（code=422）
+    """
+    message = _validation_message(exc.errors())
+    logger.warning(f"Validation error - path: {request.url.path}, message: {message}")
+    return ApiResponse.fail(msg=message, code=422, data=None)
+
+
 # Exception handler mapping.
 exception_handlers = {
     HTTPException: http_exception_handler,
     StarletteHTTPException: starlette_exception_handler,
+    RequestValidationError: validation_exception_handler,
     Exception: global_exception_handler,
 }
 

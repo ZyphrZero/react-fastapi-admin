@@ -2,7 +2,7 @@ from tortoise import fields
 from tortoise.queryset import Q
 
 from .base import BaseModel, TimestampMixin
-from .enums import MethodType
+from .enums import DataScope, MethodType
 
 
 class User(BaseModel, TimestampMixin):
@@ -17,10 +17,10 @@ class User(BaseModel, TimestampMixin):
     last_login = fields.DatetimeField(null=True, description="最后登录时间", db_index=True)
     session_version = fields.IntField(default=0, description="会话版本", db_index=True)
     refresh_token_jti = fields.CharField(max_length=32, null=True, description="当前刷新令牌标识", db_index=True)
-    roles = fields.ManyToManyField("models.Role", related_name="user_roles")
+    roles = fields.ManyToManyField("models.Role", related_name="user_roles", through="sys_user_role")
 
     class Meta:
-        table = "user"
+        table = "sys_user"
 
 
 class Role(BaseModel, TimestampMixin):
@@ -28,9 +28,14 @@ class Role(BaseModel, TimestampMixin):
     desc = fields.CharField(max_length=500, null=True, description="角色描述")
     menu_paths = fields.JSONField(default=list, description="菜单权限路径")
     api_ids = fields.JSONField(default=list, description="API权限ID列表")
+    # 数据范围（一期仅 SELF/ALL 生效，DEPARTMENT/ORG 登记预留）
+    # 注：default 必须用 .value 字符串——tortoise/aerich DDL 生成器不支持枚举默认值
+    data_scope = fields.CharField(
+        max_length=16, default=DataScope.SELF.value, description="数据范围（SELF/ALL 一期生效）"
+    )
 
     class Meta:
-        table = "role"
+        table = "sys_role"
 
 
 class Api(BaseModel, TimestampMixin):
@@ -40,7 +45,7 @@ class Api(BaseModel, TimestampMixin):
     tags = fields.CharField(max_length=100, description="API标签", db_index=True)
 
     class Meta:
-        table = "api"
+        table = "sys_api"
 
 
 class RateLimitBucket(BaseModel, TimestampMixin):
@@ -49,7 +54,7 @@ class RateLimitBucket(BaseModel, TimestampMixin):
     expires_at = fields.BigIntField(description="过期时间戳", db_index=True)
 
     class Meta:
-        table = "rate_limit_bucket"
+        table = "sys_rate_limit_bucket"
 
 
 class AuditLog(BaseModel, TimestampMixin):
@@ -70,7 +75,7 @@ class AuditLog(BaseModel, TimestampMixin):
     is_deleted = fields.BooleanField(default=False, description="是否已删除", db_index=True)
 
     class Meta:
-        table = "audit_log"
+        table = "sys_audit_log"
         indexes = [
             # Create compound indexes to improve query performance.
             ("created_at", "username"),

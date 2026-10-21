@@ -28,3 +28,17 @@ class MethodType(StrEnum):
 
 
 
+
+
+class DataScope(StrEnum):
+    """
+    角色数据范围（一期仅 SELF/ALL 生效；DEPARTMENT/ORG 登记预留）
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-09-26 12:50:00  # 北京时间 UTC+8
+    """
+
+    SELF = "SELF"
+    DEPARTMENT = "DEPARTMENT"
+    ORG = "ORG"
+    ALL = "ALL"

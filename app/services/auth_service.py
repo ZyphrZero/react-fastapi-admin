@@ -7,6 +7,7 @@ import jwt
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.navigation import get_system_menu_tree
 from app.core.overview import get_platform_overview
+from app.core.user_cache import invalidate_user_cache
 from app.models.admin import User
 from app.repositories import api_repository, role_repository, user_repository
 from app.schemas.login import CredentialsSchema, JWTOut
@@ -111,19 +112,25 @@ class AuthService:
         return await get_platform_overview()
 
     async def update_current_user_password(self, current_user: User, payload: UpdatePassword) -> None:
-        if not verify_password(payload.old_password, current_user.password):
+        # 缓存实例不含口令散列，改密前必须回库重取
+        user = await user_repository.get(current_user.id)
+        if not user:
+            raise AuthenticationError("用户不存在或已被删除")
+
+        if not verify_password(payload.old_password, user.password):
             raise ValidationError("旧密码验证错误")
-        if verify_password(payload.new_password, current_user.password):
+        if verify_password(payload.new_password, user.password):
             raise ValidationError("新密码不能与当前密码相同")
 
         is_valid, message = validate_password_strength(payload.new_password)
         if not is_valid:
             raise ValidationError(f"密码强度不足: {message}")
 
-        current_user.password = get_password_hash(payload.new_password)
-        current_user.session_version += 1
-        current_user.refresh_token_jti = None
-        await current_user.save(update_fields=["password", "session_version", "refresh_token_jti", "updated_at"])
+        user.password = get_password_hash(payload.new_password)
+        user.session_version += 1
+        user.refresh_token_jti = None
+        await user.save(update_fields=["password", "session_version", "refresh_token_jti", "updated_at"])
+        await invalidate_user_cache(user.id)
 
     async def update_current_user_profile(self, current_user: User, payload: ProfileUpdate) -> None:
         if payload.email and payload.email != current_user.email:
@@ -145,11 +152,13 @@ class AuthService:
             setattr(current_user, key, value)
 
         await current_user.save()
+        await invalidate_user_cache(current_user.id)
 
     async def logout(self, current_user: User) -> None:
         current_user.session_version += 1
         current_user.refresh_token_jti = None
         await current_user.save(update_fields=["session_version", "refresh_token_jti", "updated_at"])
+        await invalidate_user_cache(current_user.id)
 
 
 auth_service = AuthService()

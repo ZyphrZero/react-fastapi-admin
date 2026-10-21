@@ -6,11 +6,30 @@ from fastapi import Depends, Query, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from tortoise.expressions import F
 
+from app.core.ctx import CTX_USER_ID, CTX_USER_NAME
 from app.core.exceptions import AuthenticationError, AuthorizationError, RateLimitError
+from app.core.user_cache import load_authed_user
 from app.models import RateLimitBucket, User
 from app.repositories import api_repository, role_repository, user_repository
 from app.settings import settings
 from app.utils.jwt_utils import decode_token
+
+
+def bind_user_context(user: User) -> None:
+    """
+    认证成功后将用户身份写入 contextvars（供日志/审计/后台任务无感取用）。
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-10-19 21:30:00  # 北京时间 UTC+8
+
+    Args:
+        user: 已认证用户
+
+    Returns:
+        None
+    """
+    CTX_USER_ID.set(user.id)
+    CTX_USER_NAME.set(user.username)
 
 
 class AuthControl:
@@ -168,7 +187,8 @@ class AuthControl:
             user_id = int(payload["user_id"])
             session_version = int(payload["session_version"])
 
-            user = await user_repository.get(user_id)
+            # REDIS_ENABLED 时走缓存（载荷无口令），否则实时查库；Redis 故障自动回退
+            user = await load_authed_user(user_id)
             if not user:
                 raise AuthenticationError("用户不存在或已被删除")
             if not user.is_active:
@@ -178,6 +198,7 @@ class AuthControl:
 
             await cls.enforce_rate_limit(f"{client_ip}:{user_id}")
             request.state.current_user = user
+            bind_user_context(user)
             return user
 
         except (AuthenticationError, AuthorizationError, RateLimitError):

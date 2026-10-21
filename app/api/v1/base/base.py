@@ -3,12 +3,12 @@ from pydantic import ValidationError as PydanticValidationError
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.core.dependency import AuthControl, CurrentUser
-from app.core.exceptions import AuthenticationError, ValidationError
+from app.core.exceptions import AuthenticationError, CustomHTTPException, ValidationError
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema
 from app.schemas.users import ProfileUpdate, UpdatePassword
 from app.settings import settings
-from app.services import auth_service
+from app.services import auth_service, health_service
 from app.services.upload_service import upload_service
 from app.utils.password import get_password_policy
 
@@ -174,3 +174,20 @@ async def logout(response: Response, current_user: CurrentUser):
     await auth_service.logout(current_user)
     clear_refresh_token_cookie(response)
     return Success(msg="注销成功")
+
+
+@router.get("/health/deps", summary="依赖健康检查", openapi_extra={"skip_api_catalog": True})
+async def get_health_deps():
+    """
+    依赖健康探测（免登录；任一已启用依赖 err 返回 503，被开关关闭的项报 skip）
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-09-26 09:44:00  # 北京时间 UTC+8
+
+    Returns:
+        Success: {db/redis/minio: "ok"|"err"|"skip"}
+    """
+    deps = await health_service.collect_deps_health()
+    if "err" in deps.values():
+        raise CustomHTTPException(status_code=503, detail="部分依赖不可用", data=deps)
+    return Success(data=deps)

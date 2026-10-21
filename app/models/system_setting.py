@@ -9,4 +9,4 @@ class SystemSetting(BaseModel, TimestampMixin):
     description = fields.CharField(max_length=255, null=True, description="配置说明")
 
     class Meta:
-        table = "system_setting"
+        table = "sys_system_setting"

@@ -7,18 +7,29 @@ dependencies = [
     "aerich==0.9.2",
     "aiosqlite==0.22.1",
     "bcrypt==5.0.0",
+    "celery==5.6.3",
+    # MySQL 8 默认认证插件 caching_sha2_password：aiomysql/pymysql 非 TLS 连接需 RSA 加密密码，依赖 cryptography
+    # （本地 MySQL 同名账号为 mysql_native_password 旧插件故从未触发；容器 8.4 自动建号走新插件即暴露）
+    "cryptography==50.0.1",
     "email-validator==2.3.0",
     "fastapi==0.135.1",
     "granian[reload]==2.7.2",
+    "httpx==0.28.1",
+    "kombu==5.6.2",
     "loguru==0.7.3",
+    "minio==7.2.20",
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
     "pytest==8.3.5",
     "pyjwt==2.12.1",
     "python-dotenv==1.2.2",
     "python-multipart==0.0.22",
+    "redis==8.1.0",
     "starlette==0.52.1",
-    "tortoise-orm==0.25.4",
+    # aiomysql 驱动：asyncmy 0.2.12+ 的 zero-copy 接收路径读大行（单值 >384KB）触发 BufferError
+    # "Existing exports of data"（包装为 2013 掉线，0.2.15/0.2.16 均复现、上游无修复）；
+    # Tortoise mysql backend 对 asyncmy/aiomysql 同一封装，此处直接切换为 aiomysql extra
+    "tortoise-orm[aiomysql]==0.25.4",
     "pillow==11.1.0",
 ]
 
@@ -28,6 +39,14 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    # 代码风格三件套（配置节见下 [tool.black]/[tool.ruff]/[tool.isort]）
+    "black==26.5.1",
+    "ruff==0.16.9",
+    "isort==9.0.1",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
@@ -41,12 +60,24 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-extend-select = []
-ignore = ["F403", "F405"]
+# 规则集显式固定：选型以「存量代码零告警」为基线，固定为 ruff 经典默认集 E4/E7/E9/F——
+# ruff 0.16 起默认集扩张（UP/BLE/I/RUF/DTZ/SIM 等），新规则带大量存量告警，
+# 按需另行启用，不随工具升级隐式扩张。
+select = ["E4", "E7", "E9", "F"]
+# UP009：保留 UTF-8 编码声明行（用户全局 Python 注释规则，优先于 ruff 自动清理）
+ignore = ["F403", "F405", "UP009"]
 
 [tool.isort]
 profile = "black"
 line_length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+pythonpath = ["."]
+markers = [
+    "integration: 需要本机 MySQL/MinIO/Redis 的集成测试（uv run pytest -m integration 显式执行）",
+]
+addopts = "-m 'not integration'"
 
 [tool.aerich]
 tortoise_orm = "app.settings.TORTOISE_ORM"

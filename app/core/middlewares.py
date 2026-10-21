@@ -1,5 +1,6 @@
 import json
 import re
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -10,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.core.ctx import CTX_REQUEST_ID
 from app.models.admin import AuditLog
 from app.repositories.api_repository import ApiRepository
 
@@ -366,4 +368,23 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         end_time = datetime.now()
         process_time = int((end_time.timestamp() - start_time.timestamp()) * 1000)
         await self.after_request(request, response, process_time)
+        return response
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """
+    请求 trace_id 中间件：读 X-Request-Id 或生成 uuid4().hex[:16]，contextvar 透传并回写响应头
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-09-24 15:31:00  # 北京时间 UTC+8
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:16]
+        token = CTX_REQUEST_ID.set(request_id)
+        try:
+            response = await call_next(request)
+        finally:
+            CTX_REQUEST_ID.reset(token)
+        response.headers["X-Request-Id"] = request_id
         return response

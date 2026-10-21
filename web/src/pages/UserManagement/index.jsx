@@ -813,12 +813,8 @@ const UserManagement = () => {
       </section>
 
       <Card>
-        <CardHeader>
-          <CardTitle>筛选条件</CardTitle>
-          <CardDescription>按用户名和昵称筛选用户</CardDescription>
-        </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={handleSearch}>
+          <form onSubmit={handleSearch}>
             <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_auto] xl:items-end">
               <Field>
                 <FieldLabel htmlFor="user-search-username">用户名</FieldLabel>
@@ -838,26 +834,22 @@ const UserManagement = () => {
                   onChange={(event) => setSearchValues((current) => ({ ...current, nickname: event.target.value }))}
                 />
               </Field>
+              <div className="flex gap-2">
+                <Button type="submit" variant="outline" disabled={loading}>
+                  <SearchIcon data-icon="inline-start" />
+                  搜索
+                </Button>
+                <Button type="button" variant="outline" onClick={handleClearSearch}>
+                  <XIcon data-icon="inline-start" />
+                  清空
+                </Button>
+              </div>
             </FieldGroup>
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" variant="outline" disabled={loading}>
-                <SearchIcon data-icon="inline-start" />
-                搜索
-              </Button>
-              <Button type="button" variant="outline" onClick={handleClearSearch}>
-                <XIcon data-icon="inline-start" />
-                清空
-              </Button>
-            </div>
           </form>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>用户列表</CardTitle>
-          <CardDescription>共 {total} 条记录</CardDescription>
-        </CardHeader>
         <CardContent className="flex flex-col gap-4">{renderTableContent()}</CardContent>
       </Card>
 

@@ -355,10 +355,6 @@ const RoleManagement = () => {
       </section>
 
       <Card>
-        <CardHeader>
-          <CardTitle>筛选条件</CardTitle>
-          <CardDescription>按角色名称筛选</CardDescription>
-        </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-3 md:flex-row md:items-end" onSubmit={handleSearch}>
             <div className="w-full md:w-72">
@@ -379,10 +375,6 @@ const RoleManagement = () => {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>角色列表</CardTitle>
-          <CardDescription>共 {total} 条记录</CardDescription>
-        </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {roles.length > 0 ? (
             <>

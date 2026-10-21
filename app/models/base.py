@@ -179,10 +179,32 @@ class UUIDModel:
 class SoftDeleteMixin:
     """Mixin that adds soft-delete support."""
 
-    is_deleted = fields.BooleanField(default=False, description="是否已删除")
+    is_deleted = fields.BooleanField(default=False, db_index=True, description="是否已删除")
     deleted_at = fields.DatetimeField(null=True, description="删除时间")
 
     def soft_delete(self):
         """Mark the record as soft-deleted."""
         self.is_deleted = True
-        self.deleted_at = datetime.now()
+        # astimezone() 生成带时区本地时间，配合 use_tz=False + timezone 配置统一存储时区，避免机器时区漂移
+        self.deleted_at = datetime.now().astimezone()
+
+
+class BusinessModel(models.Model):
+    """
+    业务表基类：CHAR(32) UUID 主键（应用层生成）+ 时间戳 + 创建人快照
+
+    Author  ：bixuejun(bxjgood@163.com)
+    Date    ：2026-09-24 23:37:20  # 北京时间 UTC+8
+    """
+
+    id = fields.CharField(
+        primary_key=True, max_length=32, description="主键（uuid4.hex，应用层生成）"
+    )
+    created_at = fields.DatetimeField(auto_now_add=True, description="创建时间")
+    updated_at = fields.DatetimeField(auto_now=True, description="更新时间")
+
+    created_by_name = fields.CharField(max_length=100, null=True, description="创建人名称")
+    created_by_id = fields.CharField(max_length=36, null=True, description="创建人ID", db_index=True)
+
+    class Meta:
+        abstract = True

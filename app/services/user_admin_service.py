@@ -6,6 +6,7 @@ from tortoise.expressions import Q
 
 from app.core.transactions import managed_transaction
 from app.core.exceptions import AuthenticationError, ValidationError
+from app.core.user_cache import invalidate_user_cache
 from app.models import User
 from app.repositories import role_repository, user_repository
 from app.schemas.users import ResetPasswordRequest, UserCreate, UserUpdate
@@ -134,6 +135,8 @@ class UserAdminService:
             if user_in.role_ids is not None:
                 await user_repository.assign_roles(user, user_in.role_ids)
 
+        await invalidate_user_cache(user_in.id)
+
     async def delete_user(self, *, user_id: int, actor: User) -> None:
         if actor.id == user_id:
             raise ValidationError("不能删除自己的账户")
@@ -151,6 +154,8 @@ class UserAdminService:
 
         async with managed_transaction():
             await user_repository.remove(user_id)
+
+        await invalidate_user_cache(user_id)
 
     async def reset_user_password(self, payload: ResetPasswordRequest, *, actor: User) -> None:
         user_obj = await user_repository.get(payload.user_id)
@@ -172,6 +177,8 @@ class UserAdminService:
             user_obj.session_version += 1
             user_obj.refresh_token_jti = None
             await user_obj.save()
+
+        await invalidate_user_cache(payload.user_id)
 
 
 user_admin_service = UserAdminService()

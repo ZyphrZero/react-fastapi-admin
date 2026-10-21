@@ -1,5 +1,17 @@
 import request from '@/utils/request'
 
+// 动作幂等 ID（32 位十六进制，uuid4().hex 形态）。
+// 注意：crypto.randomUUID 仅安全上下文可用（https/localhost），裸 HTTP 部署
+// 必须以 getRandomValues 兜底，否则线上直接 TypeError。
+const generateRequestId = () => {
+    if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID().replaceAll('-', '')
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export { generateRequestId }
+
 export default {
     // Authentication APIs.
     auth: {

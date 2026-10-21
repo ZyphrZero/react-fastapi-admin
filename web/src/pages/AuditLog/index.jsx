@@ -882,13 +882,9 @@ const AuditLog = () => {
       </section>
 
       <Card>
-        <CardHeader>
-          <CardTitle>筛选条件</CardTitle>
-          <CardDescription>按操作人、模块、接口、状态和时间范围筛选日志</CardDescription>
-        </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={handleSearch}>
-            <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_18rem] xl:items-end">
+          <form onSubmit={handleSearch}>
+            <FieldGroup className="grid gap-3 md:grid-cols-2 xl:grid-cols-[18rem_18rem_18rem_18rem_auto] xl:items-end">
               <Field>
                 <FieldLabel htmlFor="audit-username">操作人</FieldLabel>
                 <Input
@@ -1008,46 +1004,39 @@ const AuditLog = () => {
                   placeholder="选择结束时间"
                 />
               </Field>
+              <div className="flex gap-2">
+                <Button type="submit" variant="outline" disabled={loading}>
+                  <SearchIcon data-icon="inline-start" />
+                  搜索
+                </Button>
+                <Button type="button" variant="outline" onClick={handleClearSearch}>
+                  <XIcon data-icon="inline-start" />
+                  清空
+                </Button>
+              </div>
             </FieldGroup>
-
-            <div className="flex flex-wrap gap-2 xl:col-span-2 xl:items-end">
-              <Button type="submit" variant="outline" disabled={loading}>
-                <SearchIcon data-icon="inline-start" />
-                搜索
-              </Button>
-              <Button type="button" variant="outline" onClick={handleClearSearch}>
-                <XIcon data-icon="inline-start" />
-                清空
-              </Button>
-            </div>
           </form>
         </CardContent>
       </Card>
 
       <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>审计记录</CardTitle>
-              <CardDescription>第 {currentPage} 页，本页 {auditLogs.length} 条，共 {total} 条</CardDescription>
+        {isSuperuser ? (
+          <CardHeader>
+            <div className="flex items-center justify-end gap-2">
+              {selectedRowKeys.length > 0 ? (
+                <span className="text-sm text-muted-foreground">已选择 {selectedRowKeys.length} 条</span>
+              ) : null}
+              <Button
+                variant="destructive"
+                disabled={!selectedRowKeys.length}
+                onClick={() => setBatchDeleteVisible(true)}
+              >
+                <Trash2Icon data-icon="inline-start" />
+                批量删除
+              </Button>
             </div>
-            {isSuperuser ? (
-              <div className="flex items-center gap-2">
-                {selectedRowKeys.length > 0 ? (
-                  <span className="text-sm text-muted-foreground">已选择 {selectedRowKeys.length} 条</span>
-                ) : null}
-                <Button
-                  variant="destructive"
-                  disabled={!selectedRowKeys.length}
-                  onClick={() => setBatchDeleteVisible(true)}
-                >
-                  <Trash2Icon data-icon="inline-start" />
-                  批量删除
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </CardHeader>
+          </CardHeader>
+        ) : null}
         <CardContent className="flex min-h-0 flex-col gap-4">{renderAuditTable()}</CardContent>
       </Card>
 

@@ -19,7 +19,6 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:9999', // Use 127.0.0.1 to avoid IPv6 issues.
         changeOrigin: true,
-        rewrite: (urlPath) => urlPath.replace(/^\/api/, '/api/v1'),
       },
       '/static': {
         target: 'http://127.0.0.1:9999',

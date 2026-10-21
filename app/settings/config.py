@@ -1,4 +1,5 @@
 import secrets
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
@@ -110,6 +111,8 @@ class Settings(BaseSettings):
     DB_USERNAME: str = Field(default="root", description="数据库用户名")
     DB_PASSWORD: str = Field(default="", description="数据库密码")
     DB_DATABASE: str = Field(default="fastapi_admin", description="数据库名称")
+    DB_DATABASE_SCHEMA: str = Field(default="public", description="数据库模式名")
+    DB_CHARSET: str = Field(default="utf8mb4", description="数据库字符集")
 
     # Redis 配置
     REDIS_ENABLED: bool = Field(default=False, description="是否启用 Redis")
@@ -119,8 +122,51 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = Field(default="123456", description="Redis 密码")
     REDIS_PREFIX: str = Field(default="react-fastapi:", description="Redis 前缀")
 
+    # 认证用户缓存 TTL（秒；REDIS_ENABLED=true 时 is_authed 以此缓存用户信息，超时回库）
+    AUTH_USER_CACHE_TTL: int = Field(default=600, description="认证用户缓存 TTL（秒），REDIS_ENABLED 时生效")
+
     # Date and time formatting.
     DATETIME_FORMAT: str = Field(default="%Y-%m-%d %H:%M:%S", description="日期时间格式")
+
+    # Celery 配置
+    # 是否随后端进程内嵌启动 Celery worker 与 beat（开发环境便利开关，默认关闭；生产环境应使用独立容器，保持 false）
+    CELERY_AUTOSTART: bool = Field(default=False, description="是否随后端进程内嵌启动 Celery worker 与 beat")
+    # Celery worker 并发数（Linux/prefork 池下生效；Windows solo 池为单执行槽，该值不生效）
+    CELERY_WORKER_CONCURRENCY: int = Field(default=4, description="Celery worker 并发数")
+    # 启用的 Celery 队列列表（逗号分隔，default 兜底）
+    CELERY_QUEUES: str = Field(default="default", description="启用的 Celery 队列列表（逗号分隔）")
+
+    # MinIO 对象存储配置
+    MINIO_ENABLED: bool = Field(default=False, description="是否启用 MinIO 对象存储")
+    MINIO_ENDPOINT: str = Field(default="localhost:9000", description="MinIO 主机")
+    MINIO_ACCESS_KEY: str = Field(default="minio", description="MinIO 访问密钥")
+    MINIO_SECRET_KEY: str = Field(default="minio123", description="MinIO 访问密钥")
+    MINIO_BUCKET_NAME: str = Field(default="app", description="MinIO 默认存储桶名称")
+    MINIO_BUCKET_TMP: str = Field(default="app-tmp", description="MinIO 临时对象桶（按保留期回收）")
+    MINIO_SECURE: bool = Field(default=False, description="MinIO 是否使用 HTTPS")
+    MINIO_URL_EXPIRES: int = Field(default=300, description="预签名 URL 有效期（秒）")
+    MINIO_CONNECTION_TIMEOUT: float = Field(
+        default=5.0, description="MinIO 客户端连接超时（秒；不可达时快速失败，防长挂后裸 500）"
+    )
+    # app-tmp 临时对象保留期（小时），超期由回收任务删除
+    TMP_RETAIN_HOURS: int = Field(default=48, description="临时对象保留期（小时），超期由回收任务删除")
+
+    # ==============================================
+    # LLM 服务配置（OpenAI 兼容客户端）
+    # ==============================================
+    LLM_API_ENABLED: bool = Field(default=True, description="是否启用LLM服务")
+    LLM_API_KEY: str = Field(default="", description="LLM服务API Key")
+    LLM_API_BASE_URL: str = Field(default="https://api.deepseek.com/v1", description="LLM服务Base URL")
+    LLM_DEFAULT_MODEL: str = Field(default="deepseek-chat", description="默认LLM模型")
+    LLM_REQUEST_TIMEOUT: int = Field(default=600, description="LLM请求超时时间(秒)")
+    LLM_MAX_TOKENS: int = Field(default=4096, description="LLM 最大输出 token 数")
+    # 思考模式等私有参数各家 key 不同，按服务商分发：qwen 走顶层 enable_thinking，
+    # vllm 走 chat_template_kwargs（Qwen3 chat template 的 Jinja 变量），其余不注入
+    LLM_PROVIDER: str = Field(default="qwen", description="LLM 服务商：qwen|vllm|openai|deepseek")
+    LLM_ENABLE_THINKING: bool = Field(default=False, description="LLM 是否启用思考模式")
+    # qwen 服务商私有参数（llm_client 按 LLM_PROVIDER 分发注入；源仓库缺定义的补齐键）
+    LLM_PRESERVE_THINKING: bool = Field(default=False, description="qwen 思考内容是否随响应保留")
+    LLM_TOOL_CHOICE: str = Field(default="none", description="qwen 工具选择策略（DashScope 约定 none）")
 
     @field_validator(
         "APP_ENV",
@@ -177,6 +223,24 @@ class Settings(BaseSettings):
         if self.TRUST_PROXY_HEADERS and not self.trusted_proxy_ips:
             raise ValueError("启用 TRUST_PROXY_HEADERS 时必须显式配置 TRUSTED_PROXY_IPS")
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_database_settings(self) -> "Settings":
+        """
+        数据库配置校验
+
+        Author  ：bixuejun(bxjgood@163.com)
+        Date    ：2026-09-24 22:09:17  # 北京时间 UTC+8
+
+        Returns:
+            Settings: 校验通过的实例
+
+        Raises:
+            ValueError: DB_CONNECTION=mysql 而 DB_CHARSET 非 utf8mb4 时
+        """
+        if self.DB_CONNECTION == "mysql" and self.DB_CHARSET != "utf8mb4":
+            raise ValueError(f"DB_CONNECTION=mysql 时 DB_CHARSET 必须为 utf8mb4（当前: {self.DB_CHARSET}）")
         return self
 
     @computed_field
@@ -317,6 +381,7 @@ class Settings(BaseSettings):
                     "user": self.DB_USERNAME,
                     "password": self.DB_PASSWORD,
                     "database": self.DB_DATABASE,
+                    "charset": self.DB_CHARSET,
                 },
             }
         elif self.DB_CONNECTION == "postgres":
@@ -328,6 +393,7 @@ class Settings(BaseSettings):
                     "user": self.DB_USERNAME,
                     "password": self.DB_PASSWORD,
                     "database": self.DB_DATABASE,
+                    "schema": self.DB_DATABASE_SCHEMA if self.DB_DATABASE_SCHEMA else "public",
                 },
             }
 
@@ -338,6 +404,33 @@ class Settings(BaseSettings):
         # Ensure the log directory exists. This is required.
         self.logs_path.mkdir(parents=True, exist_ok=True)
         # Note: the storage directory is created only when it is actually needed, not during startup.
+
+    @property
+    def celery_queues(self) -> List[str]:
+        """解析 CELERY_QUEUES 逗号分隔配置为有序去重队列名列表（含 default 兜底）。"""
+        queues = list(dict.fromkeys(q.strip() for q in self.CELERY_QUEUES.split(",") if q.strip()))
+        if "default" not in queues:
+            queues.insert(0, "default")
+        return queues
+
+    @property
+    def common_redis_config(self) -> dict:
+        """
+        通用 Redis 客户端配置（app/utils/redis_utils.py::get_common_redis_client 默认参数求值用）
+
+        Author  ：bixuejun(bxjgood@163.com)
+        Date    ：2026-09-26 00:30:44  # 北京时间 UTC+8
+
+        Returns:
+            dict: CustomRedisClient 构造配置（host/port/db/password/prefix）
+        """
+        return {
+            "host": self.REDIS_HOST,
+            "port": self.REDIS_PORT,
+            "db": self.REDIS_DB,
+            "password": self.REDIS_PASSWORD,
+            "prefix": self.REDIS_PREFIX,
+        }
 
     def get_database_url(self) -> str:
         """Return the database connection URL."""
@@ -354,6 +447,12 @@ class Settings(BaseSettings):
 
     def __repr__(self) -> str:
         return f"<Settings env={self.APP_ENV} debug={self.DEBUG} db={self.DB_CONNECTION}>"
+
+
+# 开启缓存
+@lru_cache
+def get_settings():
+    return Settings()
 
 
 # Global settings instance.

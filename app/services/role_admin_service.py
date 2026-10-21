@@ -11,7 +11,7 @@ from app.core.transactions import managed_transaction
 from app.core.exceptions import ValidationError
 from app.models import User
 from app.repositories import api_repository, role_repository
-from app.schemas.roles import RoleCreate, RoleUpdate
+from app.schemas.roles import ALLOWED_DATA_SCOPES, RoleCreate, RoleUpdate
 from app.services.admin_permission_service import admin_permission_service
 
 
@@ -76,9 +76,34 @@ class RoleAdminService:
 
         return normalized_menu_paths, normalized_api_ids
 
+    @staticmethod
+    def _normalize_data_scope(data_scope: str | None) -> str:
+        """
+        校验并规范化数据范围（一期仅 SELF/ALL 生效）
+
+        Author  ：bixuejun(bxjgood@163.com)
+        Date    ：2026-09-26 12:44:32  # 北京时间 UTC+8
+
+        Args:
+            data_scope: 前端提交的数据范围
+
+        Returns:
+            str: 规范化后的数据范围值
+
+        Raises:
+            ValidationError: 取值不在一期白名单（SELF/ALL）内时
+        """
+        if data_scope is None:
+            return ALLOWED_DATA_SCOPES[0]
+        normalized = str(data_scope).strip().upper()
+        if normalized not in ALLOWED_DATA_SCOPES:
+            raise ValidationError(f"数据范围仅支持: {', '.join(ALLOWED_DATA_SCOPES)}")
+        return normalized
+
     async def create_role(self, role_in: RoleCreate, *, actor: User) -> None:
         if await role_repository.exists_by_name(role_in.name):
             raise ValidationError("该角色名称已存在")
+        data_scope = self._normalize_data_scope(role_in.data_scope)
         menu_paths, api_ids = await self._normalize_role_permissions(
             menu_paths=role_in.menu_paths,
             api_ids=role_in.api_ids,
@@ -95,6 +120,7 @@ class RoleAdminService:
                     "desc": role_in.desc,
                     "menu_paths": menu_paths,
                     "api_ids": api_ids,
+                    "data_scope": data_scope,
                 }
             )
 
@@ -104,6 +130,8 @@ class RoleAdminService:
             raise ValidationError("该角色名称已存在")
 
         update_data = role_in.model_dump(exclude_unset=True, exclude={"id"})
+        if "data_scope" in update_data:
+            update_data["data_scope"] = self._normalize_data_scope(update_data["data_scope"])
         if "menu_paths" in update_data or "api_ids" in update_data:
             menu_paths, api_ids = await self._normalize_role_permissions(
                 menu_paths=update_data.get("menu_paths", current_role.menu_paths),

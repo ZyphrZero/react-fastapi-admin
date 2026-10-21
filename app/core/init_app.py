@@ -7,11 +7,13 @@ from app.core.exceptions import exception_handlers
 from app.settings.config import settings
 from app.utils.log_control import AccessLogMiddleware
 
-from .middlewares import BackGroundTaskMiddleware, DatabaseContextMiddleware, HttpAuditLogMiddleware
+from .middlewares import BackGroundTaskMiddleware, DatabaseContextMiddleware, HttpAuditLogMiddleware, RequestIdMiddleware
 
 
 def make_middlewares() -> list[Middleware]:
     middleware = [
+        # Starlette 中间件列表顺序 = 由外到内：RequestId 放最外层，保证所有中间件/日志可见
+        Middleware(RequestIdMiddleware),
         Middleware(DatabaseContextMiddleware),
         Middleware(
             CORSMiddleware,

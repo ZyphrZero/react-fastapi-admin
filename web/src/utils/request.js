@@ -4,7 +4,7 @@ import { clearSession, getAccessToken, hasRefreshSession, markRefreshSession, se
 
 // Create the Axios client.
 const request = axios.create({
-    baseURL: '/api', // Base API path.
+    baseURL: '/api/v1', // Base API path（后端真实前缀，各环境不再做隐式改写）.
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
@@ -12,7 +12,7 @@ const request = axios.create({
 })
 
 const refreshClient = axios.create({
-    baseURL: '/api',
+    baseURL: '/api/v1',
     timeout: 10000,
     withCredentials: true,
     headers: {

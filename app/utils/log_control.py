@@ -14,6 +14,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from loguru import logger
 
+from app.core.ctx import CTX_REQUEST_ID, CTX_TASK_RUN_ID
 from app.settings import settings
 
 
@@ -78,6 +79,14 @@ class LogManager:
         # Remove the default handlers.
         logger.remove()
 
+        # Inject request_id / task_run_id from contextvars into every log record.
+        def _context_patcher(record):
+            """从 contextvars 注入 request_id / task_run_id（业务代码无感）。"""
+            record["extra"].setdefault("request_id", CTX_REQUEST_ID.get() or "-")
+            record["extra"].setdefault("task_run_id", CTX_TASK_RUN_ID.get() or "-")
+
+        logger.configure(patcher=_context_patcher)
+
         # Compute the effective log level.
         log_level = "DEBUG" if config["debug_mode"] else "INFO"
 
@@ -94,11 +103,15 @@ class LogManager:
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
             "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+            "[<magenta>{extra[request_id]}</magenta>] "
             "<level>{message}</level>"
         )
 
         # File output settings.
-        file_format = "{time:YYYY-MM-DD HH:mm:ss} | " "{level: <8} | " "{name}:{function}:{line} | " "{message}"
+        file_format = (
+            "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | "
+            "[{extra[request_id]}] [{extra[task_run_id]}] {message}"
+        )
 
         # Add console logging.
         logger.add(
